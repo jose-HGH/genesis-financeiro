@@ -3,6 +3,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.0/dist/umd/supabase.js"></script>
 <style>
   /* Layout: top bar + stacked full-width cards (KPIs, cash flow, two chart rows, ledger, form, backup) in a single scrolling column, max-width centered */
   :root{
@@ -267,6 +268,18 @@
   .btn-ghost{background:var(--surface-alt); color:var(--ink-2); border-color:var(--border-strong);}
   .btn-ghost:hover{background:var(--border);}
 
+  /* ---------- Auth (Supabase) ---------- */
+  .auth-tabs{display:flex; gap:6px; margin-bottom:12px;}
+  .auth-tab{font-size:13px; font-weight:600; padding:7px 14px; border-radius:8px; border:1px solid var(--border-strong); background:var(--surface-alt); color:var(--ink-2); cursor:pointer;}
+  .auth-tab.active{background:var(--brand-wash); color:var(--brand-dark); border-color:var(--brand);}
+  .auth-form{display:flex; gap:10px; flex-wrap:wrap;}
+  .auth-form input{flex:1; min-width:160px; font-family:var(--font-ui); font-size:13px; padding:10px 12px; border-radius:9px; border:1px solid var(--border-strong); background:var(--surface);}
+  .auth-form .btn{flex:none;}
+  .auth-status{margin-top:10px; font-size:12.5px; color:var(--ink-2); min-height:1em;}
+  .auth-status.error{color:var(--critical-text);}
+  .auth-status.good{color:var(--good-text);}
+  .auth-logged-row{display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; font-size:13.5px;}
+
   /* ---------- statement import ---------- */
   .import-intro{font-size:13px; color:var(--ink-2); line-height:1.5; margin-bottom:14px; max-width:62ch;}
   .dropzone{border:1.5px dashed var(--border-strong); border-radius:14px; padding:22px; display:flex; flex-direction:column; align-items:center; gap:8px; text-align:center; background:var(--surface-alt); cursor:pointer; transition:border-color .15s ease, background .15s ease;}
@@ -348,6 +361,31 @@
   </div>
 
   <section id="alertBanner"></section>
+
+  <section class="card" id="authCard">
+    <div class="card-head">
+      <h2>Conta na nuvem</h2>
+      <span class="hint" id="authHint">Entre para guardar seus lançamentos na nuvem e acessar de qualquer aparelho.</span>
+    </div>
+    <div id="authLoggedOut">
+      <div class="auth-tabs" role="tablist">
+        <button type="button" class="auth-tab active" data-mode="login">Entrar</button>
+        <button type="button" class="auth-tab" data-mode="signup">Criar conta</button>
+      </div>
+      <form id="authForm" class="auth-form">
+        <input type="email" id="authEmail" placeholder="seu@email.com" required autocomplete="email">
+        <input type="password" id="authPassword" placeholder="senha (mín. 6 caracteres)" required minlength="6" autocomplete="current-password">
+        <button type="submit" class="btn btn-primary" id="authSubmitBtn">Entrar</button>
+      </form>
+      <div class="auth-status" id="authStatus"></div>
+    </div>
+    <div id="authLoggedIn" hidden>
+      <div class="auth-logged-row">
+        <span>Conectado como <strong id="authEmailLabel"></strong></span>
+        <button type="button" class="btn btn-ghost" id="btnSignOut">Sair</button>
+      </div>
+    </div>
+  </section>
 
   <section class="kpi-row" id="kpiRow">
     <div class="kpi"><div class="skel" style="height:54px;"></div></div>
@@ -689,7 +727,6 @@
   var FALLBACK_SEED = buildExampleSeed();
 
   var state = { transactions: [], mode: "loading", uid: null, col: null, budgets: {}, patrimonio: {investido:0, reserva:0} };
-  var cloudRetried = false;
   var listeners = [];
   function onChange(fn){ listeners.push(fn); }
   function emitChange(){ listeners.forEach(function(fn){ fn(); }); }
@@ -736,6 +773,116 @@
     return d;
   }
 
+  // ---------- Supabase-backed cloud storage ----------
+  // Project URL/anon key are meant to be embedded client-side (Supabase's own
+  // design) — real protection comes from the Row Level Security policies on
+  // each table, not from hiding this key.
+  var SUPABASE_URL = "https://aclqdyfargqepqdvjixf.supabase.co";
+  var SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFjbHFkeWZhcmdxZXBxZHZqaXhmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI1Mjc1NDMsImV4cCI6MjEwODEwMzU0M30.AC7EPBDEt1DLmsDBfG_oKu_zLqsdUa0UsMeP4ZO8VHM";
+  var sb = (typeof window.supabase !== "undefined")
+    ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+    : null;
+
+  var TX_FIELD_MAP = {
+    tipo:"tipo", banco:"banco", modalidade:"modalidade", valor:"valor",
+    dataLanc:"data_lanc", dataEfet:"data_efet", descricao:"descricao", categoria:"categoria",
+    classificacao:"classificacao", recorrencia:"recorrencia", seriesId:"series_id",
+    parcela:"parcela", obs:"obs", autoGenerated:"auto_generated", pagoManual:"pago_manual"
+  };
+  function txToRow(tx, uid){
+    var row = { id: tx.id, user_id: uid };
+    Object.keys(TX_FIELD_MAP).forEach(function(k){
+      if(tx[k] !== undefined) row[TX_FIELD_MAP[k]] = tx[k];
+    });
+    return row;
+  }
+  function patchToRow(patch){
+    var row = {};
+    Object.keys(patch).forEach(function(k){ if(TX_FIELD_MAP[k]) row[TX_FIELD_MAP[k]] = patch[k]; });
+    return row;
+  }
+  function rowToTx(row){
+    var tx = { id: row.id, valor: Number(row.valor) };
+    Object.keys(TX_FIELD_MAP).forEach(function(k){
+      if(k === "valor") return;
+      tx[k] = row[TX_FIELD_MAP[k]];
+    });
+    return tx;
+  }
+  function throwIfError(res){ if(res && res.error) throw res.error; return res; }
+
+  // Mimics just enough of the Firestore-style collection interface
+  // (doc(id).get/set/update/delete, get(), onSnapshot) that the rest of the
+  // dashboard — Store, migrateDefaults, loadBudgets, loadPatrimonio — can stay
+  // exactly as written, whether the backend underneath is Firestore or Supabase.
+  function makeSupabaseCollection(uid){
+    function reservedTable(id){ return id === "__budgets__" ? "budgets" : "patrimonio"; }
+    function reservedToRow(id, payload){
+      return id === "__budgets__"
+        ? { user_id: uid, categorias: payload.categorias }
+        : Object.assign({ user_id: uid }, {
+            investido: payload.investido || 0, reserva: payload.reserva || 0,
+            renda_mensal: payload.rendaMensal || 0, meses: payload.meses || 6
+          });
+    }
+    function reservedFromRow(row){
+      if(!row) return null;
+      return row.categorias !== undefined
+        ? { categorias: row.categorias || {} }
+        : { investido: Number(row.investido)||0, reserva: Number(row.reserva)||0, rendaMensal: Number(row.renda_mensal)||0, meses: row.meses||6 };
+    }
+    return {
+      doc: function(id){
+        return {
+          get: function(){
+            if(isReservedDoc(id)){
+              return sb.from(reservedTable(id)).select("*").eq("user_id", uid).maybeSingle().then(function(res){
+                throwIfError(res);
+                var data = reservedFromRow(res.data);
+                return { exists: !!res.data, data: function(){ return data || {}; } };
+              });
+            }
+            return sb.from("transactions").select("*").eq("user_id", uid).eq("id", id).maybeSingle().then(function(res){
+              throwIfError(res);
+              return { exists: !!res.data, data: function(){ return res.data ? rowToTx(res.data) : {}; } };
+            });
+          },
+          set: function(payload){
+            if(isReservedDoc(id)){
+              return sb.from(reservedTable(id)).upsert(reservedToRow(id, payload), {onConflict:"user_id"}).then(throwIfError);
+            }
+            return sb.from("transactions").upsert(txToRow(Object.assign({id:id}, payload), uid)).then(throwIfError);
+          },
+          update: function(patch){
+            if(isReservedDoc(id)) return Promise.resolve(); // reserved docs only ever use set() in this app
+            return sb.from("transactions").update(patchToRow(patch)).eq("id", id).eq("user_id", uid).then(throwIfError);
+          },
+          delete: function(){
+            return sb.from("transactions").delete().eq("id", id).eq("user_id", uid).then(throwIfError);
+          }
+        };
+      },
+      get: function(){
+        return sb.from("transactions").select("*").eq("user_id", uid).then(function(res){
+          throwIfError(res);
+          return { docs: res.data.map(function(row){ return { id: row.id, data: function(){ return rowToTx(row); } }; }) };
+        });
+      },
+      onSnapshot: function(onNext, onErr){
+        var refetch = function(){
+          sb.from("transactions").select("*").eq("user_id", uid).then(function(res){
+            if(res.error){ onErr && onErr(res.error); return; }
+            onNext({ docs: res.data.map(function(row){ return { id: row.id, data: function(){ return rowToTx(row); } }; }) });
+          });
+        };
+        var channel = sb.channel("tx-"+uid)
+          .on("postgres_changes", {event:"*", schema:"public", table:"transactions", filter:"user_id=eq."+uid}, refetch)
+          .subscribe();
+        return function unsubscribe(){ sb.removeChannel(channel); };
+      }
+    };
+  }
+
   function init(){
     // Always render instantly from local cache/seed first — never leave the
     // page stuck on a loading state while we find out whether cloud sync works.
@@ -756,75 +903,75 @@
     renderAll();
   }
 
+  // On load: if Supabase already has a session (the viewer logged in before,
+  // on this same browser), reconnect to the cloud automatically. Otherwise the
+  // dashboard just stays on local/example data until the viewer signs in —
+  // initLocal() already rendered instantly, so there's nothing to wait on here.
   function tryCloudUpgrade(){
-    var cap = (typeof window.claude === "object" && window.claude && typeof window.claude.use === "function");
-    if(!cap){ setSync("local"); document.getElementById("btnSyncRetry").hidden = true; return; }
+    if(!sb){ setSync("local"); return; }
+    sb.auth.getSession().then(function(res){
+      var session = res.data && res.data.session;
+      if(session){ connectCloud(session); } else { showAuthUI(null); }
+    }).catch(function(err){
+      console.error("Gênesis: falha ao checar sessão", err);
+      showAuthUI(null);
+    });
+  }
 
+  // Shared by "already had a session on reload" and "just logged in/signed up":
+  // points state.col at Supabase, fetches (self-seeding an empty account from
+  // whatever's on screen), and subscribes to live changes.
+  function connectCloud(session){
     setSync("loading");
-
-    // No timeout here on purpose: initLocal() already renders instantly, so a slow
-    // capability negotiation (common right after a fresh publish — fonts, pdf.js and
-    // permissions all need to settle) costs nothing. Abandoning the upgrade after a
-    // fixed cutoff used to silently strand the session on local/fallback data for
-    // the rest of the visit, with the live listener never registered — worse than
-    // just waiting. Every bail-out point below reports a visible reason instead of
-    // failing silently, so a stuck connection is diagnosable from the screen alone.
-    Promise.all([window.claude.use("user"), window.claude.use("db")]).then(function(res){
-      var user = res[0], dbCap = res[1];
-      if(!user){ setSync("local", "sem permissão de usuário"); return; }
-      if(!dbCap){ setSync("local", "sem permissão de banco de dados"); return; }
-      return user.id().then(function(uid){
-        if(!uid){ setSync("local", "visitante não identificado"); return; }
-        var col = dbCap.collection("data/users/" + uid);
-        return col.get().then(function(snap){
-          state.mode = "db"; state.uid = uid; state.col = col;
-          var realDocs = snap.docs.filter(function(d){ return !isReservedDoc(d.id); });
-          if(realDocs.length > 0){
-            state.transactions = realDocs.map(docToTx);
-          } else {
-            // Cloud subtree is empty for this viewer: self-seed it from what's on screen
-            // right now (the local fallback, or anything the viewer already added), so the
-            // account becomes the source of truth from here on instead of staying empty.
-            // Writes with the SAME id already shown on screen — never a fresh auto-id —
-            // so a later edit or delete always lands on the right document.
-            var toSeed = state.transactions.slice();
-            toSeed.forEach(function(tx){
-              tx.id = tx.id || newLocalId();
-              var payload = Object.assign({}, tx); delete payload.id;
-              col.doc(tx.id).set(payload).catch(function(){});
-            });
-          }
-          migrateDefaults();
-          setSync("db");
-          loadBudgets();
-          loadPatrimonio();
-          maybeGenerateRecurring();
-          renderAll();
-          col.onSnapshot(function(liveSnap){
-            state.transactions = liveSnap.docs.filter(function(d){ return !isReservedDoc(d.id); }).map(docToTx);
-            renderAll();
-          }, function(err){
-            console.error("Gênesis: a sincronização ao vivo caiu", err);
-          });
-        }).catch(function(err){
-          console.error("Gênesis: falha ao buscar lançamentos na nuvem", err);
-          var code = err && err.code;
-          if((code === "unavailable" || code === "resource_exhausted") && !cloudRetried){
-            cloudRetried = true;
-            setSync("local", "tentando de novo em instantes — " + code);
-            setTimeout(tryCloudUpgrade, code === "resource_exhausted" ? 6000 : 1500);
-          } else {
-            setSync("local", "erro ao buscar dados — " + (code || "desconhecido"));
-          }
+    var uid = session.user.id;
+    var col = makeSupabaseCollection(uid);
+    col.get().then(function(snap){
+      state.mode = "db"; state.uid = uid; state.col = col;
+      if(snap.docs.length > 0){
+        state.transactions = snap.docs.map(docToTx);
+      } else {
+        var toSeed = state.transactions.slice();
+        toSeed.forEach(function(tx){
+          tx.id = tx.id || newLocalId();
+          var payload = Object.assign({}, tx); delete payload.id;
+          col.doc(tx.id).set(payload).catch(function(){});
         });
-      }).catch(function(err){
-        console.error("Gênesis: falha ao identificar usuário", err);
-        setSync("local", "erro ao identificar usuário");
+      }
+      migrateDefaults();
+      setSync("db");
+      loadBudgets();
+      loadPatrimonio();
+      maybeGenerateRecurring();
+      renderAll();
+      showAuthUI(session);
+      col.onSnapshot(function(liveSnap){
+        state.transactions = liveSnap.docs.map(docToTx);
+        renderAll();
+      }, function(err){
+        console.error("Gênesis: a sincronização ao vivo caiu", err);
       });
     }).catch(function(err){
-      console.error("Gênesis: falha ao obter permissões da plataforma", err);
-      setSync("local", "erro de conexão com a plataforma");
+      console.error("Gênesis: falha ao buscar lançamentos na nuvem", err);
+      setSync("local", "erro ao buscar dados");
+      showAuthUI(session);
     });
+  }
+
+  function showAuthUI(session){
+    var loggedOut = document.getElementById("authLoggedOut");
+    var loggedIn = document.getElementById("authLoggedIn");
+    if(session){
+      loggedOut.hidden = true; loggedIn.hidden = false;
+      document.getElementById("authEmailLabel").textContent = session.user.email;
+    } else {
+      loggedOut.hidden = false; loggedIn.hidden = true;
+    }
+  }
+
+  function setAuthStatus(msg, kind){
+    var el = document.getElementById("authStatus");
+    el.textContent = msg || "";
+    el.className = "auth-status" + (kind ? " "+kind : "");
   }
 
   function newLocalId(salt){
@@ -2102,8 +2249,54 @@
 
   document.getElementById("btnSyncRetry").addEventListener("click", function(){
     toast("Tentando conectar de novo…");
-    cloudRetried = false;
     tryCloudUpgrade();
+  });
+
+  var authMode = "login";
+  document.querySelectorAll(".auth-tab").forEach(function(btn){
+    btn.addEventListener("click", function(){
+      authMode = this.dataset.mode;
+      document.querySelectorAll(".auth-tab").forEach(function(b){ b.classList.toggle("active", b===btn); });
+      document.getElementById("authSubmitBtn").textContent = authMode === "signup" ? "Criar conta" : "Entrar";
+      setAuthStatus("");
+    });
+  });
+
+  document.getElementById("authForm").addEventListener("submit", function(e){
+    e.preventDefault();
+    if(!sb){ setAuthStatus("Conexão com a nuvem indisponível agora.", "error"); return; }
+    var email = document.getElementById("authEmail").value.trim();
+    var password = document.getElementById("authPassword").value;
+    var submitBtn = document.getElementById("authSubmitBtn");
+    submitBtn.disabled = true;
+    setAuthStatus(authMode === "signup" ? "Criando conta…" : "Entrando…");
+    var action = authMode === "signup"
+      ? sb.auth.signUp({email:email, password:password})
+      : sb.auth.signInWithPassword({email:email, password:password});
+    action.then(function(res){
+      submitBtn.disabled = false;
+      if(res.error){ setAuthStatus(res.error.message, "error"); return; }
+      if(authMode === "signup" && !res.data.session){
+        setAuthStatus("Conta criada! Confira seu e-mail para confirmar antes de entrar.", "good");
+        return;
+      }
+      setAuthStatus("");
+      document.getElementById("authForm").reset();
+      connectCloud(res.data.session);
+    }).catch(function(err){
+      submitBtn.disabled = false;
+      setAuthStatus("Erro de conexão: " + err.message, "error");
+    });
+  });
+
+  document.getElementById("btnSignOut").addEventListener("click", function(){
+    if(!sb) return;
+    sb.auth.signOut().then(function(){
+      state.mode = "local"; state.uid = null; state.col = null;
+      showAuthUI(null);
+      initLocal();
+      toast("Você saiu da conta na nuvem.");
+    });
   });
 
   init();
