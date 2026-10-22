@@ -940,7 +940,7 @@
   }
   var FALLBACK_SEED = buildExampleSeed();
 
-  var state = { transactions: [], mode: "loading", uid: null, col: null, budgets: {}, patrimonio: {investido:0, reserva:0} };
+  var state = { transactions: [], mode: "loading", uid: null, col: null, budgets: {}, patrimonio: {investido:0, reserva:0}, seriesWatermark: {} };
   var listeners = [];
   function onChange(fn){ listeners.push(fn); }
   function emitChange(){ listeners.forEach(function(fn){ fn(); }); }
@@ -978,7 +978,18 @@
     }
   }
 
-  var RESERVED_DOC_IDS = ["__budgets__", "__patrimonio__"];
+  var RESERVED_DOC_IDS = ["__budgets__", "__patrimonio__", "__seriesWatermark__"];
+  var WATERMARK_KEY = "genesis-financas-watermark-v1";
+  function loadWatermarkLocal(){
+    try{ return JSON.parse(localStorage.getItem(WATERMARK_KEY)) || {}; }catch(e){ return {}; }
+  }
+  function saveSeriesWatermark(){
+    if(state.mode === "db" && state.col){
+      state.col.doc("__seriesWatermark__").set({data: state.seriesWatermark}).catch(function(){});
+    } else {
+      try{ localStorage.setItem(WATERMARK_KEY, JSON.stringify(state.seriesWatermark)); }catch(e){}
+    }
+  }
   function isReservedDoc(id){ return RESERVED_DOC_IDS.indexOf(id) !== -1; }
 
   function docToTx(doc){
@@ -999,6 +1010,7 @@
     var saved = loadLocal();
     state.transactions = (saved && saved.length) ? saved : FALLBACK_SEED.slice();
     if(!saved){ saveLocal(); }
+    state.seriesWatermark = loadWatermarkLocal();
     migrateDefaults();
     setSync("local");
     loadBudgets();
@@ -1049,21 +1061,28 @@
   // (doc(id).get/set/update/delete, get(), onSnapshot) that the rest of the
   // dashboard — Store, migrateDefaults, loadBudgets, loadPatrimonio — can stay
   // exactly as written, whether the backend underneath is Firestore or Supabase.
+  // Three reserved doc ids each map to their own small Postgres table instead
+  // of living inside "transactions" — budgets, patrimonio, and now the per-
+  // series watermark that keeps a deleted recurring month from reappearing.
   function makeSupabaseCollection(uid){
-    function reservedTable(id){ return id === "__budgets__" ? "budgets" : "patrimonio"; }
-    function reservedToRow(id, payload){
-      return id === "__budgets__"
-        ? { user_id: uid, categorias: payload.categorias }
-        : Object.assign({ user_id: uid }, {
-            investido: payload.investido || 0, reserva: payload.reserva || 0,
-            renda_mensal: payload.rendaMensal || 0, meses: payload.meses || 6
-          });
+    function reservedTable(id){
+      if(id === "__budgets__") return "budgets";
+      if(id === "__patrimonio__") return "patrimonio";
+      return "series_watermark";
     }
-    function reservedFromRow(row){
+    function reservedToRow(id, payload){
+      if(id === "__budgets__") return { user_id: uid, categorias: payload.categorias };
+      if(id === "__patrimonio__") return Object.assign({ user_id: uid }, {
+        investido: payload.investido || 0, reserva: payload.reserva || 0,
+        renda_mensal: payload.rendaMensal || 0, meses: payload.meses || 6
+      });
+      return { user_id: uid, data: payload.data || {} };
+    }
+    function reservedFromRow(id, row){
       if(!row) return null;
-      return row.categorias !== undefined
-        ? { categorias: row.categorias || {} }
-        : { investido: Number(row.investido)||0, reserva: Number(row.reserva)||0, rendaMensal: Number(row.renda_mensal)||0, meses: row.meses||6 };
+      if(id === "__budgets__") return { categorias: row.categorias || {} };
+      if(id === "__patrimonio__") return { investido: Number(row.investido)||0, reserva: Number(row.reserva)||0, rendaMensal: Number(row.renda_mensal)||0, meses: row.meses||6 };
+      return { data: row.data || {} };
     }
     return {
       doc: function(id){
@@ -1072,7 +1091,7 @@
             if(isReservedDoc(id)){
               return sb.from(reservedTable(id)).select("*").eq("user_id", uid).maybeSingle().then(function(res){
                 throwIfError(res);
-                var data = reservedFromRow(res.data);
+                var data = reservedFromRow(id, res.data);
                 return { exists: !!res.data, data: function(){ return data || {}; } };
               });
             }
@@ -1133,7 +1152,9 @@
   }
 
   // Shared by "already had a session on reload" and "just logged in/signed up":
-  // points state.col at Supabase, fetches, and subscribes to live changes.
+  // points state.col at Supabase, fetches, and subscribes to live changes. The
+  // watermark fetch is awaited here (not fired in parallel like budgets) so
+  // maybeGenerateRecurring always runs with the real watermark already loaded.
   function connectCloud(session){
     setSync("loading");
     var uid = session.user.id;
@@ -1163,6 +1184,10 @@
           col.doc(tx.id).set(payload).catch(function(){});
         });
       }
+      return col.doc("__seriesWatermark__").get().then(function(wmSnap){
+        state.seriesWatermark = (wmSnap.exists && wmSnap.data().data) || {};
+      }).catch(function(){ state.seriesWatermark = {}; });
+    }).then(function(){
       migrateDefaults();
       setSync("db");
       loadBudgets();
@@ -1295,10 +1320,13 @@
     return m ? {n:parseInt(m[1],10), total:parseInt(m[2],10)} : null;
   }
 
-  // Walks every "Mensal" series, finds its latest occurrence, and — only when that
-  // occurrence's own month has already passed — adds the next one(s) up through the
-  // real current month. Safe to call repeatedly: once a series is caught up to today,
-  // the loop condition stops it from generating anything further.
+  // Walks every "Mensal" series and catches it up to the real current month —
+  // but never past a month it has already visited before. That "already
+  // visited" watermark is persisted independently of which transactions still
+  // exist, specifically so that deleting a generated (or manually entered)
+  // month's entry — to skip a cancelled charge, fix a mistake, whatever —
+  // makes it STAY deleted on reload, instead of this function reading the gap
+  // as "not generated yet" and recreating exactly what was just removed.
   function maybeGenerateRecurring(){
     var today = todayISO();
     var bySeries = {};
@@ -1308,30 +1336,43 @@
       if(!bySeries[sid] || bySeries[sid].dataEfet < t.dataEfet){ bySeries[sid] = t; }
     });
     var toAdd = [];
+    var wmChanged = false;
     Object.keys(bySeries).forEach(function(sid){
-      var cursor = bySeries[sid];
-      var parc = parcelaParts(cursor.parcela);
+      var latestReal = bySeries[sid];
+      var parc = parcelaParts(latestReal.parcela);
       if(parc && parc.n >= parc.total) return; // last installment already reached
+
+      var wm = state.seriesWatermark[sid];
+      // The watermark never lags behind real data (a future month typed in by
+      // hand counts as "visited" too) and never resets backward.
+      if(!wm || latestReal.dataEfet > wm.dataEfet){
+        wm = {dataLanc: latestReal.dataLanc, dataEfet: latestReal.dataEfet, n: parc ? parc.n : null};
+        state.seriesWatermark[sid] = wm; wmChanged = true;
+      }
+
+      var cursor = wm;
       var guard = 0;
       while(guard < 6){
         var nextEfet = addMonthsISO(cursor.dataEfet, 1);
         if(nextEfet > today) break;
         var nextLanc = addMonthsISO(cursor.dataLanc, 1);
-        var nextParcela = null;
-        if(parc){
-          var n = parc.n + 1;
-          if(n > parc.total) break;
-          nextParcela = n + "/" + parc.total;
-          parc = {n:n, total:parc.total};
+        var nextN = parc ? cursor.n + 1 : null;
+        if(parc && nextN > parc.total) break;
+
+        var alreadyReal = state.transactions.some(function(t){
+          return (t.seriesId || t.id) === sid && t.recorrencia === "Mensal" && monthKey(t.dataEfet) === monthKey(nextEfet);
+        });
+        if(!alreadyReal){
+          toAdd.push({
+            tipo: latestReal.tipo, banco: latestReal.banco, modalidade: latestReal.modalidade, valor: latestReal.valor,
+            dataLanc: nextLanc, dataEfet: nextEfet, descricao: latestReal.descricao, categoria: latestReal.categoria,
+            classificacao: latestReal.classificacao, parcela: parc ? (nextN+"/"+parc.total) : null,
+            recorrencia: "Mensal", seriesId: sid, autoGenerated: true,
+            obs: "Gerado automaticamente — confira o valor"
+          });
         }
-        var novo = {
-          tipo: cursor.tipo, banco: cursor.banco, modalidade: cursor.modalidade, valor: cursor.valor,
-          dataLanc: nextLanc, dataEfet: nextEfet, descricao: cursor.descricao, categoria: cursor.categoria,
-          classificacao: cursor.classificacao, parcela: nextParcela, recorrencia: "Mensal", seriesId: sid,
-          autoGenerated: true, obs: "Gerado automaticamente — confira o valor"
-        };
-        toAdd.push(novo);
-        cursor = novo;
+        cursor = {dataLanc: nextLanc, dataEfet: nextEfet, n: nextN};
+        state.seriesWatermark[sid] = cursor; wmChanged = true;
         guard++;
       }
     });
@@ -1339,6 +1380,7 @@
       Store.addMany(toAdd);
       toast(toAdd.length + " lançamento(s) recorrente(s) gerados para este mês — confira os valores.");
     }
+    if(wmChanged){ saveSeriesWatermark(); }
   }
 
   // Groups real card transactions into their invoices (by banco+dataEfet), then
