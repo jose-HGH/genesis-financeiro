@@ -261,6 +261,42 @@
   .fatura-total{font-family:var(--font-num); font-size:20px; font-weight:600;}
   .fatura-count{font-size:11px; color:var(--ink-muted);}
 
+  /* ---------- Próximas faturas ---------- */
+  .pf-legend{display:flex; gap:16px; flex-wrap:wrap; font-size:12.5px; color:var(--ink-2); margin-bottom:14px;}
+  .pf-legend span{display:inline-flex; align-items:center; gap:6px;}
+  .pf-sw{display:inline-block; width:10px; height:10px; border-radius:3px;}
+  .pf-compras{background:var(--brand);}
+  .pf-parcelas{background:var(--warn);}
+  .pf-list{display:flex; flex-direction:column; gap:14px;}
+  .pf-head{display:flex; justify-content:space-between; align-items:baseline; gap:10px; margin-bottom:7px;}
+  .pf-mes{font-weight:600; font-size:14px;}
+  .pf-total{font-family:var(--font-num); font-weight:700; font-size:14px; font-variant-numeric:tabular-nums;}
+  .pf-ate{font-family:var(--font-ui); font-weight:500; font-size:11.5px; color:var(--ink-muted);}
+  .pf-track{display:flex; gap:3px; height:14px; border-radius:7px; background:rgba(20,25,18,0.07); overflow:hidden;}
+  .pf-seg{display:block; height:100%; border-radius:7px; min-width:4px;}
+  .pf-ativas{margin-top:16px; padding-top:12px; border-top:1px solid var(--border); font-size:12.5px; color:var(--ink-2); line-height:1.5;}
+
+  /* ---------- Revisão da importação: cartão e avisos ---------- */
+  .imp-card{display:flex; flex-direction:column; gap:10px; padding:12px 14px; border:1px solid var(--border); border-radius:12px; background:var(--surface-alt); margin-bottom:12px;}
+  .imp-card-row{display:flex; flex-wrap:wrap; align-items:center; gap:8px 10px; font-size:13px;}
+  .imp-card-row label{font-weight:600; color:var(--ink-2);}
+  .imp-card-row select, .imp-card-row input{font-family:var(--font-ui); font-size:13px; padding:7px 9px; border-radius:8px; border:1px solid var(--border-strong); background:var(--surface); color:var(--ink);}
+  .imp-card-row input[type=number]{width:70px; font-family:var(--font-num);}
+  .imp-card-row #impCardNome{flex:1; min-width:180px;}
+  .imp-card-hint{font-size:12px; color:var(--ink-muted);}
+  .attn-block{border:1px solid rgba(226,161,58,0.35); background:var(--warn-wash); border-radius:12px; padding:12px 14px; margin-bottom:12px; display:flex; flex-direction:column; gap:8px;}
+  .attn-title{font-weight:700; font-size:13.5px; color:var(--warn-text);}
+  .attn-item{display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:9px 11px; font-size:13px; line-height:1.45;}
+  .attn-actions{display:flex; gap:6px; align-items:center; flex:none;}
+  .attn-actions button{font-size:12px; font-weight:600; padding:6px 11px; border-radius:8px; cursor:pointer; border:1px solid var(--border-strong);}
+  .attn-actions .ghost{background:var(--surface); color:var(--ink-2);}
+  .attn-actions .solid{background:var(--brand); color:#fff; border-color:var(--brand);}
+  .attn-num{width:70px; font-family:var(--font-num); font-size:13px; padding:6px 8px; border-radius:8px; border:1px solid var(--border-strong);}
+  table.staging tr.attn-row td{background:var(--warn-wash);}
+  .badge-pagfat{display:inline-block; font-size:10px; font-weight:600; color:#5243ac; background:rgba(98,80,214,0.12); border-radius:5px; padding:1px 6px; margin-left:6px;}
+  .badge-concilia{display:inline-block; font-size:10px; font-weight:600; color:var(--good-text); background:var(--good-wash); border-radius:5px; padding:1px 6px; margin-left:6px;}
+  td.num.neutral, .latest-value.neutral{color:var(--ink-muted);}
+
   /* ---------- Row actions / manual pago ---------- */
   .row-actions{display:flex; gap:6px; flex-wrap:wrap;}
   .row-pago{font-size:11px; font-weight:600; padding:4px 9px; border-radius:7px; border:1px solid var(--border-strong); background:var(--brand-wash); color:var(--brand-dark); cursor:pointer;}
@@ -587,10 +623,11 @@
   <section class="three-col">
     <div class="card">
       <div class="card-head">
-        <h2>Faturas dos cartões</h2>
-        <input type="month" id="faturaMesFilter" class="fatura-mes-filter" aria-label="Filtrar faturas por mês">
+        <h2>Próximas faturas</h2>
       </div>
-      <div class="faturas-grid" id="faturasList"></div>
+      <div class="pf-legend"><span><i class="pf-sw pf-compras"></i>Compras do mês</span><span><i class="pf-sw pf-parcelas"></i>Parcelas já assumidas</span></div>
+      <div class="pf-list" id="faturasList"></div>
+      <div class="pf-ativas" id="parcelasAtivas"></div>
     </div>
     <div class="card">
       <div class="card-head"><h2>A pagar e a receber</h2></div>
@@ -771,6 +808,7 @@
           <select id="txTipo" required>
             <option value="despesa">Despesa</option>
             <option value="receita">Receita</option>
+            <option value="pagamento_fatura">Pagamento de fatura</option>
           </select>
         </div>
         <div class="field">
@@ -946,7 +984,7 @@
   }
   var FALLBACK_SEED = buildExampleSeed();
 
-  var state = { transactions: [], mode: "loading", uid: null, col: null, budgets: {}, patrimonio: {investido:0, reserva:0}, seriesWatermark: {} };
+  var state = { transactions: [], mode: "loading", uid: null, col: null, budgets: {}, patrimonio: {investido:0, reserva:0}, seriesWatermark: {}, cartoes: {} };
   var listeners = [];
   function onChange(fn){ listeners.push(fn); }
   function emitChange(){ listeners.forEach(function(fn){ fn(); }); }
@@ -984,7 +1022,24 @@
     }
   }
 
-  var RESERVED_DOC_IDS = ["__budgets__", "__patrimonio__", "__seriesWatermark__"];
+  var RESERVED_DOC_IDS = ["__budgets__", "__patrimonio__", "__seriesWatermark__", "__cartoes__"];
+  // Card settings (closing/due day) keyed by card: "banco|final" when the PDF shows
+  // the last 4 digits, otherwise "nome|banco|apelido" chosen by the user.
+  var CARTOES_KEY = "genesis-financas-cartoes-v1";
+  function loadCartoesLocal(){
+    try{ return JSON.parse(localStorage.getItem(CARTOES_KEY)) || {}; }catch(e){ return {}; }
+  }
+  function saveCartoes(){
+    try{ localStorage.setItem(CARTOES_KEY, JSON.stringify(state.cartoes)); }catch(e){}
+    if(state.mode === "db" && state.col){
+      state.col.doc("__cartoes__").set({data: state.cartoes}).catch(function(){ toast("Não foi possível salvar o cartão na nuvem."); });
+    }
+  }
+  function cardLabel(key){
+    var c = key && state.cartoes[key];
+    if(!c) return "";
+    return c.final ? (c.banco + " final " + c.final) : c.nome;
+  }
   var WATERMARK_KEY = "genesis-financas-watermark-v1";
   function loadWatermarkLocal(){
     try{ return JSON.parse(localStorage.getItem(WATERMARK_KEY)) || {}; }catch(e){ return {}; }
@@ -1017,6 +1072,7 @@
     state.transactions = (saved && saved.length) ? saved : FALLBACK_SEED.slice();
     if(!saved){ saveLocal(); }
     state.seriesWatermark = loadWatermarkLocal();
+    state.cartoes = loadCartoesLocal();
     migrateDefaults();
     setSync("local");
     loadBudgets();
@@ -1039,7 +1095,8 @@
     tipo:"tipo", banco:"banco", modalidade:"modalidade", valor:"valor",
     dataLanc:"data_lanc", dataEfet:"data_efet", descricao:"descricao", categoria:"categoria",
     classificacao:"classificacao", recorrencia:"recorrencia", seriesId:"series_id",
-    parcela:"parcela", obs:"obs", autoGenerated:"auto_generated", pagoManual:"pago_manual"
+    parcela:"parcela", obs:"obs", autoGenerated:"auto_generated", pagoManual:"pago_manual",
+    idCompra:"id_compra", parcelaAtual:"parcela_atual", totalParcelas:"total_parcelas", statusParcela:"status_parcela", cartao:"cartao"
   };
   function txToRow(tx, uid){
     var row = { id: tx.id, user_id: uid };
@@ -1074,6 +1131,7 @@
     function reservedTable(id){
       if(id === "__budgets__") return "budgets";
       if(id === "__patrimonio__") return "patrimonio";
+      if(id === "__cartoes__") return "cartoes";
       return "series_watermark";
     }
     function reservedToRow(id, payload){
@@ -1193,7 +1251,12 @@
       }
       return col.doc("__seriesWatermark__").get().then(function(wmSnap){
         state.seriesWatermark = (wmSnap.exists && wmSnap.data().data) || {};
-      }).catch(function(){ state.seriesWatermark = {}; });
+      }).catch(function(){ state.seriesWatermark = {}; }).then(function(){
+        return col.doc("__cartoes__").get().then(function(cSnap){
+          if(cSnap.exists){ state.cartoes = cSnap.data().data || {}; }
+          try{ localStorage.setItem(CARTOES_KEY, JSON.stringify(state.cartoes)); }catch(e){}
+        }).catch(function(){});
+      });
     }).then(function(){
       migrateDefaults();
       setSync("db");
@@ -1351,6 +1414,7 @@
     var wmChanged = false;
     Object.keys(bySeries).forEach(function(sid){
       var latestReal = bySeries[sid];
+      if(latestReal.totalParcelas || latestReal.statusParcela) return; // installments are pre-generated as "previstas"
       var parc = parcelaParts(latestReal.parcela);
       if(parc && parc.n >= parc.total) return; // last installment already reached
 
@@ -1395,47 +1459,6 @@
     if(wmChanged){ saveSeriesWatermark(); }
   }
 
-  // Groups real card transactions into their invoices (by banco+dataEfet), then
-  // projects N more cycles forward per recurring/parcelada series WITHOUT writing
-  // anything to state — pure read model for the "Faturas" card. A projected group
-  // is flagged so the UI can label it as an estimate instead of a closed invoice.
-  function buildFaturas(monthsAhead){
-    var groups = {};
-    function ensure(banco, dataEfet){
-      var key = banco+"|"+dataEfet;
-      if(!groups[key]) groups[key] = {banco:banco, dataEfet:dataEfet, total:0, items:[], projetada:false};
-      return groups[key];
-    }
-    state.transactions.forEach(function(t){
-      if(!isFaturaTx(t)) return;
-      var g = ensure(t.banco, t.dataEfet);
-      g.total += t.valor;
-      g.items.push(t);
-    });
-    var bySeries = {};
-    state.transactions.forEach(function(t){
-      if(t.recorrencia !== "Mensal" || !isFaturaTx(t)) return;
-      var sid = t.seriesId || t.id;
-      if(!bySeries[sid] || bySeries[sid].dataEfet < t.dataEfet){ bySeries[sid] = t; }
-    });
-    Object.keys(bySeries).forEach(function(sid){
-      var cursor = bySeries[sid];
-      var parc = parcelaParts(cursor.parcela);
-      for(var i=1;i<=monthsAhead;i++){
-        if(parc && (parc.n+i) > parc.total) break;
-        var nextEfet = addMonthsISO(cursor.dataEfet, i);
-        var already = (groups[cursor.banco+"|"+nextEfet]||{items:[]}).items.some(function(it){ return it.seriesId===sid; });
-        if(already) continue;
-        var g = ensure(cursor.banco, nextEfet);
-        g.total += cursor.valor;
-        g.projetada = true;
-        g.items.push({descricao:cursor.descricao, valor:cursor.valor, categoria:cursor.categoria,
-          parcela: parc ? ((parc.n+i)+"/"+parc.total) : null, projetado:true});
-      }
-    });
-    return Object.keys(groups).map(function(k){ return groups[k]; })
-      .sort(function(a,b){ return a.dataEfet.localeCompare(b.dataEfet); });
-  }
 
   // Full-ledger duplicate sweep (distinct from the import-time checker): looks for
   // pairs already BOTH sitting in the saved data, same amount, close in time, with
@@ -1451,6 +1474,7 @@
         if(a.tipo !== b.tipo) continue;
         if(Math.abs(a.valor - b.valor) > 0.01) continue;
         if(a.seriesId && a.seriesId === b.seriesId) continue;
+        if(a.idCompra && a.idCompra === b.idCompra) continue;
         var diff = Math.min(daysDiff(a.dataEfet,b.dataEfet), daysDiff(a.dataLanc,b.dataLanc));
         if(diff > 3) continue;
         var sim = descSimilarity(a.descricao, b.descricao);
@@ -1470,7 +1494,7 @@
   function monthStats(ym){
     var r = {receitas:0, despesas:0, porCategoria:{}};
     state.transactions.forEach(function(t){
-      if(monthKey(t.dataEfet) !== ym) return;
+      if(monthKey(t.dataEfet) !== ym || !countsAsSpend(t)) return;
       if(t.tipo === "receita"){ r.receitas += t.valor; }
       else { r.despesas += t.valor; r.porCategoria[t.categoria] = (r.porCategoria[t.categoria]||0) + t.valor; }
     });
@@ -1584,6 +1608,14 @@
   // em" field), so banco+dataEfet is naturally the key of the invoice it belongs to —
   // no separate field to maintain, and import already fills dataEfet from the PDF.
   function isFaturaTx(tx){ return tx.tipo === "despesa" && tx.modalidade === "Crédito"; }
+  function isPagamentoFatura(tx){ return tx.tipo === "pagamento_fatura"; }
+  function isPrevista(tx){ return isPrevistaTx(tx, todayISO()); }
+  function countsAsSpend(tx){ return countsAsSpendTx(tx, todayISO()); }
+  function hasParcela(tx){ return !!(tx.totalParcelas || parcelaParts(tx.parcela)); }
+  function parcelaInfo(tx){
+    if(tx.totalParcelas) return {n: tx.parcelaAtual, total: tx.totalParcelas};
+    return parcelaParts(tx.parcela);
+  }
   function faturaKey(tx){ return isFaturaTx(tx) ? (tx.banco+"|"+tx.dataEfet) : null; }
   function faturaLabel(tx){ return isFaturaTx(tx) ? ("Fatura "+tx.banco+" · vence "+fmtDate(tx.dataEfet)) : ""; }
 
@@ -1617,8 +1649,12 @@
       var d = new Date(tx.dataEfet+"T00:00:00");
       return d.getFullYear() === mr.first.getFullYear() && d.getMonth() === mr.first.getMonth();
     });
-    var r = { recTotal:0, recReal:0, recPend:0, despTotal:0, despReal:0, despPend:0, fixoTotal:0 };
+    var r = { recTotal:0, recReal:0, recPend:0, despTotal:0, despReal:0, despPend:0, fixoTotal:0, prevDesp:0, prevRec:0 };
     t.forEach(function(tx){
+      if(isPagamentoFatura(tx)) return;
+      // Previstas aren't spending yet, but they are already committed — they only
+      // weigh on what's left to spend (saldo projetado), never on the month's totals.
+      if(isPrevista(tx)){ if(tx.tipo === "receita") r.prevRec += tx.valor; else r.prevDesp += tx.valor; return; }
       var real = isRealized(tx, ref);
       if(tx.tipo === "receita"){
         r.recTotal += tx.valor;
@@ -1630,7 +1666,7 @@
       }
     });
     r.saldoAtual = r.recReal - r.despReal;
-    r.saldoProjetado = r.recTotal - r.despTotal;
+    r.saldoProjetado = r.recTotal + r.prevRec - r.despTotal - r.prevDesp;
     return r;
   }
 
@@ -1640,7 +1676,7 @@
     var mr = monthRange(ref);
     var faturaPend = 0, faturaVenc = null;
     state.transactions.forEach(function(tx){
-      if(tx.tipo !== "despesa" || !isFaturaTx(tx)) return;
+      if(tx.tipo !== "despesa" || !isFaturaTx(tx) || isPrevista(tx)) return;
       var d = new Date(tx.dataEfet+"T00:00:00");
       if(d.getFullYear()!==mr.first.getFullYear() || d.getMonth()!==mr.first.getMonth()) return;
       if(isRealized(tx, ref)) return;
@@ -1652,6 +1688,7 @@
       contasPagar: Math.max(r.despPend - faturaPend, 0),
       faturaPend: faturaPend,
       faturaVenc: faturaVenc,
+      previstas: r.prevDesp,
       reserva: state.patrimonio.reserva || 0
     };
   }
@@ -1677,6 +1714,7 @@
         '<div class="hero-b-row"><span>Despesas já confirmadas</span><span>'+fmt(bd.despReal)+'</span></div>'+
         '<div class="hero-b-row"><span>Contas a pagar até '+fmtDate(fimMes)+'</span><span>'+fmt(bd.contasPagar)+'</span></div>'+
         (bd.faturaPend > 0 ? '<div class="hero-b-row"><span>Fatura do cartão'+(bd.faturaVenc?" (vence "+fmtDate(bd.faturaVenc)+")":"")+'</span><span>'+fmt(bd.faturaPend)+'</span></div>' : '')+
+        (bd.previstas > 0 ? '<div class="hero-b-row"><span>Parcelas já assumidas</span><span>'+fmt(bd.previstas)+'</span></div>' : '')+
         '<div class="hero-b-row"><span>Reserva de emergência guardada</span><span>'+fmt(bd.reserva)+'</span></div>'+
       '</div>'+
       '<div class="hero-stats">'+
@@ -1815,24 +1853,49 @@
     return MESES[parseInt(parts[1],10)-1]+"/"+parts[0].slice(2);
   }
 
-  function renderFaturas(){
-    var today = todayISO();
-    var filterInput = document.getElementById("faturaMesFilter");
-    var mes = filterInput.value || monthKey(today);
-    if(!filterInput.value){ filterInput.value = mes; }
-    var groups = buildFaturas(3).filter(function(g){ return monthKey(g.dataEfet) === mes; });
-    var el = document.getElementById("faturasList");
-    if(!groups.length){ el.innerHTML = '<div class="empty-note">Nenhuma fatura de cartão em '+fmtMonthLabel(mes)+'.</div>'; return; }
-    el.innerHTML = groups.map(function(g){
-      var status = g.projetada ? "projetada" : (g.dataEfet <= today ? "paga" : "aberta");
-      var statusLabel = status === "projetada" ? "Projetada" : status === "paga" ? "Paga" : "Em aberto";
-      return '<div class="fatura-card fatura-'+status+'">'+
-        '<div class="fatura-head"><span class="fatura-banco">'+g.banco+'</span><span class="fatura-status fs-'+status+'">'+statusLabel+'</span></div>'+
-        '<div class="fatura-venc">vence '+fmtDate(g.dataEfet)+'</div>'+
-        '<div class="fatura-total">'+fmt(g.total)+'</div>'+
-        '<div class="fatura-count">'+g.items.length+' lançamento'+(g.items.length>1?'s':'')+(g.projetada?' · estimativa com base no que já é conhecido':'')+'</div>'+
-        '</div>';
+  // Card "Próximas faturas": for the viewed month and the two after it, card
+  // spending split into purchases (green) and installments already committed
+  // (orange, confirmed or still "previstas"). Future months say "até agora"
+  // because more purchases can still land in them.
+  var MESES_NOME = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
+  function renderFaturas(ref){
+    ref = ref || refISO();
+    var hoje = monthKey(todayISO());
+    var months = [0, 1, 2].map(function(i){ return shiftMonthKey(monthKey(ref), i); });
+    var data = months.map(function(ym){
+      var compras = 0, parcelas = 0;
+      state.transactions.forEach(function(t){
+        if(!isFaturaTx(t) || monthKey(t.dataEfet) !== ym) return;
+        if(hasParcela(t)) parcelas += t.valor; else if(countsAsSpend(t)) compras += t.valor;
+      });
+      return {ym: ym, compras: compras, parcelas: parcelas, total: compras + parcelas};
+    });
+    var max = Math.max.apply(null, data.map(function(d){ return d.total; }).concat([0.01]));
+    document.getElementById("faturasList").innerHTML = data.map(function(d){
+      var nome = MESES_NOME[parseInt(d.ym.slice(5,7), 10) - 1];
+      var futuro = d.ym > hoje;
+      var wc = (d.compras / max) * 100, wp = (d.parcelas / max) * 100;
+      return '<div class="pf-row">'+
+        '<div class="pf-head"><span class="pf-mes">'+nome+'</span><span class="pf-total">'+fmt(d.total)+(futuro ? ' <span class="pf-ate">até agora</span>' : '')+'</span></div>'+
+        '<div class="pf-track" role="img" aria-label="'+nome+': '+fmt(d.compras)+' em compras e '+fmt(d.parcelas)+' em parcelas">'+
+          (d.compras > 0 ? '<span class="pf-seg pf-compras" style="width:'+wc+'%"></span>' : '')+
+          (d.parcelas > 0 ? '<span class="pf-seg pf-parcelas" style="width:'+wp+'%"></span>' : '')+
+        '</div></div>';
     }).join("");
+
+    var groups = {};
+    state.transactions.forEach(function(t){
+      if(!isFaturaTx(t) || !hasParcela(t) || monthKey(t.dataEfet) < monthKey(ref)) return;
+      var info = parcelaInfo(t);
+      var key = t.idCompra || t.seriesId || (impDescKey(t.descricao) + "|" + info.total);
+      if(!groups[key] || t.dataEfet < groups[key].dataEfet) groups[key] = {tx: t, info: info, dataEfet: t.dataEfet};
+    });
+    var ativas = Object.keys(groups).map(function(k){ return groups[k]; })
+      .sort(function(a,b){ return b.tx.valor - a.tx.valor; })
+      .map(function(g){ return escapeAttr(g.tx.descricao)+' '+g.info.n+' de '+g.info.total+' ('+fmt(g.tx.valor)+')'; });
+    document.getElementById("parcelasAtivas").innerHTML = ativas.length
+      ? 'Parcelas ativas: '+ativas.join(", ")+'.'
+      : 'Nenhuma parcela ativa no cartão.';
   }
 
   function renderBarList(containerId, data, colorFn, opts){
@@ -1865,7 +1928,7 @@
     var ref = refISO();
     var mr = monthRange(ref);
     var despesas = state.transactions.filter(function(t){
-      if(t.tipo !== "despesa") return false;
+      if(t.tipo !== "despesa" || !countsAsSpend(t)) return false;
       if(!includeLic && t.categoria === "Negócios/Licitação") return false;
       var d = new Date(t.dataEfet+"T00:00:00");
       return d.getFullYear()===mr.first.getFullYear() && d.getMonth()===mr.first.getMonth();
@@ -1887,13 +1950,13 @@
   }
 
   function renderPaymentChart(){
-    var despesas = state.transactions.filter(function(t){ return t.tipo === "despesa" && t.modalidade && t.modalidade !== "—"; });
+    var despesas = state.transactions.filter(function(t){ return t.tipo === "despesa" && countsAsSpend(t) && t.modalidade && t.modalidade !== "—"; });
     var data = groupSum(despesas, function(t){ return t.banco + " " + t.modalidade; });
     renderBarList("paymentChart", data, paymentColor);
   }
 
   function renderClassChart(){
-    var despesas = state.transactions.filter(function(t){ return t.tipo === "despesa"; });
+    var despesas = state.transactions.filter(function(t){ return t.tipo === "despesa" && countsAsSpend(t); });
     var total = despesas.reduce(function(s,t){ return s+t.valor; }, 0) || 1;
     var order = ["Fixa","Variável","Parcelada"];
     var sums = {Fixa:0, "Variável":0, Parcelada:0};
@@ -1916,7 +1979,7 @@
     var mr = monthRange(ref);
     var byBanco = {};
     state.transactions.forEach(function(t){
-      if(t.tipo !== "despesa") return;
+      if(t.tipo !== "despesa" || !countsAsSpend(t)) return;
       var d = new Date(t.dataEfet+"T00:00:00");
       if(d.getFullYear()!==mr.first.getFullYear() || d.getMonth()!==mr.first.getMonth()) return;
       var k = t.banco || "Outros";
@@ -1941,9 +2004,13 @@
       .slice(0, 6);
     var html = items.map(function(t){
       var real = isRealized(t, ref);
-      var sign = t.tipo === "receita" ? "+" : "-";
-      var cls = t.tipo === "receita" ? "pos" : "neg";
-      var statusTag = t.autoGenerated ? '<span class="tag-pill tag-blue">Automático</span>' : (real ? '<span class="tag-pill tag-teal">Conferido</span>' : '<span class="tag-pill tag-amber">Pendente</span>');
+      var pagFat = isPagamentoFatura(t);
+      var sign = pagFat ? "" : (t.tipo === "receita" ? "+" : "-");
+      var cls = pagFat ? "neutral" : (t.tipo === "receita" ? "pos" : "neg");
+      var statusTag = pagFat ? '<span class="tag-pill tag-purple">Pagamento de fatura</span>'
+        : isPrevista(t) ? '<span class="tag-pill tag-blue">Prevista</span>'
+        : t.autoGenerated ? '<span class="tag-pill tag-blue">Automático</span>'
+        : (real ? '<span class="tag-pill tag-teal">Conferido</span>' : '<span class="tag-pill tag-amber">Pendente</span>');
       return '<div class="latest-row">'+
         '<span class="avatar" style="background:'+hashColor(t.categoria)+'">'+initial(t.descricao)+'</span>'+
         '<div class="latest-main"><div class="latest-title">'+t.descricao+'</div>'+
@@ -1956,7 +2023,7 @@
 
   var MESES3 = ["JAN","FEV","MAR","ABR","MAI","JUN","JUL","AGO","SET","OUT","NOV","DEZ"];
   function renderUpcoming(ref){
-    var items = state.transactions.filter(function(t){ return !isRealized(t, ref); })
+    var items = state.transactions.filter(function(t){ return !isRealized(t, ref) && !isPagamentoFatura(t); })
       .sort(function(a,b){ return a.dataEfet.localeCompare(b.dataEfet); })
       .slice(0, 8);
     var html = items.map(function(t){
@@ -1986,6 +2053,7 @@
     var n = mr.daysInMonth;
     var byDay = new Array(n+1).fill(0);
     state.transactions.forEach(function(tx){
+      if(!countsAsSpend(tx)) return;
       var d = new Date(tx.dataEfet+"T00:00:00");
       if(d.getFullYear() === mr.first.getFullYear() && d.getMonth() === mr.first.getMonth()){
         var day = d.getDate();
@@ -2129,12 +2197,16 @@
     var recOptions = ["Única","Mensal"];
     var html = rows.map(function(t){
       var real = isRealized(t, ref);
-      var sign = t.tipo === "receita" ? "+" : "-";
-      var numCls = t.tipo === "receita" ? "pos" : "neg";
-      var parcelaBadge = t.parcela ? '<span class="badge-parcela">'+t.parcela+'</span>' : "";
-      var autoBadge = t.autoGenerated ? '<span class="auto-badge">gerado automaticamente</span>' : "";
+      var pagFat = isPagamentoFatura(t);
+      var sign = pagFat ? "" : (t.tipo === "receita" ? "+" : "-");
+      var numCls = pagFat ? "neutral" : (t.tipo === "receita" ? "pos" : "neg");
+      var pInfo = parcelaInfo(t);
+      var parcelaBadge = pInfo ? '<span class="badge-parcela">'+pInfo.n+'/'+pInfo.total+'</span>' : "";
+      var autoBadge = isPrevista(t) ? '<span class="auto-badge">prevista</span>'
+        : (t.autoGenerated && !t.statusParcela ? '<span class="auto-badge">gerado automaticamente</span>' : "");
+      var pagBadge = pagFat ? '<span class="badge-pagfat">Pagamento de fatura</span>' : "";
       var fatBadge = faturaLabel(t) ? '<span class="badge-fatura">'+faturaLabel(t)+'</span>' : "";
-      var sub = t.banco + (t.modalidade && t.modalidade !== "—" ? " · "+t.modalidade : "");
+      var sub = t.banco + (t.modalidade && t.modalidade !== "—" ? " · "+t.modalidade : "") + (cardLabel(t.cartao) ? " · "+escapeAttr(cardLabel(t.cartao)) : "");
       var rowCls = (editingId === t.id) ? ' class="editing-row"' : "";
       var manual = t.pagoManual === true || t.pagoManual === false;
       var payVerb = t.tipo === "receita" ? "recebido" : "pago";
@@ -2143,7 +2215,7 @@
         '<td><span class="status-pill '+(real?"realizado":"pendente")+(manual?" manual":"")+'"><span class="sp-dot"></span>'+(real?"Realizado":"Pendente")+(manual?' <span class="manual-tag" title="Status definido manualmente, não muda por data">manual</span>':'')+'</span></td>'+
         '<td style="font-family:var(--font-num);">'+fmtDate(t.dataLanc)+'</td>'+
         '<td style="font-family:var(--font-num); color:var(--ink-2);">'+fmtDate(t.dataEfet)+'</td>'+
-        '<td class="desc-cell"><div class="d-main">'+t.descricao+parcelaBadge+autoBadge+'</div><div class="d-sub">'+sub+fatBadge+'</div></td>'+
+        '<td class="desc-cell"><div class="d-main">'+t.descricao+parcelaBadge+autoBadge+pagBadge+'</div><div class="d-sub">'+sub+fatBadge+'</div></td>'+
         '<td><input class="cat-input" data-id="'+t.id+'" data-field="categoria" list="categoriaOptions" value="'+t.categoria+'"></td>'+
         '<td><select data-id="'+t.id+'" data-field="classificacao">'+classOptions.map(function(c){ return '<option value="'+c+'" '+(c===t.classificacao?"selected":"")+'>'+c+'</option>'; }).join("")+'</select></td>'+
         '<td><select data-id="'+t.id+'" data-field="recorrencia">'+recOptions.map(function(c){ return '<option value="'+c+'" '+(c===(t.recorrencia||"Única")?"selected":"")+'>'+c+'</option>'; }).join("")+'</select></td>'+
@@ -2224,7 +2296,7 @@
     renderPaymentChart();
     renderClassChart();
     renderUpcoming(ref);
-    renderFaturas();
+    renderFaturas(ref);
     renderBudgets();
     renderPatrimonio();
     fillDatalists();
@@ -2236,7 +2308,7 @@
     var mr = monthRange(ref);
     var spend = {};
     state.transactions.forEach(function(t){
-      if(t.tipo !== "despesa") return;
+      if(t.tipo !== "despesa" || !countsAsSpend(t)) return;
       var d = new Date(t.dataEfet+"T00:00:00");
       if(d.getFullYear() !== mr.first.getFullYear() || d.getMonth() !== mr.first.getMonth()) return;
       spend[t.categoria] = (spend[t.categoria] || 0) + t.valor;
@@ -2321,8 +2393,6 @@
     ledgerShowAll = !ledgerShowAll;
     renderLedger(refISO());
   });
-  document.getElementById("faturaMesFilter").value = monthKey(todayISO());
-  document.getElementById("faturaMesFilter").addEventListener("change", renderFaturas);
 
   var editingId = null;
 
@@ -2386,6 +2456,7 @@
       var existing = state.transactions.find(function(x){ return x.id === editingId; });
       if(recorrencia === "Mensal"){ tx.seriesId = (existing && existing.seriesId) || editingId; }
       else { tx.seriesId = null; }
+      Object.assign(tx, parcelaFields(tx, (existing && existing.statusParcela) || "confirmada"));
       Store.update(editingId, tx);
       tx.id = editingId;
       var seriesMsg = reconcileSeriesAfterEdit(tx);
@@ -2393,6 +2464,7 @@
       cancelEdit();
     } else {
       if(recorrencia === "Mensal"){ tx.id = newLocalId(); tx.seriesId = tx.id; }
+      Object.assign(tx, parcelaFields(tx, "confirmada"));
       Store.add(tx);
       var futureCount = launchFutureInstallments(tx);
       toast(futureCount > 0
@@ -2407,6 +2479,12 @@
   // 4 more occurrences exist no matter what, so wait for them to arrive one
   // real month at a time is just busywork. Lay them all down immediately,
   // dated one month apart, sharing the same seriesId as the entry just saved.
+  function parcelaFields(tx, status){
+    var p = parcelaParts(tx.parcela);
+    if(!p || !tx.seriesId) return {idCompra: null, parcelaAtual: null, totalParcelas: null, statusParcela: null};
+    return {idCompra: tx.seriesId, parcelaAtual: p.n, totalParcelas: p.total, statusParcela: status};
+  }
+
   function launchFutureInstallments(tx){
     // Triggered by the parcela field itself ("2/6") being a valid fraction —
     // not by the Classificação dropdown also having been set to "Parcelada",
@@ -2422,7 +2500,9 @@
         dataLanc: addMonthsISO(cursor.dataLanc, 1), dataEfet: addMonthsISO(cursor.dataEfet, 1),
         descricao: tx.descricao, categoria: tx.categoria, classificacao: tx.classificacao,
         parcela: n+"/"+parc.total, recorrencia: "Mensal", seriesId: tx.seriesId,
-        autoGenerated: true, obs: "Gerado automaticamente a partir da parcela "+tx.parcela
+        idCompra: tx.seriesId, parcelaAtual: n, totalParcelas: parc.total, statusParcela: "prevista",
+        cartao: tx.cartao || null,
+        autoGenerated: true, obs: "Parcela prevista — confirmada quando a fatura chegar"
       };
       futuros.push(novo);
       cursor = novo;
@@ -2456,7 +2536,9 @@
         dataLanc: addMonthsISO(cursor.dataLanc, 1), dataEfet: addMonthsISO(cursor.dataEfet, 1),
         descricao: tx.descricao, categoria: tx.categoria, classificacao: tx.classificacao,
         parcela: n+"/"+parc.total, recorrencia: "Mensal", seriesId: tx.seriesId,
-        autoGenerated: true, obs: "Gerado automaticamente a partir da parcela "+tx.parcela
+        idCompra: tx.seriesId, parcelaAtual: n, totalParcelas: parc.total, statusParcela: "prevista",
+        cartao: tx.cartao || null,
+        autoGenerated: true, obs: "Parcela prevista — confirmada quando a fatura chegar"
       };
       rebuilt.push(novo);
       cursor = novo;
@@ -2523,6 +2605,269 @@
     }).filter(function(l){ return l.length > 0; });
   }
 
+  /* ==IMPORT-CORE-START== Regras de importação sem dependência de tela (cobertas por test_import.js) */
+
+  // Pagamento de fatura: palavras que, na descrição, indicam um candidato. Comparação
+  // ignora maiúsculas e acentos. Edite à vontade.
+  var PAGAMENTO_KEYWORDS = ["PAGAMENTOS/CREDITOS", "PAGAMENTO RECEBIDO", "PAG FATURA", "PAGAMENTO", "PAGTO", "PGTO"];
+  // Palavras fracas: só viram candidato se o valor bater (±1%) com o total de uma fatura.
+  var PAGAMENTO_KEYWORDS_FRACAS = ["CREDITO"];
+  var PAGAMENTO_TOLERANCIA = 0.01;
+
+  function impNorm(s){ return String(s||"").toUpperCase().normalize("NFD").replace(/[̀-ͯ]/g, ""); }
+  // Descrição "equivalente": sem números, acentos, pontuação, espaços extras e caixa.
+  function impDescKey(s){ return impNorm(s).replace(/[^A-Z ]/g, " ").replace(/\s+/g, " ").trim(); }
+  function impPad(n){ return (n < 10 ? "0" : "") + n; }
+  function impIso(y, m, d){ return y + "-" + impPad(m) + "-" + impPad(d); }
+  function impLastDay(y, m){ return new Date(y, m, 0).getDate(); }
+  function impMonthKey(iso){ return String(iso||"").slice(0, 7); }
+  function impAddMonths(iso, n){
+    var y = +iso.slice(0,4), m = +iso.slice(5,7), d = +iso.slice(8,10);
+    var total = (y*12 + (m-1)) + n;
+    var ny = Math.floor(total/12), nm = (total % 12) + 1;
+    return impIso(ny, nm, Math.min(d, impLastDay(ny, nm)));
+  }
+
+  // Vencimento da fatura em que uma compra cai. Compra até o dia de fechamento
+  // (inclusive) entra na fatura que fecha naquele mês; depois, na do mês seguinte.
+  // Vencimento com dia menor ou igual ao fechamento cai no mês seguinte ao fechamento.
+  // Meses curtos usam o último dia do mês (fechamento 31 em fevereiro = 28/29).
+  function faturaVencimentoPara(compraISO, fechamento, vencimento){
+    var y = +compraISO.slice(0,4), m = +compraISO.slice(5,7), d = +compraISO.slice(8,10);
+    var cy = y, cm = m;
+    if(d > Math.min(fechamento, impLastDay(y, m))){ cm++; if(cm > 12){ cm = 1; cy++; } }
+    var vy = cy, vm = cm;
+    if(vencimento <= fechamento){ vm++; if(vm > 12){ vm = 1; vy++; } }
+    return impIso(vy, vm, Math.min(vencimento, impLastDay(vy, vm)));
+  }
+
+  // Parcela escrita na descrição: "3/12", "03/12", "PARC 03/12", "PARCELA 3 DE 12",
+  // "03 DE 12". Exige atual ≥ 1, total ≥ 2 e atual ≤ total; o formato solto "N/M"
+  // é recusado quando parece data (seguido de "/ano" ou precedido de EM/DIA/VENC…).
+  var PARCELA_PATTERNS = [
+    /\bPARC(?:ELA)?\.?\s*(\d{1,2})\s*(?:\/|DE)\s*(\d{1,2})\b/i,
+    /\b(\d{1,2})\s+DE\s+(\d{1,2})\b/i,
+    /(^|[\s(\-])(\d{1,2})\/(\d{1,2})(?![\d\/])/
+  ];
+  function parseParcelaText(desc){
+    var src = String(desc||"");
+    for(var i = 0; i < PARCELA_PATTERNS.length; i++){
+      var m = PARCELA_PATTERNS[i].exec(src);
+      if(!m) continue;
+      var bare = (i === 2);
+      var a = +(bare ? m[2] : m[1]), t = +(bare ? m[3] : m[2]);
+      if(!(a >= 1 && t >= 2 && a <= t && t <= 60)) continue;
+      if(bare){
+        var before = impNorm(src.slice(Math.max(0, m.index - 10), m.index + m[1].length));
+        if(/\b(EM|DIA|DATA|VENC\w*|ATE)\s*$/.test(before)) continue;
+      }
+      var start = m.index + (bare ? m[1].length : 0);
+      var cleaned = (src.slice(0, start) + src.slice(m.index + m[0].length))
+        .replace(/[\s\-–]+$/, "").replace(/^[\s\-–]+/, "").replace(/\s+/g, " ").trim();
+      return { atual: a, total: t, text: a + "/" + t, cleaned: cleaned || src.trim() };
+    }
+    return null;
+  }
+
+  // Candidato a pagamento de fatura. Numa fatura de cartão, qualquer palavra forte
+  // basta; num extrato de conta (onde "PAGAMENTO BOLETO…" é despesa de verdade) é
+  // preciso mencionar fatura/cartão ou o valor bater com o total de uma fatura.
+  function detectPagamentoFatura(desc, valor, ctx){
+    var u = impNorm(desc);
+    var has = function(list){ return list.some(function(k){ return u.indexOf(impNorm(k)) !== -1; }); };
+    var forte = has(PAGAMENTO_KEYWORDS);
+    var fraca = !forte && has(PAGAMENTO_KEYWORDS_FRACAS);
+    if(!forte && !fraca) return false;
+    var bate = (ctx && ctx.totais || []).some(function(t){ return t > 0 && Math.abs(t - valor) <= t * PAGAMENTO_TOLERANCIA; });
+    if(fraca) return bate;
+    if(ctx && ctx.isFatura) return true;
+    return bate || /FATURA|CARTAO/.test(u);
+  }
+
+  // Parcela prevista que corresponde a uma linha importada: mesma fatura (mês do
+  // vencimento), valor igual (±5 centavos) e descrição equivalente.
+  function findPrevistaMatch(row, txs){
+    var key = impDescKey(row.descricao);
+    for(var i = 0; i < txs.length; i++){
+      var tx = txs[i];
+      if(tx.statusParcela !== "prevista") continue;
+      if(impMonthKey(tx.dataEfet) !== impMonthKey(row.dataEfet)) continue;
+      if(Math.abs(tx.valor - row.valor) > 0.05) continue;
+      if(impDescKey(tx.descricao) !== key) continue;
+      if(row.parcelaAtual && tx.parcelaAtual && row.parcelaAtual !== tx.parcelaAtual) continue;
+      return tx;
+    }
+    return null;
+  }
+
+  // Sinal B: a mesma compra (descrição equivalente, mesmo valor) nas faturas
+  // imediatamente anteriores. Assinaturas mensais (Fixa/Mensal) ficam de fora.
+  function findRepeticaoAnterior(row, txs, banco){
+    var key = impDescKey(row.descricao);
+    if(!key) return null;
+    var ids = [], cursor = row.dataEfet;
+    for(var i = 0; i < 24; i++){
+      cursor = impAddMonths(cursor, -1);
+      var hit = null;
+      for(var j = 0; j < txs.length; j++){
+        var tx = txs[j];
+        if(tx.tipo !== "despesa" || tx.totalParcelas || tx.parcela) continue;
+        if(tx.recorrencia === "Mensal" || tx.classificacao === "Fixa") continue;
+        if(banco && tx.banco && impNorm(tx.banco) !== impNorm(banco)) continue;
+        if(impMonthKey(tx.dataEfet) !== impMonthKey(cursor)) continue;
+        if(Math.abs(tx.valor - row.valor) > 0.01) continue;
+        if(impDescKey(tx.descricao) !== key) continue;
+        hit = tx; break;
+      }
+      if(!hit) break;
+      ids.push(hit.id);
+    }
+    return ids.length ? { count: ids.length, ids: ids } : null;
+  }
+
+  // Verificação de configuração: quantas compras à vista caem fora do vencimento
+  // que veio no próprio arquivo, se calculadas pelo fechamento/vencimento salvos.
+  function checkConfigMismatch(rows, cfg, vencimentoArquivo){
+    if(!cfg || !cfg.fechamento || !cfg.vencimento || !vencimentoArquivo) return {fora: 0, total: 0, suspeito: false};
+    var fora = 0, total = 0;
+    rows.forEach(function(r){
+      if(r.modalidade !== "Crédito" || r.pagamento || r.parcelaAtual) return;
+      total++;
+      if(impMonthKey(faturaVencimentoPara(r.data, cfg.fechamento, cfg.vencimento)) !== impMonthKey(vencimentoArquivo)) fora++;
+    });
+    return { fora: fora, total: total, suspeito: fora >= 2 && fora / Math.max(total, 1) >= 0.3 };
+  }
+
+  function detectCardFinal(lines){
+    var counts = {}, best = null;
+    lines.forEach(function(l){
+      var re = /(?:[•*xX]{2,}\s*|FINAL\s+)(\d{4})\b/gi, m;
+      while((m = re.exec(l))){ counts[m[1]] = (counts[m[1]] || 0) + 1; }
+    });
+    Object.keys(counts).forEach(function(k){ if(!best || counts[k] > counts[best]) best = k; });
+    return best;
+  }
+  function detectFechamentoDia(lines){
+    var j = impNorm(lines.join(" \n "));
+    var m = /PERIODO VIGENTE[:\s]*\d{1,2}\s+[A-Z]{3}\S*\s+A\s+(\d{1,2})\b/.exec(j) ||
+            /FECHAMENTO[^\d\n]{0,40}(\d{1,2})(?:[\/\s]|$)/.exec(j);
+    var d = m ? +m[1] : null;
+    return d && d >= 1 && d <= 31 ? d : null;
+  }
+  function detectTotaisFatura(lines){
+    var out = [];
+    lines.forEach(function(l){
+      var u = impNorm(l);
+      if(!/TOTAL A PAGAR|TOTAL DA FATURA|FATURA ANTERIOR|VALOR DA FATURA|PAGAMENTO RECEBIDO/.test(u)) return;
+      var m = /(\d{1,3}(?:\.\d{3})*,\d{2})/.exec(l);
+      if(m) out.push(parseFloat(m[1].replace(/\./g, "").replace(",", ".")));
+    });
+    return out;
+  }
+
+  function isPrevistaTx(tx, today){ return tx.statusParcela === "prevista" && tx.dataEfet > today; }
+  // O que conta como gasto/receita do mês: nem pagamento de fatura (seria contar
+  // duas vezes) nem parcela ainda prevista.
+  function countsAsSpendTx(tx, today){ return tx.tipo !== "pagamento_fatura" && !isPrevistaTx(tx, today); }
+
+  // Recalcula datas e avisos das linhas da revisão. Preserva as decisões já tomadas
+  // (pagamento confirmado/recusado, parcela confirmada) e datas editadas à mão.
+  function annotateImportRows(rows, ctx){
+    var meta = ctx.meta || {};
+    var card = ctx.card || {};
+    var cardOk = card.fechamento >= 1 && card.vencimento >= 1;
+    rows.forEach(function(r){
+      r.unsure = r.unsure || {};
+      if(!r.dataEfetManual){
+        if(r.modalidade === "Crédito"){
+          if(meta.vencimento){ r.dataEfet = meta.vencimento; r.unsure.dataEfet = false; }
+          else if(cardOk){ r.dataEfet = faturaVencimentoPara(r.data, card.fechamento, card.vencimento); r.unsure.dataEfet = false; }
+          else { r.dataEfet = r.data; r.unsure.dataEfet = true; }
+        } else { r.dataEfet = r.data; r.unsure.dataEfet = false; }
+      }
+      if(r.pagamento === undefined){
+        r.pagamento = detectPagamentoFatura(r.descricao, r.valor, {isFatura: meta.isFatura, totais: ctx.totais}) ? {state: "pending"} : null;
+      }
+      var isPag = r.pagamento && r.pagamento.state !== "rejected";
+      r.conciliaId = null;
+      if(!isPag){
+        var prev = findPrevistaMatch(r, ctx.txs || []);
+        if(prev) r.conciliaId = prev.id;
+      }
+      if(r.sinalB === undefined){
+        r.sinalB = null;
+        if(!isPag && !r.parcelaAtual && !r.conciliaId && r.modalidade === "Crédito"){
+          var rep = findRepeticaoAnterior(r, ctx.txs || [], ctx.banco);
+          if(rep) r.sinalB = {state: "pending", count: rep.count, ids: rep.ids};
+        }
+      }
+    });
+    return checkConfigMismatch(rows, card, meta.vencimento);
+  }
+
+  // Transforma as linhas revisadas em: lançamentos novos (incluindo parcelas
+  // previstas) e atualizações de lançamentos existentes (previstas confirmadas,
+  // parcelas anteriores ligadas pelo sinal B). Não toca em nada não selecionado.
+  function buildImportPlan(rows, ctx){
+    var adds = [], updates = [];
+    var all = function(){ return (ctx.txs || []).concat(adds); };
+    rows.forEach(function(r){
+      if(!r.selected) return;
+      if(r.conciliaId){
+        updates.push({id: r.conciliaId, patch: {statusParcela: "confirmada", dataLanc: r.data}});
+        return;
+      }
+      var pagamento = r.pagamento && r.pagamento.state === "confirmed";
+      var credito = r.modalidade === "Crédito";
+      var tx = {
+        tipo: pagamento ? "pagamento_fatura" : (r.pagamento && r.pagamento.state === "rejected" ? "despesa" : r.tipo),
+        banco: ctx.banco, modalidade: r.modalidade, valor: r.valor,
+        dataLanc: r.data, dataEfet: r.dataEfet, descricao: r.descricao,
+        categoria: pagamento ? "Pagamento de fatura" : (r.categoria || "A categorizar"),
+        classificacao: r.parcelaAtual ? "Parcelada" : r.classificacao,
+        recorrencia: r.parcelaAtual ? "Mensal" : "Única",
+        parcela: r.parcelaAtual ? (r.parcelaAtual + "/" + r.totalParcelas) : null,
+        cartao: credito ? (ctx.cardKey || null) : null,
+        idCompra: null, parcelaAtual: null, totalParcelas: null, statusParcela: null, seriesId: null,
+        obs: "Importado de extrato PDF"
+      };
+      if(!pagamento && r.parcelaAtual && r.totalParcelas){
+        var key = impDescKey(r.descricao);
+        var group = null;
+        all().forEach(function(t){
+          if(group || !t.idCompra || t.totalParcelas !== r.totalParcelas) return;
+          if(impDescKey(t.descricao) !== key) return;
+          if(ctx.banco && t.banco && impNorm(t.banco) !== impNorm(ctx.banco)) return;
+          group = t.idCompra;
+        });
+        var idCompra = group || ctx.newId();
+        tx.idCompra = idCompra; tx.seriesId = idCompra;
+        tx.parcelaAtual = r.parcelaAtual; tx.totalParcelas = r.totalParcelas; tx.statusParcela = "confirmada";
+        adds.push(tx);
+        for(var k = r.parcelaAtual + 1; k <= r.totalParcelas; k++){
+          var exists = all().some(function(t){ return t.idCompra === idCompra && t.parcelaAtual === k; });
+          if(exists) continue;
+          var step = k - r.parcelaAtual;
+          adds.push(Object.assign({}, tx, {
+            dataLanc: impAddMonths(r.data, step), dataEfet: impAddMonths(r.dataEfet, step),
+            parcela: k + "/" + r.totalParcelas, parcelaAtual: k, statusParcela: "prevista",
+            obs: "Parcela prevista — confirmada quando a fatura chegar"
+          }));
+        }
+        (r.sinalB && r.sinalB.state === "confirmed" ? r.sinalB.ids : []).forEach(function(id, i){
+          var n = r.parcelaAtual - (i + 1);
+          if(n < 1) return;
+          updates.push({id: id, patch: {idCompra: idCompra, seriesId: idCompra, parcelaAtual: n, totalParcelas: r.totalParcelas,
+            statusParcela: "confirmada", parcela: n + "/" + r.totalParcelas, classificacao: "Parcelada", recorrencia: "Mensal"}});
+        });
+        return;
+      }
+      adds.push(tx);
+    });
+    return {adds: adds, updates: updates};
+  }
+  /* ==IMPORT-CORE-END== */
+
   function extractLinesFromPdf(bytes){
     return pdfjsLib.getDocument({data: bytes}).promise.then(function(pdf){
       var pagePromises = [];
@@ -2562,7 +2907,7 @@
     return null;
   }
 
-  var NOISE_WORDS = ["SALDO ANTERIOR","SALDO DO DIA","SALDO ATUAL","SALDO DISPONIVEL","SALDO DISPONÍVEL","SALDO BLOQUEADO","SALDO FINAL","SALDO INICIAL","SALDO EM ABERTO","TOTAL DE COMPRAS","TOTAL A PAGAR","PAGAMENTO MINIMO","PAGAMENTO MÍNIMO","PAGAMENTO RECEBIDO","PAGAMENTO EM","FATURA ANTERIOR","LIMITE TOTAL","LIMITE DISPONIVEL","LIMITE DISPONÍVEL","PAGINA ","PÁGINA ","FOLHA ","EXTRATO DE","PERIODO VIGENTE","PERÍODO VIGENTE","AGENCIA","AGÊNCIA","CONTA CORRENTE","OUVIDORIA","CENTRAL DE ATENDIMENTO","SAC 0800","CET ","VALOR MAXIMO","VALOR MÁXIMO"];
+  var NOISE_WORDS = ["SALDO ANTERIOR","SALDO DO DIA","SALDO ATUAL","SALDO DISPONIVEL","SALDO DISPONÍVEL","SALDO BLOQUEADO","SALDO FINAL","SALDO INICIAL","SALDO EM ABERTO","TOTAL DE COMPRAS","TOTAL A PAGAR","PAGAMENTO MINIMO","PAGAMENTO MÍNIMO","FATURA ANTERIOR","LIMITE TOTAL","LIMITE DISPONIVEL","LIMITE DISPONÍVEL","PAGINA ","PÁGINA ","FOLHA ","EXTRATO DE","PERIODO VIGENTE","PERÍODO VIGENTE","AGENCIA","AGÊNCIA","CONTA CORRENTE","OUVIDORIA","CENTRAL DE ATENDIMENTO","SAC 0800","CET ","VALOR MAXIMO","VALOR MÁXIMO"];
   var DESPESA_WORDS = ["PAGT","COMPRA","SAQUE","TARIFA","ENVIAD","DEBIT","BOLETO","FATURA","SAID","SAÍD","ANUIDADE","JUROS","DESCONT"];
   var RECEITA_WORDS = ["RECEBID","DEPOSIT","DEPÓSIT","SALARI","SALÁRI","RENDIMENT","ESTORN","DEVOLU"];
   var CATEGORY_RULES = [
@@ -2618,12 +2963,6 @@
     var neg = (sign === "-" || sign === "−" || sign === "–");
     return parseFloat(numStr.replace(/\./g,"").replace(",", ".")) * (neg ? -1 : 1);
   }
-  function extractParcela(desc){
-    var m = /PARCELA\s*(\d+)\s*(?:\/|DE)\s*(\d+)/i.exec(desc);
-    if(!m) return null;
-    return { text: m[1]+"/"+m[2], cleaned: (desc.slice(0,m.index)+desc.slice(m.index+m[0].length)).replace(/[-–\s]+$/, "").replace(/\s+/g," ").trim() };
-  }
-
   function detectStatementMeta(lines){
     var joined = lines.join(" \n ");
     var meta = { banco:null, vencimento:null, year:null, isFatura:false };
@@ -2644,6 +2983,9 @@
       if(ym) meta.year = parseInt(ym[3],10);
     }
     if(!meta.year) meta.year = new Date().getFullYear();
+    meta.cardFinal = detectCardFinal(lines);
+    meta.fechamentoDia = detectFechamentoDia(lines);
+    meta.totais = detectTotaisFatura(lines);
     return meta;
   }
 
@@ -2684,7 +3026,7 @@
       desc = desc.replace(/^[-–•\s]+/, "").trim();
       if(!desc) desc = "Lançamento do extrato";
 
-      var parc = extractParcela(desc);
+      var parc = parseParcelaText(desc);
       if(parc) desc = parc.cleaned || desc;
 
       var tipoGuess = guessTipo(desc, first.sign, first.dc, meta.isFatura);
@@ -2692,13 +3034,13 @@
       var categoriaGuess = guessCategoria(desc);
       var noisy = isNoiseLine(line);
 
-      var dataEfet = meta.isFatura && meta.vencimento ? meta.vencimento : iso;
-
+      // "Disponível em" is filled by annotateImportRows (fatura due date, or the
+      // card's closing/due days) — never by copying the purchase date for credit.
       out.push({
         selected: !noisy,
         flagged: noisy,
         data: iso,
-        dataEfet: dataEfet,
+        dataEfet: iso,
         descricao: desc || "Lançamento do extrato",
         valor: valor,
         tipo: tipoGuess.tipo,
@@ -2706,12 +3048,14 @@
         categoria: categoriaGuess,
         classificacao: parc ? "Parcelada" : "Variável",
         parcela: parc ? parc.text : null,
+        parcelaAtual: parc ? parc.atual : null,
+        totalParcelas: parc ? parc.total : null,
         unsure: {
           tipo: !tipoGuess.sure,
           categoria: categoriaGuess === "A categorizar",
           modalidade: !modalidadeGuess,
           data: yearGuessed,
-          dataEfet: !(meta.isFatura && meta.vencimento)
+          dataEfet: false
         }
       });
     });
@@ -2746,6 +3090,7 @@
     var best = null;
     state.transactions.forEach(function(tx){
       if(tx.tipo !== row.tipo) return;
+      if(tx.statusParcela === "prevista") return;
       if(Math.abs(tx.valor - row.valor) > 0.01) return;
       var diff = Math.min(daysDiff(tx.dataEfet, row.dataEfet), daysDiff(tx.dataLanc, row.data));
       var sim = descSimilarity(tx.descricao, row.descricao);
@@ -2761,6 +3106,7 @@
 
   function annotateDuplicates(rows){
     rows.forEach(function(row){
+      if(row.conciliaId){ row.dup = null; return; }
       var match = findDuplicate(row);
       if(!match){ row.dup = null; return; }
       row.dup = {
@@ -2781,33 +3127,158 @@
     else { el.hidden = true; }
   }
 
+  var stagingCard = null;
+  var stagingCheck = null;
+
+  function stagingBanco(){
+    return document.getElementById("importBanco").value.trim() || (stagingMeta && stagingMeta.banco) || "Extrato importado";
+  }
+  function stagingHasCredit(){ return staging.some(function(r){ return r.modalidade === "Crédito"; }); }
+  function cardKeyFinal(banco, final){ return impNorm(banco).toLowerCase() + "|" + final; }
+  function cardKeyNome(banco, nome){ return "nome|" + impNorm(banco).toLowerCase() + "|" + impNorm(nome).toLowerCase(); }
+
+  // Which card this import belongs to: last 4 digits from the PDF when present,
+  // otherwise the bank's only saved card, otherwise a name the user types. Two
+  // cards in the same bank never share settings.
+  function setupStagingCard(){
+    var banco = stagingBanco();
+    var final = stagingMeta && stagingMeta.cardFinal;
+    var sameBank = Object.keys(state.cartoes).filter(function(k){ return impNorm(state.cartoes[k].banco) === impNorm(banco); });
+    var card = {banco: banco, final: null, nome: "", key: null, mode: "named", fechamento: null, vencimento: null};
+    if(final){
+      card.mode = "final"; card.final = final; card.key = cardKeyFinal(banco, final);
+    } else if(sameBank.length === 1){
+      card.mode = "existing"; card.key = sameBank[0];
+    }
+    applySavedCard(card);
+    stagingCard = card;
+  }
+  function applySavedCard(card){
+    var saved = card.key && state.cartoes[card.key];
+    if(saved){
+      card.fechamento = saved.fechamento; card.vencimento = saved.vencimento;
+      card.nome = saved.nome || ""; card.final = saved.final || card.final;
+      card.saved = true;
+    } else {
+      card.saved = false;
+      card.fechamento = card.fechamento || (stagingMeta && stagingMeta.fechamentoDia) || null;
+      card.vencimento = card.vencimento || (stagingMeta && stagingMeta.vencimento ? +stagingMeta.vencimento.slice(8,10) : null);
+    }
+  }
+
+  function ledgerFaturaTotals(banco){
+    var totals = {};
+    state.transactions.forEach(function(t){
+      if(!isFaturaTx(t) || !countsAsSpend(t)) return;
+      if(banco && impNorm(t.banco) !== impNorm(banco)) return;
+      var k = t.banco + "|" + t.dataEfet;
+      totals[k] = (totals[k] || 0) + t.valor;
+    });
+    return Object.keys(totals).map(function(k){ return totals[k]; });
+  }
+
+  function refreshStaging(){
+    if(!staging.length){ renderStaging(); return; }
+    stagingCheck = annotateImportRows(staging, {
+      meta: stagingMeta || {},
+      card: stagingCard || {},
+      txs: state.transactions,
+      totais: ((stagingMeta && stagingMeta.totais) || []).concat(ledgerFaturaTotals(stagingBanco())),
+      banco: stagingBanco()
+    });
+    renderStaging();
+  }
+
   function renderStaging(){
     var el = document.getElementById("importStaging");
     if(!staging.length){ el.hidden = true; el.innerHTML = ""; return; }
     el.hidden = false;
     var selected = staging.filter(function(r){ return r.selected; });
-    var selTotal = selected.reduce(function(s,r){ return s + (r.tipo==="receita" ? r.valor : -r.valor); }, 0);
+    var selTotal = selected.reduce(function(s,r){
+      if(r.tipo === "pagamento_fatura") return s;
+      return s + (r.tipo==="receita" ? r.valor : -r.valor);
+    }, 0);
     var anyUnsure = staging.some(function(r){ return r.unsure && (r.unsure.tipo || r.unsure.categoria || r.unsure.modalidade || r.unsure.data || r.unsure.dataEfet); });
     var anyDupConfirmed = staging.some(function(r){ return r.dup && r.dup.level === "confirmed"; });
     var anyDupPossible = staging.some(function(r){ return r.dup && r.dup.level === "possible"; });
     var classOpts = ["Variável","Fixa","Parcelada"];
     var u = function(cond){ return cond ? " field-unsure" : ""; };
+
+    // ---- Avisos que pedem um clique ----
+    var items = [];
+    var hasCredit = stagingHasCredit();
+    var card = stagingCard || {};
+    var cardOk = card.fechamento >= 1 && card.vencimento >= 1 && (card.key || card.mode === "named");
+    if(hasCredit && (!cardOk || (!card.key && card.mode === "named"))){
+      items.push('<div class="attn-item"><span>Informe o cartão e os dias de <strong>fechamento</strong> e <strong>vencimento</strong> da fatura — só na primeira vez, depois fica salvo.</span></div>');
+    }
+    if(stagingCheck && stagingCheck.suspeito){
+      items.push('<div class="attn-item"><span>O dia de fechamento configurado para este cartão parece estar errado ('+stagingCheck.fora+' de '+stagingCheck.total+' compras caíram fora da fatura esperada). Deseja revisar?</span>'+
+        '<span class="attn-actions"><button type="button" class="solid" id="btnReviewCard">Revisar</button></span></div>');
+    }
+    staging.forEach(function(r, idx){
+      var label = '‘'+escapeAttr(r.descricao)+' — '+fmt(r.valor)+'’';
+      if(r.pagamento && r.pagamento.state === "pending"){
+        items.push('<div class="attn-item"><span>'+label+' parece ser o pagamento da fatura de '+fmtDate(r.data)+'. Ele não será contado como despesa.</span>'+
+          '<span class="attn-actions"><button type="button" class="solid" data-act="pag-ok" data-idx="'+idx+'">Confirmar</button>'+
+          '<button type="button" class="ghost" data-act="pag-no" data-idx="'+idx+'">Não, é uma despesa</button></span></div>');
+      }
+      if(r.sinalB && r.sinalB.state === "pending"){
+        items.push('<div class="attn-item"><span>'+label+' apareceu igual na fatura anterior. Parece uma compra parcelada. Confirmar?</span>'+
+          '<span class="attn-actions"><button type="button" class="solid" data-act="parc-ok" data-idx="'+idx+'">Sim</button>'+
+          '<button type="button" class="ghost" data-act="parc-no" data-idx="'+idx+'">Não</button></span></div>');
+      }
+      if(r.sinalB && r.sinalB.state === "asking"){
+        items.push('<div class="attn-item"><span>'+label+' — em quantas vezes?</span>'+
+          '<span class="attn-actions"><input type="number" min="'+(r.sinalB.count+1)+'" max="60" class="attn-num" id="parcN'+idx+'" aria-label="Número de parcelas">'+
+          '<button type="button" class="solid" data-act="parc-n" data-idx="'+idx+'">OK</button></span></div>');
+      }
+    });
+    var pendingPag = staging.some(function(r){ return r.selected && r.pagamento && r.pagamento.state === "pending"; });
+
+    var cardHtml = "";
+    if(hasCredit){
+      var banco = stagingBanco();
+      var opts = [];
+      Object.keys(state.cartoes).forEach(function(k){
+        if(impNorm(state.cartoes[k].banco) !== impNorm(banco)) return;
+        opts.push('<option value="'+escapeAttr(k)+'" '+(card.key===k?"selected":"")+'>'+escapeAttr(cardLabel(k))+'</option>');
+      });
+      if(card.mode === "final" && !state.cartoes[card.key]){
+        opts.unshift('<option value="'+escapeAttr(card.key)+'" selected>'+escapeAttr(banco)+' final '+card.final+' (novo)</option>');
+      }
+      opts.push('<option value="__named__" '+(card.mode==="named"?"selected":"")+'>Outro cartão (dar um nome)</option>');
+      cardHtml = '<div class="imp-card">'+
+        '<div class="imp-card-row"><label for="impCardSel">Cartão</label><select id="impCardSel">'+opts.join("")+'</select>'+
+        (card.mode==="named" ? '<input id="impCardNome" placeholder="Nome do cartão (ex: '+escapeAttr(banco)+' pessoal)" value="'+escapeAttr(card.nome||"")+'">' : '')+'</div>'+
+        '<div class="imp-card-row"><label for="impCardFech">Fecha dia</label><input type="number" min="1" max="31" id="impCardFech" value="'+(card.fechamento||"")+'">'+
+        '<label for="impCardVenc">Vence dia</label><input type="number" min="1" max="31" id="impCardVenc" value="'+(card.vencimento||"")+'">'+
+        '<span class="imp-card-hint">'+(card.saved ? "Salvo para este cartão." : "Informe uma vez; fica salvo para as próximas importações.")+'</span></div>'+
+        '</div>';
+    }
+
+    var attnHtml = items.length ? '<div class="attn-block"><div class="attn-title">'+items.length+(items.length===1?' item precisa':' itens precisam')+' da sua confirmação</div>'+items.join("")+'</div>' : "";
+
     var rowsHtml = staging.map(function(r, idx){
       var un = r.unsure || {};
       var dupClass = r.dup ? (r.dup.level === "confirmed" ? " dup-confirmed" : " dup-possible") : "";
-      var rowClass = (r.selected?"":"excluded") + dupClass;
+      var attn = (r.pagamento && r.pagamento.state === "pending") || (r.sinalB && (r.sinalB.state === "pending" || r.sinalB.state === "asking"));
+      var rowClass = (r.selected?"":"excluded") + dupClass + (attn ? " attn-row" : "");
       var dupHtml = "";
       if(r.dup){
         var label = r.dup.level === "confirmed" ? "Aviso: lançamento duplicado" : "Possível duplicado — confira";
         dupHtml = '<span class="dup-warning '+r.dup.level+'">'+label+
           '<span class="dup-detail">já lançado: "'+escapeAttr(r.dup.descricao)+'" · '+fmtDate(r.dup.dataEfet)+' · '+fmt(r.dup.valor)+'</span></span>';
       }
+      var badges = (r.parcelaAtual ? '<span class="badge-parcela">'+r.parcelaAtual+'/'+r.totalParcelas+'</span>' : '')+
+        (r.pagamento && r.pagamento.state === "confirmed" ? '<span class="badge-pagfat">Pagamento de fatura</span>' : '')+
+        (r.conciliaId ? '<span class="badge-concilia">confirma parcela prevista</span>' : '');
       return '<tr class="'+rowClass+'">'+
         '<td><input type="checkbox" data-idx="'+idx+'" data-f="selected" '+(r.selected?"checked":"")+'></td>'+
         '<td><input type="date" class="'+u(un.data).trim()+'" data-idx="'+idx+'" data-f="data" value="'+r.data+'"></td>'+
         '<td><input type="date" class="'+u(un.dataEfet).trim()+'" data-idx="'+idx+'" data-f="dataEfet" value="'+r.dataEfet+'"></td>'+
-        '<td><input type="text" data-idx="'+idx+'" data-f="descricao" value="'+escapeAttr(r.descricao)+'">'+(r.parcela?'<span class="badge-parcela">'+r.parcela+'</span>':'')+(r.flagged?'<span class="row-flag">confira</span>':'')+dupHtml+'</td>'+
-        '<td><select class="'+u(un.tipo).trim()+'" data-idx="'+idx+'" data-f="tipo"><option value="despesa" '+(r.tipo==="despesa"?"selected":"")+'>Despesa</option><option value="receita" '+(r.tipo==="receita"?"selected":"")+'>Receita</option></select></td>'+
+        '<td><input type="text" data-idx="'+idx+'" data-f="descricao" value="'+escapeAttr(r.descricao)+'">'+badges+(r.flagged?'<span class="row-flag">confira</span>':'')+dupHtml+'</td>'+
+        '<td><select class="'+u(un.tipo).trim()+'" data-idx="'+idx+'" data-f="tipo"><option value="despesa" '+(r.tipo==="despesa"?"selected":"")+'>Despesa</option><option value="receita" '+(r.tipo==="receita"?"selected":"")+'>Receita</option><option value="pagamento_fatura" '+(r.tipo==="pagamento_fatura"?"selected":"")+'>Pagamento de fatura</option></select></td>'+
         '<td class="num-cell"><input type="number" step="0.01" min="0" data-idx="'+idx+'" data-f="valor" value="'+r.valor.toFixed(2)+'"></td>'+
         '<td><input type="text" class="'+u(un.categoria).trim()+'" list="categoriaOptions" data-idx="'+idx+'" data-f="categoria" value="'+escapeAttr(r.categoria)+'"></td>'+
         '<td><select class="'+u(un.modalidade).trim()+'" data-idx="'+idx+'" data-f="modalidade"><option value="Crédito" '+(r.modalidade==="Crédito"?"selected":"")+'>Crédito</option><option value="Débito" '+(r.modalidade==="Débito"?"selected":"")+'>Débito</option><option value="Pix" '+(r.modalidade==="Pix"?"selected":"")+'>Pix</option><option value="Débito automático" '+(r.modalidade==="Débito automático"?"selected":"")+'>Débito automático</option></select></td>'+
@@ -2815,6 +3286,7 @@
         '</tr>';
     }).join("");
     el.innerHTML =
+      cardHtml + attnHtml +
       ((anyUnsure || anyDupConfirmed || anyDupPossible) ? '<div class="staging-legend">'+
         (anyUnsure ? '<div class="staging-legend-row"><span class="sw unsure"></span>Campos em vermelho nas células são palpites — confira antes de importar.</div>' : '') +
         (anyDupConfirmed ? '<div class="staging-legend-row"><span class="sw dup"></span>Linhas vermelhas já existem no painel — vieram desmarcadas para não duplicar.</div>' : '') +
@@ -2823,32 +3295,110 @@
       '<div class="staging-summary"><span><strong>'+staging.length+'</strong> linha(s) detectada(s) · <strong>'+selected.length+'</strong> selecionada(s)</span>'+
       '<span>Impacto no saldo: <strong>'+fmt(selTotal)+'</strong></span></div>'+
       '<div class="table-scroll"><table class="staging"><thead><tr><th></th><th>Data</th><th>Disponível em</th><th>Descrição</th><th>Tipo</th><th>Valor</th><th>Categoria</th><th>Modalidade</th><th>Classificação</th></tr></thead><tbody>'+rowsHtml+'</tbody></table></div>'+
-      '<div class="staging-actions"><button class="btn btn-ghost" id="btnCancelStaging" type="button">Descartar</button><button class="btn btn-primary" id="btnConfirmStaging" type="button">Importar selecionados</button></div>';
+      '<div class="staging-actions"><button class="btn btn-ghost" id="btnCancelStaging" type="button">Descartar</button>'+
+      '<button class="btn btn-primary" id="btnConfirmStaging" type="button" '+(pendingPag?"disabled":"")+'>'+(pendingPag ? "Responda os avisos de pagamento para importar" : "Importar selecionados")+'</button></div>';
 
     Array.prototype.forEach.call(el.querySelectorAll("[data-f]"), function(input){
       input.addEventListener("change", function(){
         var idx = parseInt(this.dataset.idx, 10);
         var f = this.dataset.f;
-        if(f === "selected"){ staging[idx].selected = this.checked; }
-        else if(f === "valor"){ staging[idx].valor = Math.abs(parseFloat(this.value) || 0); }
-        else { staging[idx][f] = this.value; if(staging[idx].unsure) staging[idx].unsure[f] = false; }
-        renderStaging();
+        var r = staging[idx];
+        if(f === "selected"){ r.selected = this.checked; }
+        else if(f === "valor"){ r.valor = Math.abs(parseFloat(this.value) || 0); }
+        else if(f === "tipo"){
+          r.tipo = this.value;
+          if(r.unsure) r.unsure.tipo = false;
+          if(r.tipo === "pagamento_fatura"){ r.pagamento = {state: "confirmed"}; r.categoria = "Pagamento de fatura"; }
+          else if(r.pagamento){ r.pagamento.state = "rejected"; }
+        }
+        else {
+          r[f] = this.value;
+          if(r.unsure) r.unsure[f] = false;
+          if(f === "dataEfet") r.dataEfetManual = true;
+        }
+        refreshStaging();
       });
     });
-    document.getElementById("btnCancelStaging").onclick = function(){ staging = []; stagingMeta = null; renderStaging(); };
-    document.getElementById("btnConfirmStaging").onclick = function(){
-      var banco = document.getElementById("importBanco").value.trim() || "Extrato importado";
-      var toImport = staging.filter(function(r){ return r.selected; });
-      if(!toImport.length){ toast("Selecione pelo menos um lançamento."); return; }
-      var toAdd = toImport.map(function(r){
-        return { tipo:r.tipo, banco:banco, modalidade:r.modalidade, valor:r.valor, dataLanc:r.data, dataEfet:r.dataEfet,
-          descricao:r.descricao, categoria:r.categoria || "A categorizar", classificacao:r.classificacao,
-          parcela:r.parcela, obs:"Importado de extrato PDF" };
+    Array.prototype.forEach.call(el.querySelectorAll("[data-act]"), function(btn){
+      btn.addEventListener("click", function(){
+        var idx = parseInt(this.dataset.idx, 10);
+        var r = staging[idx];
+        var act = this.dataset.act;
+        if(act === "pag-ok"){ r.pagamento.state = "confirmed"; r.tipo = "pagamento_fatura"; r.categoria = "Pagamento de fatura"; r.selected = true; }
+        else if(act === "pag-no"){ r.pagamento.state = "rejected"; r.tipo = "despesa"; }
+        else if(act === "parc-ok"){ r.sinalB.state = "asking"; }
+        else if(act === "parc-no"){ r.sinalB.state = "rejected"; }
+        else if(act === "parc-n"){
+          var n = parseInt(document.getElementById("parcN"+idx).value, 10);
+          if(!(n >= r.sinalB.count + 1) || n > 60){ toast("Informe um número de parcelas a partir de "+(r.sinalB.count+1)+"."); return; }
+          r.sinalB.state = "confirmed";
+          r.parcelaAtual = r.sinalB.count + 1; r.totalParcelas = n;
+          r.parcela = r.parcelaAtual + "/" + n; r.classificacao = "Parcelada";
+        }
+        refreshStaging();
       });
-      Store.addMany(toAdd);
-      toast(toAdd.length + " lançamento(s) importado(s) do extrato.");
-      staging = [];
-      stagingMeta = null;
+    });
+    var sel = document.getElementById("impCardSel");
+    if(sel){
+      sel.addEventListener("change", function(){
+        var c = {banco: stagingBanco(), final: null, nome: "", key: null, mode: "named", fechamento: null, vencimento: null};
+        if(this.value !== "__named__"){
+          c.key = this.value;
+          var saved = state.cartoes[c.key];
+          c.mode = saved ? "existing" : "final";
+          c.final = saved ? saved.final : (stagingMeta && stagingMeta.cardFinal);
+        }
+        applySavedCard(c);
+        stagingCard = c;
+        refreshStaging();
+      });
+      var nome = document.getElementById("impCardNome");
+      if(nome) nome.addEventListener("change", function(){
+        stagingCard.nome = this.value.trim();
+        stagingCard.key = stagingCard.nome ? cardKeyNome(stagingBanco(), stagingCard.nome) : null;
+        if(stagingCard.key && state.cartoes[stagingCard.key]) applySavedCard(stagingCard);
+        refreshStaging();
+      });
+      ["impCardFech", "impCardVenc"].forEach(function(id){
+        document.getElementById(id).addEventListener("change", function(){
+          var v = parseInt(this.value, 10);
+          v = (v >= 1 && v <= 31) ? v : null;
+          if(id === "impCardFech") stagingCard.fechamento = v; else stagingCard.vencimento = v;
+          refreshStaging();
+        });
+      });
+    }
+    var review = document.getElementById("btnReviewCard");
+    if(review) review.onclick = function(){ var f = document.getElementById("impCardFech"); if(f){ f.focus(); f.select(); } };
+
+    document.getElementById("btnCancelStaging").onclick = function(){ staging = []; stagingMeta = null; stagingCard = null; stagingCheck = null; renderStaging(); };
+    document.getElementById("btnConfirmStaging").onclick = function(){
+      if(staging.some(function(r){ return r.selected && r.pagamento && r.pagamento.state === "pending"; })){
+        toast("Responda os avisos de pagamento de fatura antes de importar."); return;
+      }
+      if(!staging.some(function(r){ return r.selected; })){ toast("Selecione pelo menos um lançamento."); return; }
+      var banco = stagingBanco();
+      var credit = stagingHasCredit();
+      var c = stagingCard || {};
+      if(credit && c.key && c.fechamento && c.vencimento){
+        state.cartoes[c.key] = {banco: banco, final: c.final || null, nome: c.nome || (c.final ? banco+" final "+c.final : banco),
+          fechamento: c.fechamento, vencimento: c.vencimento};
+        saveCartoes();
+      }
+      var seq = 0;
+      var plan = buildImportPlan(staging, {txs: state.transactions, banco: banco, cardKey: credit ? (c.key || null) : null,
+        newId: function(){ return newLocalId("c" + (seq++)); }});
+      plan.updates.forEach(function(up){ Store.update(up.id, up.patch); });
+      if(plan.adds.length) Store.addMany(plan.adds);
+      var previstas = plan.adds.filter(function(t){ return t.statusParcela === "prevista"; }).length;
+      var pagamentos = plan.adds.filter(function(t){ return t.tipo === "pagamento_fatura"; }).length;
+      var confirmadas = plan.updates.filter(function(u){ return u.patch.statusParcela === "confirmada" && !u.patch.idCompra; }).length;
+      var parts = [(plan.adds.length - previstas) + " lançamento(s) importado(s)"];
+      if(previstas) parts.push(previstas + " parcela(s) prevista(s) criada(s)");
+      if(confirmadas) parts.push(confirmadas + " parcela(s) prevista(s) confirmada(s)");
+      if(pagamentos) parts.push(pagamentos + " pagamento(s) de fatura fora das despesas");
+      toast(parts.join(" · ") + ".");
+      staging = []; stagingMeta = null; stagingCard = null; stagingCheck = null;
       renderStaging();
     };
   }
@@ -2862,17 +3412,24 @@
       toast("Não encontrei linhas com data e valor reconhecíveis neste conteúdo.");
       return;
     }
-    annotateDuplicates(rows);
     var bancoInput = document.getElementById("importBanco");
     if(meta.banco && !bancoInput.value) bancoInput.value = meta.banco;
     var vencInput = document.getElementById("importVencimento");
-    if(meta.vencimento) vencInput.value = meta.vencimento;
+    vencInput.value = meta.vencimento || "";
+
+    staging = rows;
+    setupStagingCard();
+    stagingCheck = annotateImportRows(staging, {meta: meta, card: stagingCard, txs: state.transactions,
+      totais: (meta.totais || []).concat(ledgerFaturaTotals(stagingBanco())), banco: stagingBanco()});
+    annotateDuplicates(rows);
 
     var noteEl = document.getElementById("importMetaNote");
     var parts = [];
     parts.push(meta.isFatura ? "Reconheci como fatura de cartão." : "Reconheci como extrato de conta.");
     parts.push(meta.banco ? ("Banco: "+meta.banco+".") : "Não identifiquei o banco — confira o campo acima.");
-    parts.push(meta.vencimento ? ("Vencimento/disponível em: "+fmtDate(meta.vencimento)+".") : "Não encontrei uma data de vencimento — ajuste manualmente se for fatura de cartão.");
+    if(meta.cardFinal) parts.push("Cartão final "+meta.cardFinal+".");
+    if(meta.vencimento) parts.push("Vencimento da fatura: "+fmtDate(meta.vencimento)+" — usado em todas as compras.");
+    else if(stagingHasCredit()) parts.push("O arquivo não traz a data de vencimento — calculo pelo fechamento e vencimento do cartão.");
     var dupConfirmed = rows.filter(function(r){ return r.dup && r.dup.level==="confirmed"; }).length;
     var dupPossible = rows.filter(function(r){ return r.dup && r.dup.level==="possible"; }).length;
     if(dupConfirmed) parts.push(dupConfirmed+" linha(s) já parecem estar no painel e vieram desmarcadas.");
@@ -2880,15 +3437,19 @@
     noteEl.hidden = false;
     noteEl.textContent = parts.join(" ");
 
-    staging = rows;
     renderStaging();
   }
 
   document.getElementById("importVencimento").addEventListener("change", function(){
-    var v = this.value;
-    if(!v || !staging.length) return;
-    staging.forEach(function(r){ r.dataEfet = v; if(r.unsure) r.unsure.dataEfet = false; });
-    renderStaging();
+    if(!staging.length || !stagingMeta) return;
+    stagingMeta.vencimento = this.value || null;
+    staging.forEach(function(r){ r.dataEfetManual = false; });
+    refreshStaging();
+  });
+  document.getElementById("importBanco").addEventListener("change", function(){
+    if(!staging.length) return;
+    setupStagingCard();
+    refreshStaging();
   });
 
   function handlePdfFile(file){
@@ -3039,6 +3600,7 @@
       toast("Você saiu da conta na nuvem.");
     });
   });
+
 
   init();
 })();
