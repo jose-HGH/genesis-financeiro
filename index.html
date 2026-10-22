@@ -1171,6 +1171,7 @@
         cloudTx.forEach(function(t){ cloudIds[t.id] = true; });
         var localOnly = state.transactions.filter(function(t){ return t.id && !cloudIds[t.id]; });
         state.transactions = cloudTx.concat(localOnly);
+        saveLocal();
         localOnly.forEach(function(tx){
           var payload = Object.assign({}, tx); delete payload.id;
           col.doc(tx.id).set(payload).catch(function(){});
@@ -1198,6 +1199,7 @@
       col.onSnapshot(function(liveSnap){
         state.transactions = liveSnap.docs.map(docToTx);
         renderAll();
+        saveLocal();
       }, function(err){
         console.error("Gênesis: a sincronização ao vivo caiu", err);
       });
@@ -1235,48 +1237,52 @@
   // shown on screen and the id written to the database are always the same
   // value, generated once up front, so later edits/deletes always hit the
   // right document instead of silently missing a mismatched auto-id.
+  // The local cache (localStorage) is always kept in sync, even while
+  // connected to the cloud — not just when working offline. It's what the
+  // very first instant render reads from before the cloud finishes connecting,
+  // and on reconnect, anything in it that the cloud doesn't recognize gets
+  // treated as "added locally, needs uploading" and pushed back up. If the
+  // cache were left stale while in db mode (only ever written in the "else"
+  // branch), a deleted transaction would sit there forever, and every single
+  // reload would resurrect it right back into the cloud.
   var Store = {
     add: function(tx){
       tx.id = tx.id || newLocalId();
       state.transactions.push(tx);
       renderAll();
+      saveLocal();
       if(state.mode === "db" && state.col){
         var payload = Object.assign({}, tx); delete payload.id;
         state.col.doc(tx.id).set(payload).catch(function(){ toast("Não foi possível salvar na nuvem — tentando de novo pode duplicar."); });
-      } else {
-        saveLocal();
       }
     },
     update: function(id, patch){
       var tx = state.transactions.find(function(t){ return t.id === id; });
       if(tx){ Object.assign(tx, patch); }
       renderAll();
+      saveLocal();
       if(state.mode === "db" && state.col){
         state.col.doc(id).update(patch).catch(function(){ toast("Não foi possível salvar a alteração na nuvem."); });
-      } else {
-        saveLocal();
       }
     },
     remove: function(id){
       state.transactions = state.transactions.filter(function(t){ return t.id !== id; });
       renderAll();
+      saveLocal();
       if(state.mode === "db" && state.col){
         state.col.doc(id).delete().catch(function(){ toast("Não foi possível excluir na nuvem."); });
-      } else {
-        saveLocal();
       }
     },
     addMany: function(list){
       list.forEach(function(tx, i){ tx.id = tx.id || newLocalId(i); });
       state.transactions = state.transactions.concat(list);
       renderAll();
+      saveLocal();
       if(state.mode === "db" && state.col){
         list.forEach(function(tx){
           var payload = Object.assign({}, tx); delete payload.id;
           state.col.doc(tx.id).set(payload).catch(function(){ toast("Não foi possível salvar alguns lançamentos na nuvem."); });
         });
-      } else {
-        saveLocal();
       }
     }
   };
