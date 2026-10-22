@@ -1538,10 +1538,16 @@
     return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0") + "-" + String(d.getDate()).padStart(2,"0");
   }
   function refISO(){ return document.getElementById("refDate").value || todayISO(); }
+  // Realizado/Pendente always compares against the TRUE current date, never
+  // against whichever month "Mês de referência" happens to be showing — those
+  // are two different things: one is "which month am I looking at", the other
+  // is "has this actually happened yet in real life". Conflating them meant
+  // navigating to a future month made that month's own entries look already
+  // realized just because they landed before the date on screen.
   function isRealized(tx, ref){
     if(tx.pagoManual === true) return true;
     if(tx.pagoManual === false) return false;
-    return tx.dataEfet <= ref;
+    return tx.dataEfet <= todayISO();
   }
   function daysBetween(a, b){
     var da = new Date(a+"T00:00:00"), db_ = new Date(b+"T00:00:00");
