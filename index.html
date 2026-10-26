@@ -317,6 +317,10 @@
   .attn-actions .solid{background:var(--brand); color:#fff; border-color:var(--brand);}
   .attn-num{width:70px; font-family:var(--font-num); font-size:13px; padding:6px 8px; border-radius:8px; border:1px solid var(--border-strong);}
   table.staging tr.attn-row td{background:var(--warn-wash);}
+  .spend-parcfat{display:flex; justify-content:space-between; gap:12px; margin-top:12px; padding-top:10px; border-top:1px dashed var(--border-strong); font-size:12.5px; color:var(--ink-2); font-variant-numeric:tabular-nums;}
+  .spend-parcfat em{font-style:normal; color:var(--ink-muted);}
+  .conf-warn .conf-list{margin:6px 0 0; padding-left:18px; font-size:12.5px; color:var(--ink-2);}
+  .conf-ok{font-size:12.5px; color:var(--good-text, var(--ink-2)); margin-bottom:10px;}
   .badge-pagfat{display:inline-block; font-size:10px; font-weight:600; color:#5243ac; background:rgba(98,80,214,0.12); border-radius:5px; padding:1px 6px; margin-left:6px;}
   .badge-concilia{display:inline-block; font-size:10px; font-weight:600; color:var(--good-text); background:var(--good-wash); border-radius:5px; padding:1px 6px; margin-left:6px;}
   td.num.neutral, .latest-value.neutral{color:var(--ink-muted);}
@@ -813,6 +817,9 @@
         <option value="">Todos os tipos</option>
         <option value="receita">Receitas</option>
         <option value="despesa">Despesas</option>
+        <option value="parcelamento_fatura">Parcelamento de fatura</option>
+        <option value="estorno">Estornos</option>
+        <option value="pagamento_fatura">Pagamento de fatura</option>
       </select>
       <select id="fStatus">
         <option value="">Todos os status</option>
@@ -852,6 +859,8 @@
             <option value="despesa">Despesa</option>
             <option value="receita">Receita</option>
             <option value="pagamento_fatura">Pagamento de fatura</option>
+            <option value="parcelamento_fatura">Parcelamento de fatura</option>
+            <option value="estorno">Estorno</option>
           </select>
         </div>
         <div class="field">
@@ -1536,16 +1545,7 @@
   // Pure read model behind "Comparativo mensal": totals + per-category despesa
   // breakdown for one calendar month, keyed off dataEfet so it lines up with the
   // rest of the dashboard's "when it hits the account/fatura" convention.
-  function monthStats(ym){
-    var r = {receitas:0, despesas:0, porCategoria:{}};
-    state.transactions.forEach(function(t){
-      if(monthKey(t.dataEfet) !== ym || !countsAsSpend(t)) return;
-      if(t.tipo === "receita"){ r.receitas += t.valor; }
-      else { r.despesas += t.valor; r.porCategoria[t.categoria] = (r.porCategoria[t.categoria]||0) + t.valor; }
-    });
-    r.saldo = r.receitas - r.despesas;
-    return r;
-  }
+  function monthStats(ym){ return calcMonthStats(state.transactions, ym, todayISO()); }
 
   var BUDGETS_KEY = "genesis-financas-budgets-v1";
   var PATRIMONIO_KEY = "genesis-financas-patrimonio-v1";
@@ -1652,7 +1652,7 @@
   // A card transaction's dataEfet already IS the invoice due date (see the "Disponível
   // em" field), so banco+dataEfet is naturally the key of the invoice it belongs to —
   // no separate field to maintain, and import already fills dataEfet from the PDF.
-  function isFaturaTx(tx){ return tx.tipo === "despesa" && tx.modalidade === "Crédito"; }
+  function isFaturaTx(tx){ return (tx.tipo === "despesa" || tx.tipo === "parcelamento_fatura" || tx.tipo === "estorno") && tx.modalidade === "Crédito"; }
   function isPagamentoFatura(tx){ return tx.tipo === "pagamento_fatura"; }
   function isPrevista(tx){ return isPrevistaTx(tx, todayISO()); }
   function countsAsSpend(tx){ return countsAsSpendTx(tx, todayISO()); }
@@ -1705,9 +1705,10 @@
         r.recTotal += tx.valor;
         if(real) r.recReal += tx.valor; else r.recPend += tx.valor;
       } else {
-        r.despTotal += tx.valor;
-        if(real) r.despReal += tx.valor; else r.despPend += tx.valor;
-        if(tx.classificacao === "Fixa") r.fixoTotal += tx.valor;
+        var v = despVal(tx);
+        r.despTotal += v;
+        if(real) r.despReal += v; else r.despPend += v;
+        if(tx.classificacao === "Fixa") r.fixoTotal += v;
       }
     });
     r.saldoAtual = r.recReal - r.despReal;
@@ -1721,11 +1722,11 @@
     var mr = monthRange(ref);
     var faturaPend = 0, faturaVenc = null;
     state.transactions.forEach(function(tx){
-      if(tx.tipo !== "despesa" || !isFaturaTx(tx) || isPrevista(tx)) return;
+      if(!isFaturaTx(tx) || isPrevista(tx)) return;
       var d = new Date(tx.dataEfet+"T00:00:00");
       if(d.getFullYear()!==mr.first.getFullYear() || d.getMonth()!==mr.first.getMonth()) return;
       if(isRealized(tx, ref)) return;
-      faturaPend += tx.valor;
+      faturaPend += despVal(tx);
       if(!faturaVenc || tx.dataEfet < faturaVenc) faturaVenc = tx.dataEfet;
     });
     return {
@@ -1858,6 +1859,15 @@
   function renderMonthCompare(ref){
     var ymNow = monthKey(ref), ymPrev = shiftMonthKey(ymNow, -1);
     var cur = monthStats(ymNow), prev = monthStats(ymPrev);
+    if(!compararMeses(cur, prev)){
+      document.getElementById("monthCompare").innerHTML = '<div class="mc-headline">'+
+        '<div class="mc-stat"><span class="mc-label">Saldo deste mês</span><span class="mc-value" id="mcSaldoNow">'+fmt(0)+'</span></div>'+
+        '<div class="mc-stat"><span class="mc-label">Gasto total</span><span class="mc-value" id="mcDespNow">'+fmt(0)+'</span></div>'+
+        '</div><div class="empty-note">Sem dados do mês anterior para comparar.</div>';
+      animateNumber(document.getElementById("mcSaldoNow"), 0, cur.saldo, true);
+      animateNumber(document.getElementById("mcDespNow"), 0, cur.despesas, true);
+      return;
+    }
     var saldoDelta = cur.saldo - prev.saldo;
     var despDelta = cur.despesas - prev.despesas;
     var melhorou = saldoDelta >= 0;
@@ -1911,7 +1921,7 @@
       var compras = 0, parcelas = 0;
       state.transactions.forEach(function(t){
         if(!isFaturaTx(t) || monthKey(t.dataEfet) !== ym) return;
-        if(hasParcela(t)) parcelas += t.valor; else if(countsAsSpend(t)) compras += t.valor;
+        if(hasParcela(t)) parcelas += t.valor; else if(countsAsSpend(t)) compras += despVal(t);
       });
       return {ym: ym, compras: compras, parcelas: parcelas, total: compras + parcelas};
     });
@@ -1963,7 +1973,7 @@
     items.forEach(function(tx){
       var k = keyFn(tx);
       if(!k) return;
-      map[k] = (map[k]||0) + tx.valor;
+      map[k] = (map[k]||0) + despVal(tx);
     });
     return Object.keys(map).map(function(k){ return {label:k, value:map[k]}; }).sort(function(a,b){ return b.value-a.value; });
   }
@@ -1973,12 +1983,17 @@
     var ref = refISO();
     var mr = monthRange(ref);
     var despesas = state.transactions.filter(function(t){
-      if(t.tipo !== "despesa" || !countsAsSpend(t)) return false;
+      if(!isConsumo(t) || !countsAsSpend(t)) return false;
       if(!includeLic && t.categoria === "Negócios/Licitação") return false;
       var d = new Date(t.dataEfet+"T00:00:00");
       return d.getFullYear()===mr.first.getFullYear() && d.getMonth()===mr.first.getMonth();
     });
-    var data = groupSum(despesas, function(t){ return t.categoria; });
+    var data = groupSum(despesas, function(t){ return t.categoria; }).filter(function(d){ return d.value > 0.005; });
+    var parcFat = state.transactions.reduce(function(sum, t){
+      if(t.tipo !== "parcelamento_fatura" || !countsAsSpend(t)) return sum;
+      var d = new Date(t.dataEfet+"T00:00:00");
+      return (d.getFullYear()===mr.first.getFullYear() && d.getMonth()===mr.first.getMonth()) ? sum + t.valor : sum;
+    }, 0);
     var max = Math.max.apply(null, data.map(function(d){ return d.value; }).concat([0.0001]));
     var html = data.map(function(d){
       var lim = state.budgets[d.label];
@@ -1991,21 +2006,24 @@
         '<div class="spend-row-head"><span>'+d.label+'</span><span class="'+(over?"over":"")+'">'+rightText+'</span></div>'+
         '<div class="spend-track"><div class="spend-fill'+(over?" over":"")+'" style="width:'+pct+'%"></div></div></div>';
     }).join("");
+    if(parcFat > 0){
+      html += '<div class="spend-parcfat"><span>Parcelamento de fatura <em>(fora do consumo)</em></span><span>'+fmt(parcFat)+'</span></div>';
+    }
     document.getElementById("categoryChart").innerHTML = html || '<div class="empty-note">Sem dados para este período.</div>';
   }
 
   function renderPaymentChart(){
-    var despesas = state.transactions.filter(function(t){ return t.tipo === "despesa" && countsAsSpend(t) && t.modalidade && t.modalidade !== "—"; });
+    var despesas = state.transactions.filter(function(t){ return isConsumo(t) && countsAsSpend(t) && t.modalidade && t.modalidade !== "—"; });
     var data = groupSum(despesas, function(t){ return t.banco + " " + t.modalidade; });
     renderBarList("paymentChart", data, paymentColor);
   }
 
   function renderClassChart(){
-    var despesas = state.transactions.filter(function(t){ return t.tipo === "despesa" && countsAsSpend(t); });
-    var total = despesas.reduce(function(s,t){ return s+t.valor; }, 0) || 1;
+    var despesas = state.transactions.filter(function(t){ return isConsumo(t) && countsAsSpend(t); });
+    var total = despesas.reduce(function(s,t){ return s+despVal(t); }, 0) || 1;
     var order = ["Fixa","Variável","Parcelada"];
     var sums = {Fixa:0, "Variável":0, Parcelada:0};
-    despesas.forEach(function(t){ sums[t.classificacao] = (sums[t.classificacao]||0) + t.valor; });
+    despesas.forEach(function(t){ sums[t.classificacao] = (sums[t.classificacao]||0) + despVal(t); });
     var stackHtml = order.map(function(k){
       var pct = (sums[k]/total)*100;
       if(pct <= 0) return "";
@@ -2024,12 +2042,12 @@
     var mr = monthRange(ref);
     var byBanco = {};
     state.transactions.forEach(function(t){
-      if(t.tipo !== "despesa" || !countsAsSpend(t)) return;
+      if(!isConsumo(t) || !countsAsSpend(t)) return;
       var d = new Date(t.dataEfet+"T00:00:00");
       if(d.getFullYear()!==mr.first.getFullYear() || d.getMonth()!==mr.first.getMonth()) return;
       var k = t.banco || "Outros";
       byBanco[k] = byBanco[k] || {total:0, count:0};
-      byBanco[k].total += t.valor;
+      byBanco[k].total += despVal(t);
       byBanco[k].count++;
     });
     var keys = Object.keys(byBanco).sort(function(a,b){ return byBanco[b].total - byBanco[a].total; });
@@ -2050,8 +2068,8 @@
     var html = items.map(function(t){
       var real = isRealized(t, ref);
       var pagFat = isPagamentoFatura(t);
-      var sign = pagFat ? "" : (t.tipo === "receita" ? "+" : "-");
-      var cls = pagFat ? "neutral" : (t.tipo === "receita" ? "pos" : "neg");
+      var sign = pagFat ? "" : (tipoEntra(t.tipo) ? "+" : "-");
+      var cls = pagFat ? "neutral" : (tipoEntra(t.tipo) ? "pos" : "neg");
       var statusTag = pagFat ? '<span class="tag-pill tag-purple">Pagamento de fatura</span>'
         : isPrevista(t) ? '<span class="tag-pill tag-blue">Prevista</span>'
         : t.autoGenerated ? '<span class="tag-pill tag-blue">Automático</span>'
@@ -2073,9 +2091,9 @@
       .slice(0, 8);
     var html = items.map(function(t){
       var d = new Date(t.dataEfet+"T00:00:00");
-      var sign = t.tipo === "receita" ? "+" : "-";
-      var cls = t.tipo === "receita" ? "pos" : "neg";
-      var badgeCls = t.tipo === "receita" ? "tipo-receita" : "tipo-despesa";
+      var sign = tipoEntra(t.tipo) ? "+" : "-";
+      var cls = tipoEntra(t.tipo) ? "pos" : "neg";
+      var badgeCls = tipoEntra(t.tipo) ? "tipo-receita" : "tipo-despesa";
       return '<div class="pay-row">'+
         '<div class="date-badge '+badgeCls+'"><span class="dd">'+pad2(d.getDate())+'</span><span class="mm">'+MESES3[d.getMonth()]+'</span></div>'+
         '<div class="pay-main"><div class="pay-title">'+t.descricao+'</div>'+
@@ -2102,7 +2120,7 @@
       var d = new Date(tx.dataEfet+"T00:00:00");
       if(d.getFullYear() === mr.first.getFullYear() && d.getMonth() === mr.first.getMonth()){
         var day = d.getDate();
-        byDay[day] += (tx.tipo === "receita" ? tx.valor : -tx.valor);
+        byDay[day] += (tipoEntra(tx.tipo) ? tx.valor : -tx.valor);
       }
     });
     var cumul = [0];
@@ -2243,18 +2261,20 @@
     var html = rows.map(function(t){
       var real = isRealized(t, ref);
       var pagFat = isPagamentoFatura(t);
-      var sign = pagFat ? "" : (t.tipo === "receita" ? "+" : "-");
-      var numCls = pagFat ? "neutral" : (t.tipo === "receita" ? "pos" : "neg");
+      var sign = pagFat ? "" : (tipoEntra(t.tipo) ? "+" : "-");
+      var numCls = pagFat ? "neutral" : (tipoEntra(t.tipo) ? "pos" : "neg");
       var pInfo = parcelaInfo(t);
       var parcelaBadge = pInfo ? '<span class="badge-parcela">'+pInfo.n+'/'+pInfo.total+'</span>' : "";
       var autoBadge = isPrevista(t) ? '<span class="auto-badge">prevista</span>'
         : (t.autoGenerated && !t.statusParcela ? '<span class="auto-badge">gerado automaticamente</span>' : "");
-      var pagBadge = pagFat ? '<span class="badge-pagfat">Pagamento de fatura</span>' : "";
+      var pagBadge = pagFat ? '<span class="badge-pagfat">'+(t.categoria === "Fatura parcelada" ? "Fatura parcelada" : "Pagamento de fatura")+'</span>'
+        : t.tipo === "parcelamento_fatura" ? '<span class="badge-pagfat">Parcelamento de fatura</span>'
+        : t.tipo === "estorno" ? '<span class="badge-pagfat">Estorno</span>' : "";
       var fatBadge = faturaLabel(t) ? '<span class="badge-fatura">'+faturaLabel(t)+'</span>' : "";
       var sub = t.banco + (t.modalidade && t.modalidade !== "—" ? " · "+t.modalidade : "") + (cardLabel(t.cartao) ? " · "+escapeAttr(cardLabel(t.cartao)) : "");
       var rowCls = (editingId === t.id) ? ' class="editing-row"' : "";
       var manual = t.pagoManual === true || t.pagoManual === false;
-      var payVerb = t.tipo === "receita" ? "recebido" : "pago";
+      var payVerb = tipoEntra(t.tipo) ? "recebido" : "pago";
       var payLabel = real ? ("Marcar como não "+payVerb) : ("Marcar como "+payVerb);
       return '<tr'+rowCls+'>'+
         '<td><span class="status-pill '+(real?"realizado":"pendente")+(manual?" manual":"")+'"><span class="sp-dot"></span>'+(real?"Realizado":"Pendente")+(manual?' <span class="manual-tag" title="Status definido manualmente, não muda por data">manual</span>':'')+'</span></td>'+
@@ -2299,7 +2319,7 @@
         var wasReal = this.dataset.real === "true";
         Store.update(id, {pagoManual: !wasReal});
         var tx = state.transactions.find(function(t){ return t.id === id; });
-        var verb = tx && tx.tipo === "receita" ? "recebido" : "pago";
+        var verb = tx && tipoEntra(tx.tipo) ? "recebido" : "pago";
         toast(wasReal ? ("Marcado como não "+verb+".") : ("Marcado como "+verb+"."));
       };
     });
@@ -2353,10 +2373,10 @@
     var mr = monthRange(ref);
     var spend = {};
     state.transactions.forEach(function(t){
-      if(t.tipo !== "despesa" || !countsAsSpend(t)) return;
+      if(!isConsumo(t) || !countsAsSpend(t)) return;
       var d = new Date(t.dataEfet+"T00:00:00");
       if(d.getFullYear() !== mr.first.getFullYear() || d.getMonth() !== mr.first.getMonth()) return;
-      spend[t.categoria] = (spend[t.categoria] || 0) + t.valor;
+      spend[t.categoria] = (spend[t.categoria] || 0) + despVal(t);
     });
     var cats = Object.keys(state.budgets).sort();
     var el = document.getElementById("budgetList");
@@ -2714,10 +2734,65 @@
     return null;
   }
 
+  // Parcelamento de fatura (dívida antiga + juros dividida em parcelas):
+  //  - "parcela": "PAGTO. PARCEL PARC 01/02 123456789" — saída real, com contrato;
+  //  - "entrada": "PAGTO. PARCELADO FATURA" — o saldo anterior que foi parcelado;
+  //    não é receita nem despesa.
+  // Só olha a descrição; quem decide se vale (é fatura?) é quem chama.
+  function detectParcelamentoFatura(desc){
+    var u = impNorm(desc);
+    var parc = parseParcelaText(desc);
+    if(/PARCELAD[OA]\s+(D[AE]\s+)?FATURA|PARCELAMENTO\s+(D[AE]\s+)?FATURA/.test(u) && !parc) return {kind: "entrada"};
+    var pag = /\b(PAGTO|PGTO|PAGAMENTO|PAG)\b/.test(u);
+    if(pag && (/PARCEL/.test(u) || parc)){
+      var semParc = parc ? String(desc).replace(PARCELA_PATTERNS[0], " ").replace(PARCELA_PATTERNS[1], " ").replace(PARCELA_PATTERNS[2], " ") : String(desc);
+      var c = /\b\d{6,}\b/.exec(semParc);
+      return {kind: "parcela", contrato: c ? c[0] : null, parc: parc};
+    }
+    return null;
+  }
+
+  // ---- Valores com sinal de despesa / entrada ----
+  // Entra no caixa (+): receita e estorno. Estorno abate o gasto da categoria.
+  function tipoEntra(tipo){ return tipo === "receita" || tipo === "estorno"; }
+  function despVal(tx){ return tx.tipo === "estorno" ? -tx.valor : tx.valor; }
+  // Consumo = o que aparece por categoria. Parcelamento de fatura fica de fora
+  // (é saída de caixa, não consumo do mês).
+  function isConsumo(tx){ return tx.tipo === "despesa" || tx.tipo === "estorno"; }
+  function impBRL(v){
+    var neg = v < 0; v = Math.abs(v);
+    var parts = v.toFixed(2).split(".");
+    parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+    return (neg ? "-" : "") + "R$ " + parts[0] + "," + parts[1];
+  }
+
+  // Totais de um mês (por dataEfet): receitas, despesas (já com estornos abatidos e
+  // parcelamento de fatura somado), consumo por categoria (sem parcelamento) e quantos
+  // lançamentos reais existem — previstas não contam como dados do mês.
+  function calcMonthStats(txs, ym, today){
+    var r = {receitas: 0, despesas: 0, porCategoria: {}, parcelamento: 0, count: 0};
+    txs.forEach(function(t){
+      if(impMonthKey(t.dataEfet) !== ym) return;
+      if(!isPrevistaTx(t, today)) r.count++;
+      if(!countsAsSpendTx(t, today)) return;
+      if(t.tipo === "receita"){ r.receitas += t.valor; }
+      else if(t.tipo === "parcelamento_fatura"){ r.despesas += t.valor; r.parcelamento += t.valor; }
+      else { r.despesas += despVal(t); r.porCategoria[t.categoria] = (r.porCategoria[t.categoria] || 0) + despVal(t); }
+    });
+    r.saldo = r.receitas - r.despesas;
+    return r;
+  }
+  // Sem lançamentos no mês anterior não há o que comparar (nada de "piorou" contra zero).
+  function compararMeses(cur, prev){
+    if(!prev || prev.count === 0) return null;
+    return {saldoDelta: cur.saldo - prev.saldo, despDelta: cur.despesas - prev.despesas, melhorou: cur.saldo - prev.saldo >= 0};
+  }
+
   // Candidato a pagamento de fatura. Numa fatura de cartão, qualquer palavra forte
   // basta; num extrato de conta (onde "PAGAMENTO BOLETO…" é despesa de verdade) é
   // preciso mencionar fatura/cartão ou o valor bater com o total de uma fatura.
   function detectPagamentoFatura(desc, valor, ctx){
+    if(detectParcelamentoFatura(desc)) return false; // parcela/entrada de parcelamento não é pagamento
     var u = impNorm(desc);
     var has = function(list){ return list.some(function(k){ return u.indexOf(impNorm(k)) !== -1; }); };
     var forte = has(PAGAMENTO_KEYWORDS);
@@ -2781,6 +2856,69 @@
       if(impMonthKey(faturaVencimentoPara(r.data, cfg.fechamento, cfg.vencimento)) !== impMonthKey(vencimentoArquivo)) fora++;
     });
     return { fora: fora, total: total, suspeito: fora >= 2 && fora / Math.max(total, 1) >= 0.3 };
+  }
+
+  // Totais do resumo da fatura (linhas sem data): saldo anterior, pagamentos/créditos,
+  // compras e total a pagar. Campos que não aparecem ficam null.
+  function impMoney(str){ return parseFloat(str.replace(/\./g, "").replace(",", ".")); }
+  function detectResumoFatura(lines){
+    var r = {saldoAnterior: null, pagamentos: null, compras: null, total: null};
+    lines.forEach(function(l){
+      if(findDateInLine(l)) return; // lançamentos têm data; o resumo não
+      var m = /(\d{1,3}(?:\.\d{3})*,\d{2})/.exec(l);
+      if(!m) return;
+      var u = impNorm(l), v = impMoney(m[1]);
+      if(/SALDO ANTERIOR|FATURA ANTERIOR/.test(u)) r.saldoAnterior = v;
+      else if(/PAGAMENTOS?\s*(\/|E)?\s*CREDITOS?|TOTAL DE PAGAMENTOS|PAGAMENTOS EFETUADOS/.test(u)) r.pagamentos = v;
+      else if(/TOTAL DE COMPRAS|TOTAL DE DESPESAS|COMPRAS E DEBITOS/.test(u)) r.compras = v;
+      else if(/TOTAL A PAGAR|TOTAL DA FATURA|VALOR DA FATURA|VALOR TOTAL/.test(u)) r.total = v;
+    });
+    return r;
+  }
+
+  // Compara a soma das linhas interpretadas com o resumo do PDF. Considera todas as
+  // linhas lidas (marcadas ou não), menos as descartadas como ruído.
+  function conferirTotalFatura(rows, resumo){
+    var vazio = {aplicavel: false, ok: true, diff: 0, checks: [], linhas: []};
+    if(!resumo || (resumo.total == null && resumo.compras == null && resumo.pagamentos == null)) return vazio;
+    var compras = 0, creditos = 0;
+    rows.forEach(function(r){
+      if(r.flagged) return;
+      var ehPag = r.tipo === "pagamento_fatura" || (r.pagamento && r.pagamento.state !== "rejected");
+      if(ehPag || r.tipo === "estorno" || r.tipo === "receita") creditos += r.valor;
+      else compras += r.valor;
+    });
+    var checks = [];
+    if(resumo.compras != null) checks.push({nome: "compras", esperado: resumo.compras, obtido: compras});
+    if(resumo.pagamentos != null) checks.push({nome: "pagamentos e créditos", esperado: resumo.pagamentos, obtido: creditos});
+    if(resumo.total != null) checks.push({nome: "total da fatura", esperado: resumo.total, obtido: (resumo.saldoAnterior || 0) + compras - creditos});
+    checks.forEach(function(c){ c.diff = Math.round((c.esperado - c.obtido) * 100) / 100; c.ok = Math.abs(c.diff) <= 0.05; });
+    var falhou = checks.filter(function(c){ return !c.ok; });
+    var linhas = [];
+    if(falhou.length){
+      rows.forEach(function(r){
+        if(r.flagged) linhas.push({descricao: r.descricao, valor: r.valor, motivo: "descartada como ruído"});
+        else if(r.unsure && r.unsure.tipo) linhas.push({descricao: r.descricao, valor: r.valor, motivo: "tipo não classificado"});
+      });
+    }
+    return {aplicavel: true, ok: !falhou.length, diff: falhou.length ? falhou[0].diff : 0, checks: checks, linhas: linhas};
+  }
+
+  // Custo de juros do parcelamento: parcelas × valor da parcela − valor parcelado.
+  // Só calcula com uma entrada selecionada e parcelas de um único contrato.
+  function calcJurosParcelamento(rows){
+    var entradas = rows.filter(function(r){ return r.selected !== false && r.entrada; });
+    var parcelas = rows.filter(function(r){ return r.selected !== false && r.tipo === "parcelamento_fatura" && r.totalParcelas; });
+    if(entradas.length !== 1 || !parcelas.length) return null;
+    var contratos = {};
+    parcelas.forEach(function(r){ contratos[r.contrato || ""] = true; });
+    if(Object.keys(contratos).length !== 1) return null;
+    var p = parcelas[0];
+    var totalPago = Math.round(p.valor * p.totalParcelas * 100) / 100;
+    var juros = Math.round((totalPago - entradas[0].valor) * 100) / 100;
+    if(!(juros > 0.005)) return null;
+    return {contrato: p.contrato || null, parcelas: p.totalParcelas, valorParcela: p.valor,
+      valorParcelado: entradas[0].valor, totalPago: totalPago, juros: juros};
   }
 
   var CARD_FINAL_RE = /(?:[•*xX]{2,}\s*|FINAL\s+)(\d{4})\b/i;
@@ -2855,6 +2993,31 @@
       if(r.pagamento === undefined){
         r.pagamento = detectPagamentoFatura(r.descricao, r.valor, {isFatura: meta.isFatura, totais: ctx.totais}) ? {state: "pending"} : null;
       }
+      // Crédito negativo que não é pagamento nem parcelamento: estorno. Abate a
+      // categoria da compra original (mesma fatura ou já lançada); sem categoria,
+      // vai para "Estornos" e a revisão pede confirmação.
+      if(r.estorno === undefined){
+        r.estorno = null;
+        var credito = r.negativo || /ESTORN|DEVOLU/.test(impNorm(r.descricao));
+        if(meta.isFatura && credito && !r.entrada && !r.pagamento && r.tipo !== "parcelamento_fatura"){
+          var key = chaveEstorno(r.descricao), origem = null;
+          rows.forEach(function(o){
+            if(origem || o === r || o.negativo || o.tipo !== "despesa") return;
+            if(Math.abs(o.valor - r.valor) <= 0.01 && chaveEstorno(o.descricao) === key) origem = o;
+          });
+          if(!origem) (ctx.txs || []).forEach(function(t){
+            if(origem || t.tipo !== "despesa") return;
+            if(Math.abs(t.valor - r.valor) <= 0.01 && chaveEstorno(t.descricao) === key) origem = t;
+          });
+          r.tipo = "estorno"; r.unsure.tipo = false;
+          if(origem){ r.categoria = origem.categoria; r.estorno = {state: "linked", origem: origem.descricao}; r.unsure.categoria = false; }
+          else {
+            var guess = guessCategoria(r.descricao);
+            if(guess !== "A categorizar"){ r.categoria = guess; r.estorno = {state: "guessed"}; r.unsure.categoria = false; }
+            else { r.categoria = "Estornos"; r.estorno = {state: "pending"}; r.unsure.categoria = false; }
+          }
+        }
+      }
       var isPag = r.pagamento && r.pagamento.state !== "rejected";
       r.conciliaId = null;
       if(!isPag){
@@ -2863,7 +3026,7 @@
       }
       if(r.sinalB === undefined){
         r.sinalB = null;
-        if(!isPag && !r.parcelaAtual && !r.conciliaId && r.modalidade === "Crédito"){
+        if(!isPag && !r.parcelaAtual && !r.conciliaId && r.modalidade === "Crédito" && r.tipo === "despesa"){
           var rep = findRepeticaoAnterior(r, ctx.txs || [], ctx.banco);
           if(rep) r.sinalB = {state: "pending", count: rep.count, ids: rep.ids};
         }
@@ -2872,6 +3035,11 @@
     var check = checkConfigMismatch(rows, card, meta.vencimento);
     check.vencDivergente = pdfDiverge;
     return check;
+  }
+
+  // Descrição de estorno comparável à da compra: sem "ESTORNO"/"DEVOLUÇÃO", números e pontuação.
+  function chaveEstorno(desc){
+    return impDescKey(desc).replace(/\b(ESTORNO|ESTORNADO|DEVOLUCAO|DEV|CREDITO)\b/g, " ").replace(/\s+/g, " ").trim();
   }
 
   // Credit lines whose "Disponível em" would just be the purchase date because the
@@ -2885,6 +3053,8 @@
   // parcelas anteriores ligadas pelo sinal B). Não toca em nada não selecionado.
   function buildImportPlan(rows, ctx){
     var adds = [], updates = [];
+    var juros = calcJurosParcelamento(rows);
+    var jurosObs = juros ? " · custo de juros do parcelamento: " + impBRL(juros.juros) : "";
     var all = function(){ return (ctx.txs || []).concat(adds); };
     rows.forEach(function(r){
       if(!r.selected) return;
@@ -2898,14 +3068,14 @@
         tipo: pagamento ? "pagamento_fatura" : (r.pagamento && r.pagamento.state === "rejected" ? "despesa" : r.tipo),
         banco: ctx.banco, modalidade: r.modalidade, valor: r.valor,
         dataLanc: r.data, dataEfet: r.dataEfet, descricao: r.descricao,
-        categoria: pagamento ? "Pagamento de fatura" : (r.categoria || "A categorizar"),
+        categoria: pagamento ? "Pagamento de fatura" : (r.entrada ? "Fatura parcelada" : (r.categoria || "A categorizar")),
         classificacao: r.parcelaAtual ? "Parcelada" : r.classificacao,
         recorrencia: r.parcelaAtual ? "Mensal" : "Única",
         parcela: r.parcelaAtual ? (r.parcelaAtual + "/" + r.totalParcelas) : null,
         cartao: credito ? (ctx.cardKey || null) : null,
         cartaoFinal: credito ? (r.final || null) : null,
         idCompra: null, parcelaAtual: null, totalParcelas: null, statusParcela: null, seriesId: null,
-        obs: "Importado de extrato PDF"
+        obs: "Importado de extrato PDF" + (r.tipo === "parcelamento_fatura" ? jurosObs : "")
       };
       if(!pagamento && r.parcelaAtual && r.totalParcelas){
         var key = impDescKey(r.descricao);
@@ -2916,7 +3086,7 @@
           if(ctx.banco && t.banco && impNorm(t.banco) !== impNorm(ctx.banco)) return;
           group = t.idCompra;
         });
-        var idCompra = group || ctx.newId();
+        var idCompra = r.contrato ? "pf-" + r.contrato : (group || ctx.newId());
         tx.idCompra = idCompra; tx.seriesId = idCompra;
         tx.parcelaAtual = r.parcelaAtual; tx.totalParcelas = r.totalParcelas; tx.statusParcela = "confirmada";
         adds.push(tx);
@@ -2927,7 +3097,7 @@
           adds.push(Object.assign({}, tx, {
             dataLanc: impAddMonths(r.data, step), dataEfet: impAddMonths(r.dataEfet, step),
             parcela: k + "/" + r.totalParcelas, parcelaAtual: k, statusParcela: "prevista",
-            obs: "Parcela prevista — confirmada quando a fatura chegar"
+            obs: "Parcela prevista — confirmada quando a fatura chegar" + (r.tipo === "parcelamento_fatura" ? jurosObs : "")
           }));
         }
         (r.sinalB && r.sinalB.state === "confirmed" ? r.sinalB.ids : []).forEach(function(id, i){
@@ -2940,7 +3110,7 @@
       }
       adds.push(tx);
     });
-    return {adds: adds, updates: updates};
+    return {adds: adds, updates: updates, juros: juros};
   }
   /* ==IMPORT-CORE-END== */
 
@@ -3063,6 +3233,7 @@
     meta.cardFinal = meta.cardFinais[0] || null;
     meta.fechamentoDia = detectFechamentoDia(lines);
     meta.totais = detectTotaisFatura(lines);
+    meta.resumo = detectResumoFatura(lines);
     return meta;
   }
 
@@ -3105,8 +3276,10 @@
       desc = desc.replace(/^[-–•\s]+/, "").trim();
       if(!desc) desc = "Lançamento do extrato";
 
+      var descOrig = desc;
       var parc = parseParcelaText(desc);
       if(parc) desc = parc.cleaned || desc;
+      var pf = meta.isFatura ? detectParcelamentoFatura(descOrig) : null;
 
       var tipoGuess = guessTipo(desc, first.sign, first.dc, meta.isFatura);
       var modalidadeGuess = meta.isFatura ? "Crédito" : guessModalidade(desc);
@@ -3126,6 +3299,9 @@
         modalidade: modalidadeGuess || "Débito",
         categoria: categoriaGuess,
         classificacao: parc ? "Parcelada" : "Variável",
+        negativo: first.sign === "-" || first.sign === "−" || first.sign === "–",
+        contrato: pf && pf.kind === "parcela" ? pf.contrato : null,
+        entrada: !!(pf && pf.kind === "entrada"),
         parcela: parc ? parc.text : null,
         parcelaAtual: parc ? parc.atual : null,
         totalParcelas: parc ? parc.total : null,
@@ -3138,6 +3314,12 @@
           dataEfet: false
         }
       });
+      if(pf){
+        var row = out[out.length - 1];
+        row.unsure.tipo = false; row.unsure.categoria = false;
+        if(pf.kind === "entrada"){ row.tipo = "pagamento_fatura"; row.categoria = "Fatura parcelada"; }
+        else { row.tipo = "parcelamento_fatura"; row.categoria = "Parcelamento de fatura"; row.classificacao = parc ? "Parcelada" : "Variável"; }
+      }
     });
     return out;
   }
@@ -3278,7 +3460,7 @@
       if(!isFaturaTx(t) || !countsAsSpend(t)) return;
       if(banco && impNorm(t.banco) !== impNorm(banco)) return;
       var k = t.banco + "|" + t.dataEfet;
-      totals[k] = (totals[k] || 0) + t.valor;
+      totals[k] = (totals[k] || 0) + despVal(t);
     });
     return Object.keys(totals).map(function(k){ return totals[k]; });
   }
@@ -3306,7 +3488,7 @@
     var selected = staging.filter(function(r){ return r.selected; });
     var selTotal = selected.reduce(function(s,r){
       if(r.tipo === "pagamento_fatura") return s;
-      return s + (r.tipo==="receita" ? r.valor : -r.valor);
+      return s + (tipoEntra(r.tipo) ? r.valor : -r.valor);
     }, 0);
     var anyUnsure = staging.some(function(r){ return r.unsure && (r.unsure.tipo || r.unsure.categoria || r.unsure.modalidade || r.unsure.data || r.unsure.dataEfet); });
     var anyDupConfirmed = staging.some(function(r){ return r.dup && r.dup.level === "confirmed"; });
@@ -3334,6 +3516,11 @@
         items.push('<div class="attn-item"><span>'+label+' parece ser o pagamento da fatura de '+fmtDate(r.data)+'. Ele não será contado como despesa.</span>'+
           '<span class="attn-actions"><button type="button" class="solid" data-act="pag-ok" data-idx="'+idx+'">Confirmar</button>'+
           '<button type="button" class="ghost" data-act="pag-no" data-idx="'+idx+'">Não, é uma despesa</button></span></div>');
+      }
+      if(r.estorno && r.estorno.state === "pending" && r.tipo === "estorno"){
+        items.push('<div class="attn-item"><span>'+label+' parece um estorno, mas não achei a compra original nem a categoria. Está abatendo em <strong>Estornos</strong>. Confirmar?</span>'+
+          '<span class="attn-actions"><button type="button" class="solid" data-act="est-ok" data-idx="'+idx+'">Confirmar</button>'+
+          '<button type="button" class="ghost" data-act="est-no" data-idx="'+idx+'">Não, é uma despesa</button></span></div>');
       }
       if(r.sinalB && r.sinalB.state === "pending"){
         items.push('<div class="attn-item"><span>'+label+' apareceu igual na fatura anterior. Parece uma compra parcelada. Confirmar?</span>'+
@@ -3363,12 +3550,30 @@
         '</div>';
     }
 
+    var conf = conferirTotalFatura(staging, stagingMeta && stagingMeta.resumo);
+    var confHtml = "";
+    if(conf.aplicavel && !conf.ok){
+      confHtml = '<div class="attn-block conf-warn"><div class="attn-title">A soma dos lançamentos não bate com o total da fatura (diferença de '+fmt(Math.abs(conf.diff))+')</div>'+
+        '<ul class="conf-list">'+conf.checks.filter(function(c){ return !c.ok; }).map(function(c){
+          return '<li>'+c.nome+': a fatura diz '+fmt(c.esperado)+' e as linhas somam '+fmt(c.obtido)+'</li>';
+        }).join("")+
+        (conf.linhas.length ? '<li>Linhas descartadas ou não classificadas: '+conf.linhas.slice(0, 8).map(function(l){ return escapeAttr(l.descricao)+' ('+fmt(l.valor)+' — '+l.motivo+')'; }).join("; ")+'</li>'
+          : '<li>Nenhuma linha foi descartada; pode haver lançamentos que o leitor não reconheceu no PDF.</li>')+
+        '</ul></div>';
+    } else if(conf.aplicavel){
+      confHtml = '<div class="conf-ok">Conferido: a soma dos lançamentos bate com o total da fatura.</div>';
+    }
+    var jr = calcJurosParcelamento(staging);
+    if(jr){
+      confHtml += '<div class="imp-card-note" style="margin-bottom:10px;">Parcelamento de fatura: '+jr.parcelas+'x de '+fmt(jr.valorParcela)+' = '+fmt(jr.totalPago)+' sobre '+fmt(jr.valorParcelado)+' parcelados. Custo de juros: <strong>'+fmt(jr.juros)+'</strong>.</div>';
+    }
+
     var attnHtml = items.length ? '<div class="attn-block"><div class="attn-title">'+items.length+(items.length===1?' item precisa':' itens precisam')+' da sua confirmação</div>'+items.join("")+'</div>' : "";
 
     var rowsHtml = staging.map(function(r, idx){
       var un = r.unsure || {};
       var dupClass = r.dup ? (r.dup.level === "confirmed" ? " dup-confirmed" : " dup-possible") : "";
-      var attn = (r.pagamento && r.pagamento.state === "pending") || (r.sinalB && (r.sinalB.state === "pending" || r.sinalB.state === "asking"));
+      var attn = (r.pagamento && r.pagamento.state === "pending") || (r.estorno && r.estorno.state === "pending" && r.tipo === "estorno") || (r.sinalB && (r.sinalB.state === "pending" || r.sinalB.state === "asking"));
       var rowClass = (r.selected?"":"excluded") + dupClass + (attn ? " attn-row" : "");
       var dupHtml = "";
       if(r.dup){
@@ -3379,13 +3584,16 @@
       var badges = (r.parcelaAtual ? '<span class="badge-parcela">'+r.parcelaAtual+'/'+r.totalParcelas+'</span>' : '')+
         (r.pagamento && r.pagamento.state === "confirmed" ? '<span class="badge-pagfat">Pagamento de fatura</span>' : '')+
         (r.conciliaId ? '<span class="badge-concilia">confirma parcela prevista</span>' : '')+
+        (r.entrada ? '<span class="badge-pagfat">Fatura parcelada · fora das despesas</span>' : '')+
+        (r.tipo === "parcelamento_fatura" ? '<span class="badge-pagfat">Parcelamento de fatura</span>' : '')+
+        (r.tipo === "estorno" ? '<span class="badge-pagfat">Estorno'+(r.estorno && r.estorno.state === "linked" ? ' de “'+escapeAttr(r.estorno.origem)+'”' : '')+'</span>' : '')+
         (r.modalidade === "Crédito" && r.final && card.final && r.final !== card.final ? '<span class="badge-final">final '+r.final+'</span>' : '');
       return '<tr class="'+rowClass+'">'+
         '<td><input type="checkbox" data-idx="'+idx+'" data-f="selected" '+(r.selected?"checked":"")+'></td>'+
         '<td><input type="date" class="'+u(un.data).trim()+'" data-idx="'+idx+'" data-f="data" value="'+r.data+'"></td>'+
         '<td><input type="date" class="'+u(un.dataEfet).trim()+'" data-idx="'+idx+'" data-f="dataEfet" value="'+r.dataEfet+'"></td>'+
         '<td><input type="text" data-idx="'+idx+'" data-f="descricao" value="'+escapeAttr(r.descricao)+'">'+badges+(r.flagged?'<span class="row-flag">confira</span>':'')+dupHtml+'</td>'+
-        '<td><select class="'+u(un.tipo).trim()+'" data-idx="'+idx+'" data-f="tipo"><option value="despesa" '+(r.tipo==="despesa"?"selected":"")+'>Despesa</option><option value="receita" '+(r.tipo==="receita"?"selected":"")+'>Receita</option><option value="pagamento_fatura" '+(r.tipo==="pagamento_fatura"?"selected":"")+'>Pagamento de fatura</option></select></td>'+
+        '<td><select class="'+u(un.tipo).trim()+'" data-idx="'+idx+'" data-f="tipo"><option value="despesa" '+(r.tipo==="despesa"?"selected":"")+'>Despesa</option><option value="receita" '+(r.tipo==="receita"?"selected":"")+'>Receita</option><option value="pagamento_fatura" '+(r.tipo==="pagamento_fatura"?"selected":"")+'>Pagamento de fatura</option><option value="parcelamento_fatura" '+(r.tipo==="parcelamento_fatura"?"selected":"")+'>Parcelamento de fatura</option><option value="estorno" '+(r.tipo==="estorno"?"selected":"")+'>Estorno</option></select></td>'+
         '<td class="num-cell"><input type="number" step="0.01" min="0" data-idx="'+idx+'" data-f="valor" value="'+r.valor.toFixed(2)+'"></td>'+
         '<td><input type="text" class="'+u(un.categoria).trim()+'" list="categoriaOptions" data-idx="'+idx+'" data-f="categoria" value="'+escapeAttr(r.categoria)+'"></td>'+
         '<td><select class="'+u(un.modalidade).trim()+'" data-idx="'+idx+'" data-f="modalidade"><option value="Crédito" '+(r.modalidade==="Crédito"?"selected":"")+'>Crédito</option><option value="Débito" '+(r.modalidade==="Débito"?"selected":"")+'>Débito</option><option value="Pix" '+(r.modalidade==="Pix"?"selected":"")+'>Pix</option><option value="Débito automático" '+(r.modalidade==="Débito automático"?"selected":"")+'>Débito automático</option></select></td>'+
@@ -3393,7 +3601,7 @@
         '</tr>';
     }).join("");
     el.innerHTML =
-      cardHtml + attnHtml +
+      cardHtml + attnHtml + confHtml +
       ((anyUnsure || anyDupConfirmed || anyDupPossible) ? '<div class="staging-legend">'+
         (anyUnsure ? '<div class="staging-legend-row"><span class="sw unsure"></span>Campos em vermelho nas células são palpites — confira antes de importar.</div>' : '') +
         (anyDupConfirmed ? '<div class="staging-legend-row"><span class="sw dup"></span>Linhas vermelhas já existem no painel — vieram desmarcadas para não duplicar.</div>' : '') +
@@ -3417,6 +3625,7 @@
           if(r.unsure) r.unsure.tipo = false;
           if(r.tipo === "pagamento_fatura"){ r.pagamento = {state: "confirmed"}; r.categoria = "Pagamento de fatura"; }
           else if(r.pagamento){ r.pagamento.state = "rejected"; }
+          if(r.tipo === "parcelamento_fatura") r.categoria = "Parcelamento de fatura";
         }
         else {
           r[f] = this.value;
@@ -3438,6 +3647,8 @@
         var r = staging[idx];
         if(act === "pag-ok"){ r.pagamento.state = "confirmed"; r.tipo = "pagamento_fatura"; r.categoria = "Pagamento de fatura"; r.selected = true; }
         else if(act === "pag-no"){ r.pagamento.state = "rejected"; r.tipo = "despesa"; }
+        else if(act === "est-ok"){ r.estorno.state = "confirmed"; }
+        else if(act === "est-no"){ r.estorno.state = "rejected"; r.tipo = "despesa"; r.categoria = "A categorizar"; if(r.unsure) r.unsure.categoria = true; }
         else if(act === "parc-ok"){ r.sinalB.state = "asking"; }
         else if(act === "parc-no"){ r.sinalB.state = "rejected"; }
         else if(act === "parc-n"){
@@ -3480,11 +3691,14 @@
       if(plan.adds.length) Store.addMany(plan.adds);
       var previstas = plan.adds.filter(function(t){ return t.statusParcela === "prevista"; }).length;
       var pagamentos = plan.adds.filter(function(t){ return t.tipo === "pagamento_fatura"; }).length;
+      var estornos = plan.adds.filter(function(t){ return t.tipo === "estorno"; }).length;
       var confirmadas = plan.updates.filter(function(u){ return u.patch.statusParcela === "confirmada" && !u.patch.idCompra; }).length;
       var parts = [(plan.adds.length - previstas) + " lançamento(s) importado(s)"];
       if(previstas) parts.push(previstas + " parcela(s) prevista(s) criada(s)");
       if(confirmadas) parts.push(confirmadas + " parcela(s) prevista(s) confirmada(s)");
       if(pagamentos) parts.push(pagamentos + " pagamento(s) de fatura fora das despesas");
+      if(estornos) parts.push(estornos + " estorno(s) abatendo o gasto");
+      if(plan.juros) parts.push("custo de juros do parcelamento: " + fmt(plan.juros.juros));
       toast(parts.join(" · ") + ".");
       discardStaging();
     };
