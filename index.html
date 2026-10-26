@@ -516,6 +516,10 @@
   .auth-status{margin-top:10px; font-size:12.5px; color:var(--ink-2); min-height:1em;}
   .auth-status.error{color:var(--critical-text);}
   .auth-status.good{color:var(--good-text);}
+  .auth-link{margin-top:10px; padding:0; border:0; background:none; font:inherit; font-size:12.5px; color:var(--ink-2); text-decoration:underline; text-underline-offset:2px; cursor:pointer;}
+  .auth-link:focus-visible{outline:2px solid var(--brand); outline-offset:2px; border-radius:3px;}
+  #authForgotForm{margin-top:10px;}
+  .auth-recovery-text{margin:0 0 10px; font-size:13.5px; color:var(--ink);}
   .auth-logged-row{display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; font-size:13.5px;}
 
   /* ---------- statement import ---------- */
@@ -632,7 +636,22 @@
         <input type="password" id="authPassword" placeholder="senha (mín. 6 caracteres)" required minlength="6" autocomplete="current-password">
         <button type="submit" class="btn btn-primary" id="authSubmitBtn">Entrar</button>
       </form>
+      <button type="button" class="auth-link" id="btnForgot">Esqueci minha senha</button>
+      <form id="authForgotForm" class="auth-form" hidden>
+        <input type="email" id="authForgotEmail" placeholder="e-mail da sua conta" required autocomplete="email">
+        <button type="submit" class="btn btn-primary" id="authForgotBtn">Enviar link</button>
+        <button type="button" class="btn btn-ghost" id="authForgotCancel">Voltar</button>
+      </form>
       <div class="auth-status" id="authStatus"></div>
+    </div>
+    <div id="authRecovery" hidden>
+      <p class="auth-recovery-text">Crie uma senha nova para a sua conta.</p>
+      <form id="authNewPassForm" class="auth-form">
+        <input type="password" id="authNewPass" placeholder="nova senha (mín. 6 caracteres)" required minlength="6" autocomplete="new-password">
+        <input type="password" id="authNewPass2" placeholder="repita a nova senha" required minlength="6" autocomplete="new-password">
+        <button type="submit" class="btn btn-primary" id="authNewPassBtn">Salvar nova senha</button>
+      </form>
+      <div class="auth-status" id="authRecoveryStatus"></div>
     </div>
     <div id="authLoggedIn" hidden>
       <div class="auth-logged-row">
@@ -1111,6 +1130,8 @@
   // each table, not from hiding this key.
   var SUPABASE_URL = "https://aclqdyfargqepqdvjixf.supabase.co";
   var SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFjbHFkeWZhcmdxZXBxZHZqaXhmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI1Mjc1NDMsImV4cCI6MjEwODEwMzU0M30.AC7EPBDEt1DLmsDBfG_oKu_zLqsdUa0UsMeP4ZO8VHM";
+  // Read before the client consumes the link: arriving from a "reset password" e-mail.
+  var AUTH_RECOVERY_LINK = /type=recovery/.test(window.location.hash || "") || /type=recovery/.test(window.location.search || "");
   var sb = (typeof window.supabase !== "undefined")
     ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
     : null;
@@ -3752,6 +3773,84 @@
     }).catch(function(err){
       submitBtn.disabled = false;
       setAuthStatus("Erro de conexão: " + err.message, "error");
+    });
+  });
+
+  // ---- Esqueci minha senha ----
+  function showForgot(on){
+    document.getElementById("authForgotForm").hidden = !on;
+    document.getElementById("authForm").hidden = on;
+    document.getElementById("btnForgot").hidden = on;
+    if(on){
+      document.getElementById("authForgotEmail").value = document.getElementById("authEmail").value.trim();
+      document.getElementById("authForgotEmail").focus();
+    }
+    setAuthStatus("");
+  }
+  document.getElementById("btnForgot").addEventListener("click", function(){ showForgot(true); });
+  document.getElementById("authForgotCancel").addEventListener("click", function(){ showForgot(false); });
+  document.getElementById("authForgotForm").addEventListener("submit", function(e){
+    e.preventDefault();
+    if(!sb){ setAuthStatus("Conexão com a nuvem indisponível agora.", "error"); return; }
+    var email = document.getElementById("authForgotEmail").value.trim();
+    var btn = document.getElementById("authForgotBtn");
+    btn.disabled = true;
+    setAuthStatus("Enviando…");
+    sb.auth.resetPasswordForEmail(email, {redirectTo: window.location.origin + window.location.pathname}).then(function(res){
+      btn.disabled = false;
+      if(res.error){
+        setAuthStatus(/rate limit|seconds/i.test(res.error.message) ? "Muitos pedidos seguidos. Espere alguns minutos e tente de novo." : res.error.message, "error");
+        return;
+      }
+      setAuthStatus("Se esse e-mail tiver conta, um link para criar a senha nova foi enviado. Confira também o spam.", "good");
+    }).catch(function(err){
+      btn.disabled = false;
+      setAuthStatus("Erro de conexão: " + err.message, "error");
+    });
+  });
+
+  function showRecovery(){
+    var box = document.getElementById("authRecovery");
+    box.hidden = false;
+    document.getElementById("authLoggedOut").hidden = true;
+    document.getElementById("authCard").scrollIntoView({behavior: "smooth", block: "start"});
+    document.getElementById("authNewPass").focus();
+  }
+  function setRecoveryStatus(msg, kind){
+    var el = document.getElementById("authRecoveryStatus");
+    el.textContent = msg || "";
+    el.className = "auth-status" + (kind ? " " + kind : "");
+  }
+  if(sb){
+    sb.auth.onAuthStateChange(function(event){ if(event === "PASSWORD_RECOVERY") showRecovery(); });
+    if(AUTH_RECOVERY_LINK) showRecovery();
+  }
+  document.getElementById("authNewPassForm").addEventListener("submit", function(e){
+    e.preventDefault();
+    var p1 = document.getElementById("authNewPass").value, p2 = document.getElementById("authNewPass2").value;
+    if(p1.length < 6){ setRecoveryStatus("A senha precisa ter pelo menos 6 caracteres.", "error"); return; }
+    if(p1 !== p2){ setRecoveryStatus("As duas senhas não são iguais.", "error"); return; }
+    var btn = document.getElementById("authNewPassBtn");
+    btn.disabled = true;
+    setRecoveryStatus("Salvando…");
+    sb.auth.updateUser({password: p1}).then(function(res){
+      btn.disabled = false;
+      if(res.error){
+        setRecoveryStatus(/session/i.test(res.error.message) ? "O link expirou ou já foi usado. Peça um novo em “Esqueci minha senha”." : res.error.message, "error");
+        return;
+      }
+      document.getElementById("authNewPassForm").reset();
+      document.getElementById("authRecovery").hidden = true;
+      try{ history.replaceState(null, "", window.location.pathname); }catch(err){}
+      sb.auth.getSession().then(function(r){
+        var session = r.data && r.data.session;
+        showAuthUI(session);
+        if(session && state.mode !== "db") connectCloud(session);
+      });
+      toast("Senha alterada. Você já está conectado.");
+    }).catch(function(err){
+      btn.disabled = false;
+      setRecoveryStatus("Erro de conexão: " + err.message, "error");
     });
   });
 
