@@ -4,6 +4,19 @@
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.0/dist/umd/supabase.js"></script>
+<meta name="app-version" content="20261026-225958">
+<script>
+(function(){
+  var m = document.querySelector('meta[name="app-version"]'); var cur = m && m.content; if(!cur) return;
+  fetch(location.pathname + "?_=" + Date.now(), {cache: "no-store"}).then(function(r){ return r.text(); }).then(function(t){
+    var n = /<meta name="app-version" content="([^"]+)"/.exec(t);
+    if(!n || n[1] === cur) return;
+    var key = "genesis-recarregou-" + n[1];
+    try{ if(sessionStorage.getItem(key)) return; sessionStorage.setItem(key, "1"); }catch(e){}
+    location.replace(location.pathname + "?v=" + encodeURIComponent(n[1]) + location.hash);
+  }).catch(function(){});
+})();
+</script>
 <style>
   /* Layout: top bar + stacked full-width cards (KPIs, cash flow, two chart rows, ledger, form, backup) in a single scrolling column, max-width centered */
   :root{
@@ -586,6 +599,19 @@
   /* ---------- toast ---------- */
   #toast{position:fixed; bottom:20px; left:50%; transform:translateX(-50%) translateY(10px); background:var(--ink); color:#fff; font-size:13px; padding:10px 16px; border-radius:10px; opacity:0; pointer-events:none; transition:opacity .2s ease, transform .2s ease; z-index:50;}
   #toast.show{opacity:1; transform:translateX(-50%) translateY(0);}
+  #undoBar{position:fixed; bottom:20px; left:50%; transform:translateX(-50%); display:flex; align-items:center; gap:14px; background:var(--ink); color:#fff; font-size:13px; padding:9px 12px 9px 16px; border-radius:10px; z-index:51; box-shadow:0 6px 20px rgba(0,0,0,.25);}
+  #undoBar[hidden]{display:none;}
+  #undoBar button{font:inherit; font-weight:700; color:#fff; background:rgba(255,255,255,.16); border:0; border-radius:7px; padding:5px 12px; cursor:pointer;}
+  #undoBar button:focus-visible{outline:2px solid #fff; outline-offset:2px;}
+  .sync-banner{border:1px solid var(--warn-text, var(--border-strong)); background:var(--warn-wash); border-radius:12px; padding:12px 14px; font-size:13px; margin-top:12px;}
+  .sync-banner p{margin:4px 0 6px; color:var(--ink-2);}
+  .sync-banner ul{margin:0 0 10px; padding-left:18px; color:var(--ink-2); font-size:12.5px;}
+  .sync-banner-actions{display:flex; gap:8px; flex-wrap:wrap;}
+  .trash-row{display:flex; align-items:center; justify-content:space-between; gap:12px; padding:9px 0; border-top:1px solid var(--border); flex-wrap:wrap;}
+  .trash-row:first-child{border-top:0;}
+  .trash-main{display:flex; flex-direction:column; gap:2px; min-width:0;}
+  .trash-title{font-weight:600; color:var(--ink);}
+  .trash-sub{font-size:12px; color:var(--ink-muted); font-variant-numeric:tabular-nums;}
 
   .skel{background:linear-gradient(90deg, var(--surface-alt) 25%, var(--border) 37%, var(--surface-alt) 63%); background-size:400% 100%; border-radius:8px;}
   @media (prefers-reduced-motion: no-preference){.skel{animation:skel 1.4s ease infinite;}}
@@ -624,6 +650,7 @@
       <div class="skel" style="height:220px; background:rgba(255,255,255,.08);"></div>
     </div>
     <div id="dupBanner"></div>
+    <div id="syncBanner"></div>
   </section>
 
   <section class="card" id="authCard">
@@ -850,6 +877,14 @@
     <button type="button" class="btn btn-ghost" id="btnLedgerToggle" style="margin-top:12px;">Ver todos</button>
   </section>
 
+  <section class="card" id="trashCard" hidden>
+    <div class="card-head">
+      <h2>Apagados recentemente</h2>
+      <span class="hint">Ficam 3 dias aqui; depois somem de vez.</span>
+    </div>
+    <div id="trashList"></div>
+  </section>
+
   <section class="card" id="txFormCard">
     <div class="card-head"><h2 id="txFormTitle">Novo lançamento</h2></div>
     <form id="newTxForm">
@@ -989,6 +1024,7 @@
 </div>
 
 <div id="toast" role="status" aria-live="polite"></div>
+<div id="undoBar" role="status" hidden><span id="undoText"></span><button type="button" id="undoBtn">Desfazer</button></div>
 
 <script>
 (function(){
@@ -1037,7 +1073,7 @@
   }
   var FALLBACK_SEED = buildExampleSeed();
 
-  var state = { transactions: [], mode: "loading", uid: null, col: null, budgets: {}, patrimonio: {investido:0, reserva:0}, seriesWatermark: {}, cartoes: {} };
+  var state = { transactions: [], mode: "loading", uid: null, col: null, budgets: {}, patrimonio: {investido:0, reserva:0}, seriesWatermark: {}, cartoes: {}, deleted: [] };
   var listeners = [];
   function onChange(fn){ listeners.push(fn); }
   function emitChange(){ listeners.forEach(function(fn){ fn(); }); }
@@ -1051,8 +1087,39 @@
     }catch(e){}
     return null;
   }
+  var TRASH_KEY = "genesis-financas-lixeira-v1";
+  var SYNCED_KEY = "genesis-financas-synced-v1";
+  var PENDING_KEY = "genesis-financas-pendentes-v1";
+  function loadTrashLocal(){
+    try{ var raw = localStorage.getItem(TRASH_KEY); if(raw) return JSON.parse(raw) || []; }catch(e){}
+    return [];
+  }
   function saveLocal(){
     try{ localStorage.setItem(LOCAL_KEY, JSON.stringify(state.transactions)); }catch(e){}
+    try{ localStorage.setItem(TRASH_KEY, JSON.stringify(state.deleted)); }catch(e){}
+  }
+  // Ids que este aparelho já viu na nuvem, por conta. Serve para separar "criada sem
+  // conexão" (sobe) de "excluída em outro lugar" (descarta).
+  function loadSynced(uid){
+    try{ var m = JSON.parse(localStorage.getItem(SYNCED_KEY)) || {}; return m[uid] || null; }catch(e){ return null; }
+  }
+  function saveSynced(uid, docs){
+    try{
+      var m = JSON.parse(localStorage.getItem(SYNCED_KEY)) || {}, o = {};
+      docs.forEach(function(t){ if(t.id) o[t.id] = 1; });
+      m[uid] = o;
+      localStorage.setItem(SYNCED_KEY, JSON.stringify(m));
+    }catch(e){}
+  }
+  function loadPendentes(uid){
+    try{ var m = JSON.parse(localStorage.getItem(PENDING_KEY)) || {}; return m[uid] || []; }catch(e){ return []; }
+  }
+  function savePendentes(uid, list){
+    try{
+      var m = JSON.parse(localStorage.getItem(PENDING_KEY)) || {};
+      if(list.length) m[uid] = list; else delete m[uid];
+      localStorage.setItem(PENDING_KEY, JSON.stringify(m));
+    }catch(e){}
   }
 
   function setSync(mode, reason){
@@ -1112,6 +1179,93 @@
     return d;
   }
 
+  // Junta o que veio da nuvem (vivos e excluídos) com a cópia deste aparelho. Só sobe o
+  // que é claramente novo ou mais recente; o ambíguo vai para o aviso, sem enviar.
+  function aplicarNuvem(docs, col, uid){
+    var conhecidos = loadSynced(uid);
+    var ignorar = {};
+    FALLBACK_SEED.forEach(function(t){ ignorar[t.id] = true; });
+    var r = sincronizar(state.transactions.concat(state.deleted), docs, conhecidos,
+      {ignorar: ignorar, primeiraVez: docs.length === 0 && !conhecidos});
+    state.transactions = r.vivos;
+    state.deleted = r.lixeira;
+    r.subir.forEach(function(tx){
+      var payload = Object.assign({}, tx); delete payload.id;
+      // Só uma restauração explícita leva deletedAt:null; edição comum nunca pode ser lida como restauração.
+      if(!payload.deletedAt && !tx._restaurar) delete payload.deletedAt;
+      delete payload._restaurar;
+      col.doc(tx.id).set(payload).then(function(){ delete tx._restaurar; }).catch(function(){});
+    });
+    saveSynced(uid, docs);
+    var pend = loadPendentes(uid).filter(function(t){ return !docs.some(function(d){ return d.id === t.id; }); });
+    r.ambiguos.forEach(function(t){ if(!pend.some(function(x){ return x.id === t.id; })) pend.push(t); });
+    savePendentes(uid, pend);
+    Store.purgeLixeira();
+    saveLocal();
+    return {pendentes: pend, enviados: r.subir.length, descartados: r.descartados.length};
+  }
+  // Resposta do aviso: enviar ou descartar o que ficou ambíguo.
+  function resolverPendentes(uid, enviar){
+    var pend = loadPendentes(uid);
+    if(enviar && state.col){
+      pend.forEach(function(tx){
+        var payload = Object.assign({}, tx); delete payload.id;
+        payload.updatedAt = carimboEdicao(Date.now(), tx.updatedAt);
+        state.col.doc(tx.id).set(payload).catch(function(){});
+        tx.updatedAt = payload.updatedAt;
+        state.transactions.push(tx);
+      });
+      saveLocal(); renderAll();
+    }
+    savePendentes(uid, []);
+    renderSyncBanner(uid);
+    toast(enviar ? pend.length + " lançamento(s) enviado(s) para a nuvem." : pend.length + " lançamento(s) descartado(s) deste aparelho.");
+  }
+  function renderSyncBanner(uid){
+    var el = document.getElementById("syncBanner");
+    if(!el) return;
+    var pend = uid ? loadPendentes(uid) : [];
+    if(!pend.length){ el.innerHTML = ""; return; }
+    var linhas = pend.slice(0, 8).map(function(t){
+      return '<li>'+escapeAttr(t.descricao || "(sem descrição)")+' · '+(t.dataEfet ? fmtDate(t.dataEfet) : "")+' · '+fmt(t.valor || 0)+'</li>';
+    }).join("");
+    el.innerHTML = '<div class="sync-banner"><strong>Este navegador tem '+pend.length+' lançamento(s) que não estão na sua conta.</strong>'+
+      '<p>Podem ser lançamentos feitos sem conexão ou itens que você apagou em outro lugar. Não enviei nada.</p>'+
+      '<ul>'+linhas+(pend.length > 8 ? '<li>…e mais '+(pend.length - 8)+'</li>' : '')+'</ul>'+
+      '<div class="sync-banner-actions"><button type="button" class="btn btn-ghost" id="btnPendDescartar">Descartar</button>'+
+      '<button type="button" class="btn btn-primary" id="btnPendEnviar">Enviar para a nuvem</button></div></div>';
+    document.getElementById("btnPendDescartar").onclick = function(){ resolverPendentes(uid, false); };
+    document.getElementById("btnPendEnviar").onclick = function(){ resolverPendentes(uid, true); };
+  }
+  // Aviso de "Lançamento apagado. Desfazer" e a lista "Apagados recentemente".
+  function toastUndo(msg, onUndo){
+    var bar = document.getElementById("undoBar");
+    if(!bar){ toast(msg); return; }
+    document.getElementById("undoText").textContent = msg;
+    bar.hidden = false;
+    document.getElementById("undoBtn").onclick = function(){ onUndo(); bar.hidden = true; clearTimeout(toastUndo._t); };
+    clearTimeout(toastUndo._t);
+    toastUndo._t = setTimeout(function(){ bar.hidden = true; }, 8000);
+  }
+  function renderTrash(){
+    var card = document.getElementById("trashCard");
+    if(!card) return;
+    var items = state.deleted.slice().sort(function(a, b){ return tsMs(b.deletedAt) - tsMs(a.deletedAt); });
+    if(!items.length){ card.hidden = true; return; }
+    card.hidden = false;
+    document.getElementById("trashList").innerHTML = items.map(function(t){
+      var d = new Date(tsMs(t.deletedAt)), some = new Date(tsMs(t.deletedAt) + LIXEIRA_DIAS * 86400000);
+      var quando = pad2(d.getDate())+"/"+pad2(d.getMonth()+1)+" "+pad2(d.getHours())+":"+pad2(d.getMinutes());
+      var ate = pad2(some.getDate())+"/"+pad2(some.getMonth()+1);
+      return '<div class="trash-row"><div class="trash-main"><span class="trash-title">'+escapeAttr(t.descricao)+(t.parcela ? ' <span class="badge-parcela">'+escapeAttr(t.parcela)+'</span>' : '')+'</span>'+
+        '<span class="trash-sub">'+fmtDate(t.dataEfet)+' · '+fmt(t.valor)+' · apagado em '+quando+' · some de vez em '+ate+'</span></div>'+
+        '<button type="button" class="btn btn-ghost trash-restore" data-id="'+escapeAttr(t.id)+'">Restaurar</button></div>';
+    }).join("");
+    document.querySelectorAll(".trash-restore").forEach(function(btn){
+      btn.onclick = function(){ Store.restore(this.dataset.id); toast("Lançamento restaurado."); };
+    });
+  }
+
   function init(){
     // Always render instantly from local cache/seed first — never leave the
     // page stuck on a loading state while we find out whether cloud sync works.
@@ -1123,6 +1277,7 @@
     state.mode = "local";
     var saved = loadLocal();
     state.transactions = (saved && saved.length) ? saved : FALLBACK_SEED.slice();
+    state.deleted = loadTrashLocal();
     if(!saved){ saveLocal(); }
     state.seriesWatermark = loadWatermarkLocal();
     state.cartoes = loadCartoesLocal();
@@ -1151,7 +1306,7 @@
     dataLanc:"data_lanc", dataEfet:"data_efet", descricao:"descricao", categoria:"categoria",
     classificacao:"classificacao", recorrencia:"recorrencia", seriesId:"series_id",
     parcela:"parcela", obs:"obs", autoGenerated:"auto_generated", pagoManual:"pago_manual",
-    idCompra:"id_compra", parcelaAtual:"parcela_atual", totalParcelas:"total_parcelas", statusParcela:"status_parcela", cartao:"cartao", cartaoFinal:"cartao_final", importId:"import_id", faturaKey:"fatura_key"
+    idCompra:"id_compra", parcelaAtual:"parcela_atual", totalParcelas:"total_parcelas", statusParcela:"status_parcela", cartao:"cartao", cartaoFinal:"cartao_final", importId:"import_id", faturaKey:"fatura_key", deletedAt:"deleted_at", updatedAt:"updated_at"
   };
   function txToRow(tx, uid){
     var row = { id: tx.id, user_id: uid };
@@ -1280,30 +1435,9 @@
     var col = makeSupabaseCollection(uid);
     col.get().then(function(snap){
       state.mode = "db"; state.uid = uid; state.col = col;
-      if(snap.docs.length > 0){
-        // Cloud already has data, but never just swap it in wholesale — anything
-        // added while this screen was still "local" (a sync hiccup, a connection
-        // that hadn't finished yet) has an id the cloud doesn't know about. Keep
-        // those, and push them up now instead of silently losing them.
-        var cloudTx = snap.docs.map(docToTx);
-        var cloudIds = {};
-        cloudTx.forEach(function(t){ cloudIds[t.id] = true; });
-        var localOnly = state.transactions.filter(function(t){ return t.id && !cloudIds[t.id]; });
-        state.transactions = cloudTx.concat(localOnly);
-        saveLocal();
-        localOnly.forEach(function(tx){
-          var payload = Object.assign({}, tx); delete payload.id;
-          col.doc(tx.id).set(payload).catch(function(){});
-        });
-        if(localOnly.length){ toast(localOnly.length+" lançamento(s) local(is) enviados pra nuvem agora."); }
-      } else {
-        var toSeed = state.transactions.slice();
-        toSeed.forEach(function(tx){
-          tx.id = tx.id || newLocalId();
-          var payload = Object.assign({}, tx); delete payload.id;
-          col.doc(tx.id).set(payload).catch(function(){});
-        });
-      }
+      // Junta a nuvem (vivos e excluídos) com a cópia deste aparelho: linha excluída nunca
+      // volta, edição mais nova vence, e só sobe o que é claramente novo.
+      aplicarNuvem(snap.docs.map(docToTx), col, uid);
       return col.doc("__seriesWatermark__").get().then(function(wmSnap){
         state.seriesWatermark = (wmSnap.exists && wmSnap.data().data) || {};
       }).catch(function(){ state.seriesWatermark = {}; }).then(function(){
@@ -1319,9 +1453,14 @@
       loadPatrimonio();
       maybeGenerateRecurring();
       renderAll();
+      renderSyncBanner(uid);
       showAuthUI(session);
       col.onSnapshot(function(liveSnap){
-        state.transactions = liveSnap.docs.map(docToTx);
+        var docs = liveSnap.docs.map(docToTx);
+        var parts = particionar(docs);
+        state.transactions = parts.vivos; state.deleted = parts.lixeira;
+        saveSynced(uid, docs);
+        Store.purgeLixeira();
         renderAll();
         saveLocal();
       }, function(err){
@@ -1372,6 +1511,7 @@
   var Store = {
     add: function(tx){
       tx.id = tx.id || newLocalId();
+      tx.updatedAt = tx.updatedAt || carimboEdicao(Date.now(), null);
       state.transactions.push(tx);
       renderAll();
       saveLocal();
@@ -1382,6 +1522,7 @@
     },
     update: function(id, patch){
       var tx = state.transactions.find(function(t){ return t.id === id; });
+      patch = Object.assign({}, patch, {updatedAt: carimboEdicao(Date.now(), tx && tx.updatedAt)});
       if(tx){ Object.assign(tx, patch); }
       renderAll();
       saveLocal();
@@ -1389,28 +1530,55 @@
         state.col.doc(id).update(patch).catch(function(){ toast("Não foi possível salvar a alteração na nuvem."); });
       }
     },
-    remove: function(id){
-      state.transactions = state.transactions.filter(function(t){ return t.id !== id; });
-      renderAll();
-      saveLocal();
-      if(state.mode === "db" && state.col){
-        state.col.doc(id).delete().catch(function(){ toast("Não foi possível excluir na nuvem."); });
-      }
-    },
+    // Excluir marca a linha como excluída (lixeira, por LIXEIRA_DIAS dias); a nuvem guarda
+    // esse registro e nunca a recria.
+    remove: function(id){ Store.removeMany([id]); },
     removeMany: function(ids){
-      var gone = {};
-      ids.forEach(function(id){ gone[id] = true; });
+      var gone = {}, marcadas = [];
+      state.transactions.forEach(function(t){ if(ids.indexOf(t.id) !== -1) gone[t.id] = t; });
+      Object.keys(gone).forEach(function(id){
+        var tx = gone[id];
+        var carimbo = carimboEdicao(Date.now(), tx.updatedAt);
+        tx.deletedAt = carimbo; tx.updatedAt = carimbo;
+        marcadas.push(tx);
+      });
       state.transactions = state.transactions.filter(function(t){ return !gone[t.id]; });
+      state.deleted = marcadas.concat(state.deleted);
       renderAll();
       saveLocal();
       if(state.mode === "db" && state.col){
-        ids.forEach(function(id){
-          state.col.doc(id).delete().catch(function(){ toast("Não foi possível excluir um lançamento na nuvem."); });
+        marcadas.forEach(function(tx){
+          state.col.doc(tx.id).update({deletedAt: tx.deletedAt, updatedAt: tx.updatedAt}).catch(function(){ toast("Não foi possível excluir na nuvem."); });
         });
       }
     },
+    // Tira da lixeira. O carimbo é posterior à exclusão, então a nuvem aceita.
+    restore: function(id){
+      var tx = state.deleted.find(function(t){ return t.id === id; });
+      if(!tx) return;
+      var carimbo = carimboEdicao(Date.now(), tx.deletedAt);
+      tx.deletedAt = null; tx.updatedAt = carimbo;
+      state.deleted = state.deleted.filter(function(t){ return t.id !== id; });
+      tx._restaurar = true; // até a nuvem confirmar
+      state.transactions.push(tx);
+      renderAll();
+      saveLocal();
+      if(state.mode === "db" && state.col){
+        state.col.doc(id).update({deletedAt: null, updatedAt: carimbo}).then(function(){ delete tx._restaurar; saveLocal(); }).catch(function(){ toast("Não foi possível restaurar na nuvem."); });
+      } else { delete tx._restaurar; }
+    },
+    // Depois de LIXEIRA_DIAS dias, some de vez.
+    purgeLixeira: function(){
+      var vencidas = state.deleted.filter(function(t){ return lixeiraVencida(t, Date.now()); });
+      if(!vencidas.length) return;
+      state.deleted = state.deleted.filter(function(t){ return !lixeiraVencida(t, Date.now()); });
+      saveLocal();
+      if(state.mode === "db" && state.col){
+        vencidas.forEach(function(t){ state.col.doc(t.id).delete().catch(function(){}); });
+      }
+    },
     addMany: function(list){
-      list.forEach(function(tx, i){ tx.id = tx.id || newLocalId(i); });
+      list.forEach(function(tx, i){ tx.id = tx.id || newLocalId(i); tx.updatedAt = tx.updatedAt || carimboEdicao(Date.now(), null); });
       state.transactions = state.transactions.concat(list);
       renderAll();
       saveLocal();
@@ -1829,7 +1997,7 @@
           '</div></div>';
       }).join("")+'</div></div>';
     document.querySelectorAll(".dup-del").forEach(function(btn){
-      btn.onclick = function(){ Store.remove(this.dataset.id); toast("Lançamento duplicado excluído."); };
+      btn.onclick = function(){ var id = this.dataset.id; Store.remove(id); toastUndo("Lançamento duplicado apagado.", function(){ Store.restore(id); }); };
     });
     document.querySelectorAll(".dup-ignore").forEach(function(btn){
       btn.onclick = function(){
@@ -2342,9 +2510,10 @@
     document.querySelectorAll(".row-del").forEach(function(el){
       el.onclick = function(){
         if(this.classList.contains("confirm")){
-          Store.remove(this.dataset.id);
-          if(editingId === this.dataset.id) cancelEdit();
-          toast("Lançamento excluído.");
+          var apagado = this.dataset.id;
+          Store.remove(apagado);
+          if(editingId === apagado) cancelEdit();
+          toastUndo("Lançamento apagado.", function(){ Store.restore(apagado); });
         } else {
           var btn = this;
           btn.classList.add("confirm");
@@ -2379,6 +2548,7 @@
     renderPatrimonio();
     fillDatalists();
     renderLedger(ref);
+    renderTrash();
   }
 
   function renderBudgets(){
@@ -2868,6 +3038,74 @@
   function daysDiff(a, b){
     if(!a || !b) return 999;
     return Math.abs((new Date(a+"T00:00:00") - new Date(b+"T00:00:00")) / 86400000);
+  }
+
+  // ======== Sincronização, exclusão com registro e lixeira ========
+  // Excluir não apaga a linha: marca deletedAt (e a nuvem guarda esse registro). Uma
+  // linha excluída nunca é recriada pela sincronização; uma edição mais nova (updatedAt)
+  // nunca é desfeita por uma cópia mais antiga. A lixeira guarda por LIXEIRA_DIAS dias.
+  var LIXEIRA_DIAS = 3;
+  function tsMs(x){ var n = x ? Date.parse(x) : NaN; return isNaN(n) ? 0 : n; }
+  // Carimbo de uma edição: nunca anterior ao que este aparelho já viu da linha, mesmo
+  // com relógio atrasado.
+  function carimboEdicao(agoraMs, anterior){ return new Date(Math.max(agoraMs, tsMs(anterior) + 1)).toISOString(); }
+  function particionar(rows){
+    var vivos = [], lixeira = [];
+    rows.forEach(function(r){ (r.deletedAt ? lixeira : vivos).push(r); });
+    return {vivos: vivos, lixeira: lixeira};
+  }
+  function lixeiraVencida(tx, agoraMs){ return tsMs(tx.deletedAt) > 0 && agoraMs - tsMs(tx.deletedAt) > LIXEIRA_DIAS * 86400000; }
+
+  // Junta a cópia local (vivos + lixeira) com o que a nuvem tem.
+  //  conhecidos: ids que este aparelho já viu na nuvem (null = nunca registrou);
+  //  opts.ignorar: ids de exemplo que nunca devem subir; opts.primeiraVez: conta nova.
+  // Devolve vivos, lixeira, o que subir, o que é realmente ambíguo (NÃO sobe) e o que
+  // foi descartado por ter sido excluído em outro lugar.
+  function sincronizar(locais, nuvem, conhecidos, opts){
+    opts = opts || {};
+    var ignorar = opts.ignorar || {};
+    var porId = {}, vivos = [], lixeira = [], subir = [], ambiguos = [], descartados = [];
+    nuvem.forEach(function(c){ porId[c.id] = c; (c.deletedAt ? lixeira : vivos).push(c); });
+    locais.forEach(function(l){
+      var c = porId[l.id];
+      if(c){
+        if(c.deletedAt){
+          // Excluída na nuvem: nunca volta — a não ser por uma restauração do usuário, feita
+          // depois da exclusão e ainda não confirmada na nuvem (aparelho sem conexão).
+          if(l._restaurar && !l.deletedAt && tsMs(l.updatedAt) > tsMs(c.deletedAt)){
+            lixeira = lixeira.filter(function(t){ return t.id !== l.id; });
+            vivos.push(l); subir.push(l);
+          }
+          return;
+        }
+        if(tsMs(l.updatedAt) > tsMs(c.updatedAt)){ // edição ou exclusão local mais nova que a da nuvem
+          vivos = vivos.filter(function(v){ return v.id !== l.id; });
+          (l.deletedAt ? lixeira : vivos).push(l);
+          subir.push(l);
+        }
+        return; // senão a nuvem vence: cópia antiga não desfaz nada
+      }
+      if(ignorar[l.id] || l.deletedAt){ descartados.push(l); return; }
+      if(conhecidos && conhecidos[l.id]){ descartados.push(l); return; } // já esteve na nuvem e sumiu: excluída em outro lugar
+      if(conhecidos || opts.primeiraVez){ vivos.push(l); subir.push(l); return; } // criada sem conexão
+      ambiguos.push(l); // sem registro nenhum: na dúvida, não reenvia
+    });
+    return {vivos: vivos, lixeira: lixeira, subir: subir, ambiguos: ambiguos, descartados: descartados};
+  }
+
+  // Espelho em JS da regra do servidor (gatilho tx_guard no Supabase). Só serve aos
+  // testes de dois navegadores; devolve a linha gravada ou null quando o servidor ignora.
+  function guardaServidor(antigo, patch, agoraMs){
+    var novo = Object.assign({}, antigo || {}, patch);
+    if(!antigo){ novo.updatedAt = novo.updatedAt || new Date(agoraMs).toISOString(); return novo; }
+    if(antigo.deletedAt){
+      var restaurou = !novo.deletedAt && tsMs(novo.updatedAt) !== tsMs(antigo.updatedAt) && tsMs(novo.updatedAt) > tsMs(antigo.deletedAt);
+      return restaurou ? novo : null;
+    }
+    if(tsMs(novo.updatedAt) !== tsMs(antigo.updatedAt)){
+      if(tsMs(novo.updatedAt) < tsMs(antigo.updatedAt)) return null;
+    } else { novo.updatedAt = new Date(agoraMs).toISOString(); }
+    return novo;
   }
 
   // Candidato a pagamento de fatura. Numa fatura de cartão, qualquer palavra forte
@@ -3881,7 +4119,7 @@
         importId: novoImportId(Date.now()), faturaKey: credit ? stagingFaturaKey : null,
         newId: function(){ return newLocalId("c" + (seq++)); }});
       var substituidos = (stagingReplace && stagingReplace.ids.length) ? stagingReplace.ids.length : 0;
-      if(substituidos) Store.removeMany(stagingReplace.ids); // a importação anterior sai antes de gravar a nova
+      if(substituidos) Store.removeMany(stagingReplace.ids); // a importação anterior vai para a lixeira antes de gravar a nova
       plan.updates.forEach(function(up){ Store.update(up.id, up.patch); });
       if(plan.adds.length) Store.addMany(plan.adds);
       var previstas = plan.adds.filter(function(t){ return t.statusParcela === "prevista"; }).length;
@@ -4297,6 +4535,13 @@
   });
 
 
+  if(window.__GENESIS_TEST__){ window.__genesis = {Store: Store, state: state, aplicarNuvem: aplicarNuvem, loadSynced: loadSynced, saveSynced: saveSynced}; }
+
+
+  if(window.__GENESIS_TEST__){ window.__genesis = {Store: Store, state: state, aplicarNuvem: aplicarNuvem, loadSynced: loadSynced, saveSynced: saveSynced, toastUndo: toastUndo, renderTrash: renderTrash}; }
+
+
+  if(window.__GENESIS_TEST__){ window.__genesis = {Store: Store, state: state, aplicarNuvem: aplicarNuvem, loadSynced: loadSynced, saveSynced: saveSynced, toastUndo: toastUndo, renderTrash: renderTrash}; }
   init();
 })();
 </script>
