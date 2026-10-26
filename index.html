@@ -1955,7 +1955,7 @@
     state.transactions.forEach(function(t){
       if(!isFaturaTx(t) || !hasParcela(t) || monthKey(t.dataEfet) < monthKey(ref)) return;
       var info = parcelaInfo(t);
-      var key = t.idCompra || t.seriesId || (impDescKey(t.descricao) + "|" + info.total);
+      var key = chaveCompra(t); // a mesma compra nunca aparece duas vezes
       if(!groups[key] || t.dataEfet < groups[key].dataEfet) groups[key] = {tx: t, info: info, dataEfet: t.dataEfet};
     });
     var ativas = Object.keys(groups).map(function(k){ return groups[k]; })
@@ -2779,6 +2779,12 @@
     return (neg ? "-" : "") + "R$ " + parts[0] + "," + parts[1];
   }
 
+  // Chave de uma compra parcelada, a mesma mesmo que as parcelas tenham ids de compra
+  // diferentes: descrição equivalente + total de parcelas + valor da parcela.
+  function chaveCompra(tx){
+    var info = parcelaDe(tx);
+    return impDescKey(tx.descricao) + "|" + (info ? info.t : "") + "|" + Number(tx.valor).toFixed(2);
+  }
   // Número da parcela de uma linha importada ou de um lançamento salvo.
   function parcelaDe(x){
     if(x.parcelaAtual && x.totalParcelas) return {n: x.parcelaAtual, t: x.totalParcelas};
@@ -3247,7 +3253,9 @@
         tx.idCompra = idCompra; tx.seriesId = idCompra;
         tx.parcelaAtual = r.parcelaAtual; tx.totalParcelas = r.totalParcelas; tx.statusParcela = "confirmada";
         adds.push(tx);
-        for(var k = r.parcelaAtual + 1; k <= r.totalParcelas; k++){
+        // Previstas só para parcela escrita na fatura. Uma cobrança repetida que o usuário
+        // marcou como parcelada (assinatura, streaming) não vira série de parcelas.
+        for(var k = r.parcelaAtual + 1; r.parcelaExplicita === true && k <= r.totalParcelas; k++){
           var exists = all().some(function(t){
             if(t.idCompra === idCompra && t.parcelaAtual === k) return true;
             // a mesma parcela da mesma compra já salva (mesmo com outro id): não cria de novo
@@ -3484,6 +3492,7 @@
         parcela: parc ? parc.text : null,
         parcelaAtual: parc ? parc.atual : null,
         totalParcelas: parc ? parc.total : null,
+        parcelaExplicita: !!parc,
         final: fm ? fm[1] : currentFinal,
         unsure: {
           tipo: !tipoGuess.sure,
@@ -3697,7 +3706,7 @@
           '<button type="button" class="ghost" data-act="est-no" data-idx="'+idx+'">Não, é uma despesa</button></span></div>');
       }
       if(r.sinalB && r.sinalB.state === "pending"){
-        items.push('<div class="attn-item"><span>'+label+' apareceu igual na fatura anterior. Parece uma compra parcelada. Confirmar?</span>'+
+        items.push('<div class="attn-item"><span>'+label+' apareceu igual na fatura anterior. Parece uma compra parcelada. Confirmar? (Se for uma assinatura, responda Não.)</span>'+
           '<span class="attn-actions"><button type="button" class="solid" data-act="parc-ok" data-idx="'+idx+'">Sim</button>'+
           '<button type="button" class="ghost" data-act="parc-no" data-idx="'+idx+'">Não</button></span></div>');
       }
