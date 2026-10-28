@@ -4,7 +4,7 @@
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.0/dist/umd/supabase.js"></script>
-<meta name="app-version" content="20261028-164300">
+<meta name="app-version" content="20261028-165055">
 <script>
 (function(){
   var m = document.querySelector('meta[name="app-version"]'); var cur = m && m.content; if(!cur) return;
@@ -5614,8 +5614,17 @@
       '<div class="imp-step-sub">'+(ehExtrato ? 'Conta final '+stagingMeta.ext.contaFinal+' · de '+fmtDate(stagingMeta.ext.periodo.de)+' a '+fmtDate(stagingMeta.ext.periodo.ate) : escapeAttr(cardLabel(stagingCard.key) || stagingCard.nome)+' · vencimento '+fmtDate(stagingCheck.vencFatura))+'. '+
       'Substituir apaga os '+prev.ids.length+' lançamentos daquela importação ('+prev.confirmadas+' confirmados e '+prev.previstas+' previstos) e grava os desta no lugar.</div>'+
       '<div class="staging-actions"><button class="btn btn-ghost" id="btnCancelStaging" type="button">Cancelar</button>'+
+      (ehExtrato && referenciaDoExtrato(stagingMeta.ext) ? '<button class="btn btn-ghost" id="btnSoReferenciaGate" type="button">Só guardar as linhas para conferência (não altera lançamentos)</button>' : '')+
       '<button class="btn btn-primary" id="btnReplaceOk" type="button">Substituir a importação anterior</button></div></div>';
     document.getElementById("btnCancelStaging").onclick = discardStaging;
+    var soRefGate = document.getElementById("btnSoReferenciaGate");
+    if(soRefGate) soRefGate.onclick = function(){
+      var sd = saldoDoExtrato(stagingMeta.ext);
+      if(sd) atualizarSaldos(state.saldos, stagingMeta.contaKey, sd);
+      var ok = guardarReferencia(state.saldos, stagingMeta.contaKey, referenciaDoExtrato(stagingMeta.ext));
+      saveSaldos(); discardStaging(); renderAll();
+      toast(ok ? "Linhas do extrato guardadas para conferência. Nenhum lançamento foi alterado." : "Já existe um extrato mais novo guardado para essa conta.");
+    };
     document.getElementById("btnReplaceOk").onclick = function(){
       stagingReplace = {key: stagingFaturaKey, ids: prev.ids.slice(), em: prev.em};
       stagingStep = "review";
@@ -6082,6 +6091,9 @@
 
 
   if(window.__GENESIS_TEST__){ window.__genesis = {Store: Store, state: state, aplicarNuvem: aplicarNuvem, loadSynced: loadSynced, saveSynced: saveSynced, toastUndo: toastUndo, renderTrash: renderTrash, lembrarContraparte: lembrarContraparte, countsAsSpendTx: countsAsSpendTx, informarSaldo: informarSaldo, renderHero: renderHero, renderAll: renderAll, acaoResumo: acaoResumo, abrirModalSaldo: abrirModalSaldo, compoePrevisao: compoePrevisao, computeTotals: computeTotals, ignorarDivergencia: ignorarDivergencia, divergenciasSaldo: divergenciasSaldo}; }
+
+
+  if(window.__GENESIS_TEST__){ window.__genesis = {Store: Store, state: state, aplicarNuvem: aplicarNuvem, loadSynced: loadSynced, saveSynced: saveSynced, toastUndo: toastUndo, renderTrash: renderTrash, lembrarContraparte: lembrarContraparte, countsAsSpendTx: countsAsSpendTx, informarSaldo: informarSaldo, renderHero: renderHero, renderAll: renderAll, acaoResumo: acaoResumo, abrirModalSaldo: abrirModalSaldo, compoePrevisao: compoePrevisao, computeTotals: computeTotals, ignorarDivergencia: ignorarDivergencia, divergenciasSaldo: divergenciasSaldo, conciliarConta: conciliarConta, conciliacaoDe: conciliacaoDe, abrirConciliacao: abrirConciliacao, acaoConciliacao: acaoConciliacao, acaoConciliacaoTodos: acaoConciliacaoTodos, apagarComAviso: apagarComAviso, perguntar: perguntar, referenciaDoExtrato: referenciaDoExtrato, guardarReferencia: guardarReferencia, atualizarSaldos: atualizarSaldos, podeVincular: podeVincular}; }
 
 
   if(window.__GENESIS_TEST__){ window.__genesis = {Store: Store, state: state, aplicarNuvem: aplicarNuvem, loadSynced: loadSynced, saveSynced: saveSynced, toastUndo: toastUndo, renderTrash: renderTrash, lembrarContraparte: lembrarContraparte, countsAsSpendTx: countsAsSpendTx, informarSaldo: informarSaldo, renderHero: renderHero, renderAll: renderAll, acaoResumo: acaoResumo, abrirModalSaldo: abrirModalSaldo, compoePrevisao: compoePrevisao, computeTotals: computeTotals, ignorarDivergencia: ignorarDivergencia, divergenciasSaldo: divergenciasSaldo, conciliarConta: conciliarConta, conciliacaoDe: conciliacaoDe, abrirConciliacao: abrirConciliacao, acaoConciliacao: acaoConciliacao, acaoConciliacaoTodos: acaoConciliacaoTodos, apagarComAviso: apagarComAviso, perguntar: perguntar, referenciaDoExtrato: referenciaDoExtrato, guardarReferencia: guardarReferencia, atualizarSaldos: atualizarSaldos, podeVincular: podeVincular}; }
