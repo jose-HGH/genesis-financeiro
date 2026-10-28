@@ -4,7 +4,7 @@
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.0/dist/umd/supabase.js"></script>
-<meta name="app-version" content="20261026-225958">
+<meta name="app-version" content="20261028-011026">
 <script>
 (function(){
   var m = document.querySelector('meta[name="app-version"]'); var cur = m && m.content; if(!cur) return;
@@ -213,7 +213,7 @@
   .pay-value.pos{color:var(--good-text);}
   .pay-value.neg{color:var(--ink);}
 
-  /* ---------- Category inline bars (Onde o dinheiro foi) ---------- */
+  /* ---------- Category inline bars (Maiores gastos do mês) ---------- */
   .spend-list{display:flex; flex-direction:column; gap:12px;}
   .spend-row-head{display:flex; justify-content:space-between; font-size:13px; margin-bottom:5px;}
   .spend-row-head .over{color:var(--critical-text); font-weight:600;}
@@ -333,6 +333,25 @@
   .spend-parcfat{display:flex; justify-content:space-between; gap:12px; margin-top:12px; padding-top:10px; border-top:1px dashed var(--border-strong); font-size:12.5px; color:var(--ink-2); font-variant-numeric:tabular-nums;}
   .spend-parcfat em{font-style:normal; color:var(--ink-muted);}
   .conf-warn .conf-list{margin:6px 0 0; padding-left:18px; font-size:12.5px; color:var(--ink-2);}
+  .saldo-aviso{border:1px solid var(--warn-text, var(--border-strong)); background:var(--warn-wash); border-radius:12px; padding:12px 14px; font-size:13px; margin-top:12px; color:var(--ink);}
+  .saldo-aviso p{margin:4px 0 6px; color:var(--ink-2);}
+  .pf-ativas-barra{margin-top:12px;}
+  .pf-ativas{margin-top:10px; font-size:12.5px; color:var(--ink-2);}
+  .pf-parc-row{display:flex; justify-content:space-between; gap:12px; padding:5px 0; border-top:1px solid var(--border); font-variant-numeric:tabular-nums;}
+  .pf-parc-row:first-child{border-top:0;}
+  .pf-parc-row em{font-style:normal; color:var(--ink-muted); margin-left:4px;}
+  .pf-parc-total{display:flex; justify-content:space-between; gap:12px; padding-top:8px; margin-top:4px; border-top:1px solid var(--border-strong); font-weight:700; color:var(--ink); font-variant-numeric:tabular-nums;}
+  .hero-b-total{font-weight:700;}
+  .hero-conta{font-size:12.5px; opacity:.9;}
+  .hero-conta span:first-child{padding-left:12px;}
+  .hero-conta em{font-style:normal; opacity:.7;}
+  .hero-dica{margin:12px 0 4px; font-size:12.5px; opacity:.8;}
+  .hero-saldo-form{display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin-top:14px; padding-top:12px; border-top:1px solid rgba(255,255,255,.14); font-size:12.5px;}
+  .hero-saldo-form label{font-weight:700; opacity:.85;}
+  .hero-saldo-form select, .hero-saldo-form input{font-family:var(--font-ui); font-size:13px; padding:7px 9px; border-radius:8px; border:1px solid rgba(255,255,255,.25); background:rgba(255,255,255,.08); color:inherit; min-width:0;}
+  .hero-saldo-form input{width:130px;}
+  .hero-saldo-form .btn{color:inherit; border-color:rgba(255,255,255,.35);}
+  .futuros-opt{display:inline-flex; align-items:center; gap:8px; margin-top:6px; font-size:12.5px; color:var(--ink);}
   .conf-ok{font-size:12.5px; color:var(--good-text, var(--ink-2)); margin-bottom:10px;}
   .badge-pagfat{display:inline-block; font-size:10px; font-weight:600; color:#5243ac; background:rgba(98,80,214,0.12); border-radius:5px; padding:1px 6px; margin-left:6px;}
   .badge-concilia{display:inline-block; font-size:10px; font-weight:600; color:var(--good-text); background:var(--good-wash); border-radius:5px; padding:1px 6px; margin-left:6px;}
@@ -651,6 +670,7 @@
     </div>
     <div id="dupBanner"></div>
     <div id="syncBanner"></div>
+    <div id="saldoBanner"></div>
   </section>
 
   <section class="card" id="authCard">
@@ -702,42 +722,22 @@
       </div>
       <div class="pf-legend"><span><i class="pf-sw pf-compras"></i>Compras do mês</span><span><i class="pf-sw pf-parcelas"></i>Parcelas já assumidas</span></div>
       <div class="pf-list" id="faturasList"></div>
-      <div class="pf-ativas" id="parcelasAtivas"></div>
+      <div class="pf-ativas-barra"><button type="button" class="btn btn-ghost" id="btnVerParcelas">Ver parcelamentos</button></div>
+      <div class="pf-ativas" id="parcelasAtivas" hidden></div>
     </div>
     <div class="card">
-      <div class="card-head"><h2>A pagar e a receber</h2></div>
+      <div class="card-head"><h2>A pagar e a receber</h2><span class="hint" id="upcomingMes"></span></div>
       <div class="upcoming-list" id="upcomingList"></div>
     </div>
     <div class="card">
       <div class="card-head">
-        <h2>Onde o dinheiro foi</h2>
+        <h2>Maiores gastos do mês</h2>
       </div>
-      <label class="switch" style="margin-bottom:12px;">
-        <input type="checkbox" id="toggleLicitacao" checked>
-        Incluir gastos de Negócios/Licitação
-      </label>
       <div class="bar-list" id="categoryChart"></div>
     </div>
   </section>
 
-  <section class="card">
-    <div class="card-head">
-      <h2>Últimos lançamentos</h2>
-      <a href="#ledgerSection" class="hint" style="text-decoration:none;">Ver todos</a>
-    </div>
-    <div class="latest-list" id="latestList"></div>
-  </section>
-
   <section class="patrimonio-row">
-    <div class="card patrimonio-card">
-      <div class="card-head"><h2>Guardado / investido</h2></div>
-      <div class="patrimonio-value" id="patInvestidoValue">R$ 0,00</div>
-      <div class="patrimonio-sub">Total fora da conta corrente — poupança, investimentos, caixinha.</div>
-      <form class="patrimonio-form" id="patInvestidoForm">
-        <input type="number" step="0.01" id="patInvestidoInput" placeholder="ex: 200 ou -50" aria-label="Valor a adicionar ou retirar do guardado/investido">
-        <button type="submit" class="btn btn-ghost">Atualizar</button>
-      </form>
-    </div>
     <div class="card patrimonio-card">
       <div class="card-head">
         <h2>Reserva de emergência
@@ -848,6 +848,7 @@
         <option value="parcelamento_fatura">Parcelamento de fatura</option>
         <option value="estorno">Estornos</option>
         <option value="pagamento_fatura">Pagamento de fatura</option>
+        <option value="transferencia_interna">Transferência interna</option>
       </select>
       <select id="fStatus">
         <option value="">Todos os status</option>
@@ -883,6 +884,7 @@
       <span class="hint">Ficam 3 dias aqui; depois somem de vez.</span>
     </div>
     <div id="trashList"></div>
+    <button type="button" class="btn btn-ghost" id="btnTrashToggle" hidden style="margin-top:10px;">Ver todos</button>
   </section>
 
   <section class="card" id="txFormCard">
@@ -897,6 +899,7 @@
             <option value="pagamento_fatura">Pagamento de fatura</option>
             <option value="parcelamento_fatura">Parcelamento de fatura</option>
             <option value="estorno">Estorno</option>
+            <option value="transferencia_interna">Transferência interna</option>
           </select>
         </div>
         <div class="field">
@@ -1073,7 +1076,7 @@
   }
   var FALLBACK_SEED = buildExampleSeed();
 
-  var state = { transactions: [], mode: "loading", uid: null, col: null, budgets: {}, patrimonio: {investido:0, reserva:0}, seriesWatermark: {}, cartoes: {}, deleted: [] };
+  var state = { transactions: [], mode: "loading", uid: null, col: null, budgets: {}, patrimonio: {investido:0, reserva:0}, seriesWatermark: {}, cartoes: {}, contrapartes: {}, saldos: {}, deleted: [] };
   var listeners = [];
   function onChange(fn){ listeners.push(fn); }
   function emitChange(){ listeners.forEach(function(fn){ fn(); }); }
@@ -1142,7 +1145,7 @@
     }
   }
 
-  var RESERVED_DOC_IDS = ["__budgets__", "__patrimonio__", "__seriesWatermark__", "__cartoes__"];
+  var RESERVED_DOC_IDS = ["__budgets__", "__patrimonio__", "__seriesWatermark__", "__cartoes__", "__contrapartes__", "__saldos__"];
   // Card settings (closing/due day) keyed by card: "banco|final" when the PDF shows
   // the last 4 digits, otherwise "nome|banco|apelido" chosen by the user.
   var CARTOES_KEY = "genesis-financas-cartoes-v1";
@@ -1154,6 +1157,33 @@
     if(state.mode === "db" && state.col){
       state.col.doc("__cartoes__").set({data: state.cartoes}).catch(function(){ toast("Não foi possível salvar o cartão na nuvem."); });
     }
+  }
+  // Contrapartes de Pix/transferência já respondidas: "propria" (é você) ou "outra" (outra pessoa).
+  var CONTRAPARTES_KEY = "genesis-financas-contrapartes-v1";
+  function loadContrapartesLocal(){
+    try{ return JSON.parse(localStorage.getItem(CONTRAPARTES_KEY)) || {}; }catch(e){ return {}; }
+  }
+  function saveContrapartes(){
+    try{ localStorage.setItem(CONTRAPARTES_KEY, JSON.stringify(state.contrapartes)); }catch(e){}
+    if(state.mode === "db" && state.col){
+      state.col.doc("__contrapartes__").set({data: state.contrapartes}).catch(function(){ toast("Não foi possível salvar a resposta na nuvem."); });
+    }
+  }
+  // Saldo de cada conta (vem do extrato mais recente ou é informado por você).
+  var SALDOS_KEY = "genesis-financas-saldos-v1";
+  function loadSaldosLocal(){
+    try{ return JSON.parse(localStorage.getItem(SALDOS_KEY)) || {}; }catch(e){ return {}; }
+  }
+  function saveSaldos(){
+    try{ localStorage.setItem(SALDOS_KEY, JSON.stringify(state.saldos)); }catch(e){}
+    if(state.mode === "db" && state.col){
+      state.col.doc("__saldos__").set({data: state.saldos}).catch(function(){ toast("Não foi possível salvar o saldo na nuvem."); });
+    }
+  }
+  function lembrarContraparte(chave, valor){
+    if(!chave) return;
+    state.contrapartes[chave] = valor;
+    saveContrapartes();
   }
   function cardLabel(key){
     var c = key && state.cartoes[key];
@@ -1247,13 +1277,21 @@
     clearTimeout(toastUndo._t);
     toastUndo._t = setTimeout(function(){ bar.hidden = true; }, 8000);
   }
+  var trashAberta = false;
   function renderTrash(){
     var card = document.getElementById("trashCard");
     if(!card) return;
     var items = state.deleted.slice().sort(function(a, b){ return tsMs(b.deletedAt) - tsMs(a.deletedAt); });
     if(!items.length){ card.hidden = true; return; }
     card.hidden = false;
-    document.getElementById("trashList").innerHTML = items.map(function(t){
+    var total = items.length, visiveis = (trashAberta ? items : items.slice(0, 3));
+    var tg = document.getElementById("btnTrashToggle");
+    if(tg){
+      tg.hidden = total <= 3;
+      tg.textContent = trashAberta ? "Mostrar menos" : "Ver todos (" + total + ")";
+      tg.onclick = function(){ trashAberta = !trashAberta; renderTrash(); };
+    }
+    document.getElementById("trashList").innerHTML = visiveis.map(function(t){
       var d = new Date(tsMs(t.deletedAt)), some = new Date(tsMs(t.deletedAt) + LIXEIRA_DIAS * 86400000);
       var quando = pad2(d.getDate())+"/"+pad2(d.getMonth()+1)+" "+pad2(d.getHours())+":"+pad2(d.getMinutes());
       var ate = pad2(some.getDate())+"/"+pad2(some.getMonth()+1);
@@ -1281,6 +1319,8 @@
     if(!saved){ saveLocal(); }
     state.seriesWatermark = loadWatermarkLocal();
     state.cartoes = loadCartoesLocal();
+    state.contrapartes = loadContrapartesLocal();
+    state.saldos = loadSaldosLocal();
     migrateDefaults();
     setSync("local");
     loadBudgets();
@@ -1306,7 +1346,7 @@
     dataLanc:"data_lanc", dataEfet:"data_efet", descricao:"descricao", categoria:"categoria",
     classificacao:"classificacao", recorrencia:"recorrencia", seriesId:"series_id",
     parcela:"parcela", obs:"obs", autoGenerated:"auto_generated", pagoManual:"pago_manual",
-    idCompra:"id_compra", parcelaAtual:"parcela_atual", totalParcelas:"total_parcelas", statusParcela:"status_parcela", cartao:"cartao", cartaoFinal:"cartao_final", importId:"import_id", faturaKey:"fatura_key", deletedAt:"deleted_at", updatedAt:"updated_at"
+    idCompra:"id_compra", parcelaAtual:"parcela_atual", totalParcelas:"total_parcelas", statusParcela:"status_parcela", cartao:"cartao", cartaoFinal:"cartao_final", importId:"import_id", faturaKey:"fatura_key", deletedAt:"deleted_at", updatedAt:"updated_at", conta:"conta", documento:"documento"
   };
   function txToRow(tx, uid){
     var row = { id: tx.id, user_id: uid };
@@ -1342,6 +1382,8 @@
       if(id === "__budgets__") return "budgets";
       if(id === "__patrimonio__") return "patrimonio";
       if(id === "__cartoes__") return "cartoes";
+      if(id === "__contrapartes__") return "contrapartes";
+      if(id === "__saldos__") return "saldos";
       return "series_watermark";
     }
     function reservedToRow(id, payload){
@@ -1444,7 +1486,17 @@
         return col.doc("__cartoes__").get().then(function(cSnap){
           if(cSnap.exists){ state.cartoes = cSnap.data().data || {}; }
           try{ localStorage.setItem(CARTOES_KEY, JSON.stringify(state.cartoes)); }catch(e){}
-        }).catch(function(){});
+        }).catch(function(){}).then(function(){
+          return col.doc("__contrapartes__").get().then(function(kSnap){
+            if(kSnap.exists){ state.contrapartes = kSnap.data().data || {}; }
+            try{ localStorage.setItem(CONTRAPARTES_KEY, JSON.stringify(state.contrapartes)); }catch(e){}
+          }).catch(function(){});
+        }).then(function(){
+          return col.doc("__saldos__").get().then(function(sSnap){
+            if(sSnap.exists){ state.saldos = sSnap.data().data || {}; }
+            try{ localStorage.setItem(SALDOS_KEY, JSON.stringify(state.saldos)); }catch(e){}
+          }).catch(function(){});
+        });
       });
     }).then(function(){
       migrateDefaults();
@@ -1835,6 +1887,9 @@
   // no separate field to maintain, and import already fills dataEfet from the PDF.
   function isFaturaTx(tx){ return (tx.tipo === "despesa" || tx.tipo === "parcelamento_fatura" || tx.tipo === "estorno") && tx.modalidade === "Crédito"; }
   function isPagamentoFatura(tx){ return tx.tipo === "pagamento_fatura"; }
+  // Fora do resultado: pagamento de fatura e transferência entre contas (não são receita nem despesa).
+  function isNeutro(tx){ return tx.tipo === "pagamento_fatura" || tx.tipo === "transferencia_interna"; }
+  function rotuloNeutro(tx){ return tx.tipo === "transferencia_interna" ? "Transferência interna" : (tx.categoria === "Fatura parcelada" ? "Fatura parcelada" : "Pagamento de fatura"); }
   function isPrevista(tx){ return isPrevistaTx(tx, todayISO()); }
   function countsAsSpend(tx){ return countsAsSpendTx(tx, todayISO()); }
   function hasParcela(tx){ return !!(tx.totalParcelas || parcelaParts(tx.parcela)); }
@@ -1877,7 +1932,7 @@
     });
     var r = { recTotal:0, recReal:0, recPend:0, despTotal:0, despReal:0, despPend:0, fixoTotal:0, prevDesp:0, prevRec:0 };
     t.forEach(function(tx){
-      if(isPagamentoFatura(tx)) return;
+      if(isNeutro(tx)) return;
       // Previstas aren't spending yet, but they are already committed — they only
       // weigh on what's left to spend (saldo projetado), never on the month's totals.
       if(isPrevista(tx)){ if(tx.tipo === "receita") r.prevRec += tx.valor; else r.prevDesp += tx.valor; return; }
@@ -1920,38 +1975,145 @@
     };
   }
 
+  // Informar (ou corrigir) o saldo de uma conta. Chave nova = conta digitada à mão.
+  function informarSaldo(chave, nome, valor){
+    var atual = state.saldos[chave] || {};
+    atualizarSaldos(state.saldos, chave, {nome: atual.nome || nome || null, banco: atual.banco || nome || null, final: atual.final || null,
+      saldo: valor, data: todayISO(), origem: "manual"});
+    saveSaldos();
+    renderAll();
+  }
+  // Avisa quando o saldo informado não bate com o do extrato; o botão silencia ESSA diferença.
+  function renderAvisoSaldo(){
+    var el = document.getElementById("saldoBanner");
+    if(!el) return;
+    var divs = divergenciasSaldo(state.saldos), mudou = false;
+    // quando a diferença some, o silêncio some junto: se voltar, avisa de novo
+    Object.keys(state.saldos).forEach(function(k){
+      var c = state.saldos[k];
+      if(c.ignorada && !divs.some(function(d){ return d.chave === k; })){ delete c.ignorada; mudou = true; }
+    });
+    if(mudou) saveSaldos();
+    var ativas = divs.filter(function(d){ return !d.ignorada; });
+    if(!ativas.length){ el.innerHTML = ""; return; }
+    el.innerHTML = ativas.map(function(d){
+      return '<div class="saldo-aviso" role="alert"><strong>O saldo de '+escapeAttr(d.rotulo)+' não está batendo.</strong>'+
+        '<p>Você informou '+fmt(d.manual.valor)+(d.manual.data ? ' (em '+fmtDate(d.manual.data)+')' : '')+', mas o extrato diz '+fmt(d.extrato.valor)+(d.extrato.data ? ' (em '+fmtDate(d.extrato.data)+')' : '')+
+        ': diferença de <strong>'+fmt(Math.abs(d.diff))+'</strong> '+(d.diff < 0 ? 'a menos' : 'a mais')+' no que você informou.</p>'+
+        '<p>Verifique se esse valor está aplicado ou guardado em algum lugar (investimento, caixinha, reserva) ou se houve alguma movimentação depois do extrato.</p>'+
+        '<button type="button" class="btn btn-ghost saldo-aviso-fechar" data-conta="'+escapeAttr(d.chave)+'" data-sig="'+escapeAttr(d.sig)+'">Não avisar mais sobre essa diferença</button></div>';
+    }).join("");
+    Array.prototype.forEach.call(el.querySelectorAll(".saldo-aviso-fechar"), function(b){
+      b.onclick = function(){ ignorarDivergencia(this.dataset.conta, this.dataset.sig); };
+    });
+  }
+  function ignorarDivergencia(chave, sig){
+    if(!state.saldos[chave]) return;
+    state.saldos[chave].ignorada = sig;
+    saveSaldos();
+    renderAvisoSaldo();
+  }
+  function lerValorBR(txt){
+    var t = String(txt || "").replace(/[^\d,.\-]/g, "");
+    if(t.indexOf(",") !== -1) t = t.replace(/\./g, "").replace(",", ".");
+    var v = parseFloat(t);
+    return isNaN(v) ? null : Math.round(v * 100) / 100;
+  }
+
   function renderHero(ref){
     var r = computeTotals(ref);
     var mr = monthRange(ref);
     var bd = computeHeroBreakdown(ref, r);
     var hoje = new Date(ref+"T00:00:00");
     var diasRestantes = Math.max(mr.daysInMonth - hoje.getDate() + 1, 1);
-    var perDia = r.saldoProjetado / diasRestantes;
-    var ok = r.saldoProjetado >= 0;
     var fimMes = mr.last.getFullYear()+"-"+pad2(mr.last.getMonth()+1)+"-"+pad2(mr.last.getDate());
+    // Com o saldo das contas conhecido (e olhando o mês de hoje), o número parte do dinheiro real.
+    var chaves = Object.keys(state.saldos || {});
+    var usaSaldo = chaves.length > 0 && monthKey(ref) === monthKey(todayISO());
+    var base = somaSaldos(state.saldos);
+    var valor = usaSaldo ? valorComSaldo(base, r.recPend, r.despPend, r.prevDesp) : r.saldoProjetado;
+    var perDia = valor / diasRestantes;
+    var ok = valor >= 0;
 
-    var html = '<div class="hero-eyebrow">'+(ok ? "Você ainda pode gastar até "+fmtDate(fimMes) : "Você já passou do previsto para este mês")+'</div>'+
-      '<div class="hero-pill '+(ok?"hero-pill-good":"hero-pill-bad")+'">'+(ok?"No ritmo certo":"Fora do previsto")+'</div>'+
-      '<div class="hero-value">'+(ok?"":"-")+fmt(Math.abs(r.saldoProjetado))+'</div>'+
-      '<div class="hero-sub">'+(ok
-        ? "Cerca de "+fmt(Math.abs(perDia))+" por dia nos próximos "+diasRestantes+" dias"
-        : "Já "+fmt(Math.abs(r.saldoProjetado))+" além do que as receitas do mês cobrem")+'</div>'+
-      '<div class="hero-breakdown">'+
-        '<div class="hero-b-head">Como chegamos nesse número</div>'+
-        '<div class="hero-b-row"><span>Despesas já confirmadas</span><span>'+fmt(bd.despReal)+'</span></div>'+
-        '<div class="hero-b-row"><span>Contas a pagar até '+fmtDate(fimMes)+'</span><span>'+fmt(bd.contasPagar)+'</span></div>'+
-        (bd.faturaPend > 0 ? '<div class="hero-b-row"><span>Fatura do cartão'+(bd.faturaVenc?" (vence "+fmtDate(bd.faturaVenc)+")":"")+'</span><span>'+fmt(bd.faturaPend)+'</span></div>' : '')+
-        (bd.previstas > 0 ? '<div class="hero-b-row"><span>Parcelas já assumidas</span><span>'+fmt(bd.previstas)+'</span></div>' : '')+
-        '<div class="hero-b-row"><span>Reserva de emergência guardada</span><span>'+fmt(bd.reserva)+'</span></div>'+
-      '</div>'+
-      '<div class="hero-stats">'+
-        '<div class="hero-stat"><span>Saldo já confirmado</span><strong>'+fmt(r.saldoAtual)+'</strong></div>'+
-        '<div class="hero-stat"><span>Receitas previstas</span><strong>'+fmt(r.recTotal)+'</strong></div>'+
-        '<div class="hero-stat"><span>Comprometido fixo</span><strong>'+fmt(r.fixoTotal)+'</strong></div>'+
-      '</div>';
+    var linhasConta = chaves.map(function(k){
+      var c = state.saldos[k];
+      return '<div class="hero-b-row hero-conta"><span>'+escapeAttr(rotuloConta(c))+' <em>· '+(c.origem === "manual" ? 'informado' : 'extrato')+' de '+(c.data ? fmtDate(c.data) : 's/ data')+'</em></span><span>'+fmt(c.saldo)+'</span></div>';
+    }).join("");
+    var opcoes = chaves.map(function(k){ return '<option value="'+escapeAttr(k)+'">'+escapeAttr(rotuloConta(state.saldos[k]))+'</option>'; }).join("") + '<option value="__nova__">Outra conta…</option>';
+    var formSaldo = '<div class="hero-saldo-form">'+
+      '<label for="saldoConta">Informar saldo de hoje</label>'+
+      '<select id="saldoConta">'+opcoes+'</select>'+
+      '<input id="saldoNome" placeholder="Nome da conta" '+(chaves.length ? 'hidden' : '')+'>'+
+      '<input id="saldoValor" inputmode="decimal" placeholder="R$ 0,00">'+
+      '<button type="button" class="btn btn-ghost" id="btnSaldoOk">Salvar</button></div>';
+
+    var html;
+    if(usaSaldo){
+      html = '<div class="hero-eyebrow">'+(ok ? "Você ainda pode gastar até "+fmtDate(fimMes) : "O que vence ainda passa do que você tem")+'</div>'+
+        '<div class="hero-pill '+(ok?"hero-pill-good":"hero-pill-bad")+'">'+(ok?"Dinheiro nas contas":"Atenção")+'</div>'+
+        '<div class="hero-value">'+(ok?"":"-")+fmt(Math.abs(valor))+'</div>'+
+        '<div class="hero-sub">'+(ok
+          ? "Cerca de "+fmt(Math.abs(perDia))+" por dia nos próximos "+diasRestantes+" dias"
+          : "Faltam "+fmt(Math.abs(valor))+" para cobrir o que ainda vence neste mês")+'</div>'+
+        '<div class="hero-breakdown">'+
+          '<div class="hero-b-head">Como chegamos nesse número</div>'+
+          '<div class="hero-b-row hero-b-total"><span>Saldo nas contas</span><span>'+fmt(base)+'</span></div>'+
+          linhasConta+
+          '<div class="hero-b-row"><span>+ Receitas ainda a receber</span><span>'+fmt(r.recPend)+'</span></div>'+
+          '<div class="hero-b-row"><span>− Contas a pagar até '+fmtDate(fimMes)+'</span><span>'+fmt(bd.contasPagar)+'</span></div>'+
+          (bd.faturaPend > 0 ? '<div class="hero-b-row"><span>− Fatura do cartão'+(bd.faturaVenc?" (vence "+fmtDate(bd.faturaVenc)+")":"")+'</span><span>'+fmt(bd.faturaPend)+'</span></div>' : '')+
+          (bd.previstas > 0 ? '<div class="hero-b-row"><span>− Parcelas já assumidas</span><span>'+fmt(bd.previstas)+'</span></div>' : '')+
+          '<div class="hero-b-row"><span>Reserva de emergência guardada</span><span>'+fmt(bd.reserva)+'</span></div>'+
+        '</div>'+
+        '<div class="hero-stats">'+
+          '<div class="hero-stat"><span>Saldo nas contas</span><strong>'+fmt(base)+'</strong></div>'+
+          '<div class="hero-stat"><span>Receitas previstas</span><strong>'+fmt(r.recTotal)+'</strong></div>'+
+          '<div class="hero-stat"><span>Comprometido fixo</span><strong>'+fmt(r.fixoTotal)+'</strong></div>'+
+        '</div>'+ formSaldo;
+    } else {
+      html = '<div class="hero-eyebrow">'+(ok ? "Você ainda pode gastar até "+fmtDate(fimMes) : "Você já passou do previsto para este mês")+'</div>'+
+        '<div class="hero-pill '+(ok?"hero-pill-good":"hero-pill-bad")+'">'+(ok?"No ritmo certo":"Fora do previsto")+'</div>'+
+        '<div class="hero-value">'+(ok?"":"-")+fmt(Math.abs(valor))+'</div>'+
+        '<div class="hero-sub">'+(ok
+          ? "Cerca de "+fmt(Math.abs(perDia))+" por dia nos próximos "+diasRestantes+" dias"
+          : "Já "+fmt(Math.abs(valor))+" além do que as receitas do mês cobrem")+'</div>'+
+        '<div class="hero-breakdown">'+
+          '<div class="hero-b-head">Como chegamos nesse número</div>'+
+          '<div class="hero-b-row"><span>Despesas já confirmadas</span><span>'+fmt(bd.despReal)+'</span></div>'+
+          '<div class="hero-b-row"><span>Contas a pagar até '+fmtDate(fimMes)+'</span><span>'+fmt(bd.contasPagar)+'</span></div>'+
+          (bd.faturaPend > 0 ? '<div class="hero-b-row"><span>Fatura do cartão'+(bd.faturaVenc?" (vence "+fmtDate(bd.faturaVenc)+")":"")+'</span><span>'+fmt(bd.faturaPend)+'</span></div>' : '')+
+          (bd.previstas > 0 ? '<div class="hero-b-row"><span>Parcelas já assumidas</span><span>'+fmt(bd.previstas)+'</span></div>' : '')+
+          '<div class="hero-b-row"><span>Reserva de emergência guardada</span><span>'+fmt(bd.reserva)+'</span></div>'+
+        '</div>'+
+        '<div class="hero-stats">'+
+          '<div class="hero-stat"><span>Saldo já confirmado</span><strong>'+fmt(r.saldoAtual)+'</strong></div>'+
+          '<div class="hero-stat"><span>Receitas previstas</span><strong>'+fmt(r.recTotal)+'</strong></div>'+
+          '<div class="hero-stat"><span>Comprometido fixo</span><strong>'+fmt(r.fixoTotal)+'</strong></div>'+
+        '</div>'+
+        (monthKey(ref) === monthKey(todayISO()) ? '<p class="hero-dica">Para ver o dinheiro que você tem nas contas, importe um extrato ou informe o saldo.</p>' + formSaldo : '');
+    }
     var card = document.getElementById("heroCard");
     card.innerHTML = html;
     card.className = "hero-card fade-in";
+    renderAvisoSaldo();
+    var sel = document.getElementById("saldoConta"), nome = document.getElementById("saldoNome"), ok2 = document.getElementById("btnSaldoOk");
+    if(sel){
+      sel.onchange = function(){ if(nome) nome.hidden = this.value !== "__nova__"; };
+      sel.onchange();
+    }
+    if(ok2){
+      ok2.onclick = function(){
+        var v = lerValorBR((document.getElementById("saldoValor") || {}).value);
+        if(v === null){ toast("Digite o saldo da conta (ex.: 2,93)."); return; }
+        var chave = sel ? sel.value : "__nova__", nm = nome ? nome.value.trim() : "";
+        if(chave === "__nova__"){
+          if(!nm){ toast("Dê um nome para a conta."); return; }
+          chave = "manual|" + impNorm(nm).toLowerCase();
+        }
+        informarSaldo(chave, nm || null, v);
+        toast("Saldo salvo.");
+      };
+    }
     return r;
   }
 
@@ -2094,6 +2256,7 @@
   // (orange, confirmed or still "previstas"). Future months say "até agora"
   // because more purchases can still land in them.
   var MESES_NOME = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
+  var parcelasAbertas = false;
   function renderFaturas(ref){
     ref = ref || refISO();
     var hoje = monthKey(todayISO());
@@ -2119,19 +2282,25 @@
         '</div></div>';
     }).join("");
 
-    var groups = {};
+    // Parcelamentos do mês de referência: só aparecem quando você pede (botão), para o cartão não ficar poluído.
+    var ym = monthKey(ref), nomeMes = MESES_NOME[parseInt(ym.slice(5, 7), 10) - 1].toLowerCase();
+    var vistos = {}, doMes = [], totalMes = 0;
     state.transactions.forEach(function(t){
-      if(!isFaturaTx(t) || !hasParcela(t) || monthKey(t.dataEfet) < monthKey(ref)) return;
-      var info = parcelaInfo(t);
-      var key = chaveCompra(t); // a mesma compra nunca aparece duas vezes
-      if(!groups[key] || t.dataEfet < groups[key].dataEfet) groups[key] = {tx: t, info: info, dataEfet: t.dataEfet};
+      if(!isFaturaTx(t) || !hasParcela(t) || monthKey(t.dataEfet) !== ym) return;
+      var info = parcelaInfo(t), k = chaveCompra(t) + "|" + info.n; // a mesma parcela da mesma compra nunca aparece duas vezes
+      if(vistos[k]) return;
+      vistos[k] = true;
+      doMes.push({tx: t, info: info});
+      totalMes += despVal(t);
     });
-    var ativas = Object.keys(groups).map(function(k){ return groups[k]; })
-      .sort(function(a,b){ return b.tx.valor - a.tx.valor; })
-      .map(function(g){ return escapeAttr(g.tx.descricao)+' '+g.info.n+' de '+g.info.total+' ('+fmt(g.tx.valor)+')'; });
-    document.getElementById("parcelasAtivas").innerHTML = ativas.length
-      ? 'Parcelas ativas: '+ativas.join(", ")+'.'
-      : 'Nenhuma parcela ativa no cartão.';
+    doMes.sort(function(a, b){ return b.tx.valor - a.tx.valor; });
+    var btn = document.getElementById("btnVerParcelas"), box = document.getElementById("parcelasAtivas");
+    btn.textContent = parcelasAbertas ? "Ocultar parcelamentos" : "Ver parcelamentos de " + nomeMes + " (" + doMes.length + ")";
+    box.hidden = !parcelasAbertas;
+    box.innerHTML = !doMes.length ? 'Nenhum parcelamento em ' + nomeMes + '.' :
+      '<div class="pf-parc-lista">' + doMes.map(function(g){
+        return '<div class="pf-parc-row"><span>' + escapeAttr(g.tx.descricao) + ' <em>' + g.info.n + ' de ' + g.info.total + '</em></span><span>' + fmt(g.tx.valor) + '</span></div>';
+      }).join("") + '</div><div class="pf-parc-total"><span>Total de parcelas em ' + nomeMes + '</span><span>' + fmt(totalMes) + '</span></div>';
   }
 
   function renderBarList(containerId, data, colorFn, opts){
@@ -2160,12 +2329,10 @@
   }
 
   function renderCategoryChart(){
-    var includeLic = document.getElementById("toggleLicitacao").checked;
     var ref = refISO();
     var mr = monthRange(ref);
     var despesas = state.transactions.filter(function(t){
       if(!isConsumo(t) || !countsAsSpend(t)) return false;
-      if(!includeLic && t.categoria === "Negócios/Licitação") return false;
       var d = new Date(t.dataEfet+"T00:00:00");
       return d.getFullYear()===mr.first.getFullYear() && d.getMonth()===mr.first.getMonth();
     });
@@ -2242,34 +2409,14 @@
     document.getElementById("accountTiles").innerHTML = html || '<div class="empty-note">Sem gastos neste mês ainda.</div>';
   }
 
-  function renderLatest(ref){
-    var items = state.transactions.slice()
-      .sort(function(a,b){ return b.dataEfet.localeCompare(a.dataEfet) || b.dataLanc.localeCompare(a.dataLanc); })
-      .slice(0, 6);
-    var html = items.map(function(t){
-      var real = isRealized(t, ref);
-      var pagFat = isPagamentoFatura(t);
-      var sign = pagFat ? "" : (tipoEntra(t.tipo) ? "+" : "-");
-      var cls = pagFat ? "neutral" : (tipoEntra(t.tipo) ? "pos" : "neg");
-      var statusTag = pagFat ? '<span class="tag-pill tag-purple">Pagamento de fatura</span>'
-        : isPrevista(t) ? '<span class="tag-pill tag-blue">Prevista</span>'
-        : t.autoGenerated ? '<span class="tag-pill tag-blue">Automático</span>'
-        : (real ? '<span class="tag-pill tag-teal">Conferido</span>' : '<span class="tag-pill tag-amber">Pendente</span>');
-      return '<div class="latest-row">'+
-        '<span class="avatar" style="background:'+hashColor(t.categoria)+'">'+initial(t.descricao)+'</span>'+
-        '<div class="latest-main"><div class="latest-title">'+t.descricao+'</div>'+
-        '<div class="latest-sub">'+fmtDate(t.dataEfet)+' · '+t.categoria+' · '+t.banco+'</div></div>'+
-        '<div class="latest-right">'+statusTag+'<span class="latest-value '+cls+'">'+sign+fmt(t.valor)+'</span></div>'+
-        '</div>';
-    }).join("");
-    document.getElementById("latestList").innerHTML = html || '<div class="empty-note">Nenhum lançamento ainda.</div>';
-  }
-
   var MESES3 = ["JAN","FEV","MAR","ABR","MAI","JUN","JUL","AGO","SET","OUT","NOV","DEZ"];
   function renderUpcoming(ref){
-    var items = state.transactions.filter(function(t){ return !isRealized(t, ref) && !isPagamentoFatura(t); })
-      .sort(function(a,b){ return a.dataEfet.localeCompare(b.dataEfet); })
-      .slice(0, 8);
+    var ym = monthKey(ref), nomeMes = MESES_NOME[parseInt(ym.slice(5, 7), 10) - 1].toLowerCase();
+    var doMes = state.transactions.filter(function(t){ return monthKey(t.dataEfet) === ym && !isRealized(t, ref) && !isNeutro(t); })
+      .sort(function(a,b){ return a.dataEfet.localeCompare(b.dataEfet); });
+    var items = doMes.slice(0, 8);
+    var mesEl = document.getElementById("upcomingMes");
+    if(mesEl) mesEl.textContent = nomeMes + "/" + ym.slice(0, 4);
     var html = items.map(function(t){
       var d = new Date(t.dataEfet+"T00:00:00");
       var sign = tipoEntra(t.tipo) ? "+" : "-";
@@ -2281,7 +2428,8 @@
         '<div class="pay-sub">'+t.banco+(t.modalidade && t.modalidade!=="—" ? " · "+t.modalidade : "")+'</div></div>'+
         '<div class="pay-value '+cls+'">'+sign+fmt(t.valor)+'</div></div>';
     }).join("");
-    document.getElementById("upcomingList").innerHTML = html || '<div class="empty-note">Nada pendente — todos os lançamentos já foram efetivados.</div>';
+    if(doMes.length > items.length) html += '<div class="empty-note">+ '+(doMes.length - items.length)+' lançamento(s) a mais em '+nomeMes+'. Veja todos na tabela de lançamentos.</div>';
+    document.getElementById("upcomingList").innerHTML = html || '<div class="empty-note">Nada pendente em '+nomeMes+' — todos os lançamentos do mês já foram efetivados.</div>';
   }
 
   function monthRange(ref){
@@ -2441,14 +2589,14 @@
     var recOptions = ["Única","Mensal"];
     var html = rows.map(function(t){
       var real = isRealized(t, ref);
-      var pagFat = isPagamentoFatura(t);
+      var pagFat = isNeutro(t);
       var sign = pagFat ? "" : (tipoEntra(t.tipo) ? "+" : "-");
       var numCls = pagFat ? "neutral" : (tipoEntra(t.tipo) ? "pos" : "neg");
       var pInfo = parcelaInfo(t);
       var parcelaBadge = pInfo ? '<span class="badge-parcela">'+pInfo.n+'/'+pInfo.total+'</span>' : "";
       var autoBadge = isPrevista(t) ? '<span class="auto-badge">prevista</span>'
         : (t.autoGenerated && !t.statusParcela ? '<span class="auto-badge">gerado automaticamente</span>' : "");
-      var pagBadge = pagFat ? '<span class="badge-pagfat">'+(t.categoria === "Fatura parcelada" ? "Fatura parcelada" : "Pagamento de fatura")+'</span>'
+      var pagBadge = pagFat ? '<span class="badge-pagfat">'+rotuloNeutro(t)+'</span>'
         : t.tipo === "parcelamento_fatura" ? '<span class="badge-pagfat">Parcelamento de fatura</span>'
         : t.tipo === "estorno" ? '<span class="badge-pagfat">Estorno</span>' : "";
       var fatBadge = faturaLabel(t) ? '<span class="badge-fatura">'+faturaLabel(t)+'</span>' : "";
@@ -2536,7 +2684,6 @@
     renderHero(ref);
     renderDupBanner();
     renderAccountTiles(ref);
-    renderLatest(ref);
     renderMonthCompare(ref);
     renderCashflow(ref);
     renderCategoryChart();
@@ -2584,8 +2731,6 @@
   }
 
   function renderPatrimonio(){
-    document.getElementById("patInvestidoValue").textContent = fmt(state.patrimonio.investido || 0);
-
     var reserva = state.patrimonio.reserva || 0;
     var renda = state.patrimonio.rendaMensal || 0;
     var meses = state.patrimonio.meses || 6;
@@ -2618,7 +2763,7 @@
     document.getElementById("refDate").value = addMonthsISO(refISO(), 1);
     renderAll();
   });
-  document.getElementById("toggleLicitacao").addEventListener("change", renderCategoryChart);
+  document.getElementById("btnVerParcelas").addEventListener("click", function(){ parcelasAbertas = !parcelasAbertas; renderFaturas(refISO()); });
   ["fSearch","fTipo","fStatus","fCategoria"].forEach(function(id){
     document.getElementById(id).addEventListener("input", function(){ renderLedger(refISO()); });
   });
@@ -3362,7 +3507,7 @@
   function isPrevistaTx(tx, today){ return tx.statusParcela === "prevista" && tx.dataEfet > today; }
   // O que conta como gasto/receita do mês: nem pagamento de fatura (seria contar
   // duas vezes) nem parcela ainda prevista.
-  function countsAsSpendTx(tx, today){ return tx.tipo !== "pagamento_fatura" && !isPrevistaTx(tx, today); }
+  function countsAsSpendTx(tx, today){ return tx.tipo !== "pagamento_fatura" && tx.tipo !== "transferencia_interna" && !isPrevistaTx(tx, today); }
 
   // Recalcula datas e avisos das linhas da revisão. Preserva as decisões já tomadas
   // (pagamento confirmado/recusado, parcela confirmada) e datas editadas à mão.
@@ -3459,7 +3604,9 @@
       }
       if(!r.selected) return;
       if(r.conciliaId){
-        updates.push({id: r.conciliaId, patch: {statusParcela: "confirmada", dataLanc: r.data, dataEfet: r.dataEfet, importId: origem.importId, faturaKey: origem.faturaKey}});
+        var patchConc = {statusParcela: "confirmada", dataLanc: r.data, dataEfet: r.dataEfet, importId: origem.importId, faturaKey: origem.faturaKey};
+        if(ctx.conta){ patchConc.conta = ctx.conta; patchConc.documento = r.documentoChave || null; }
+        updates.push({id: r.conciliaId, patch: patchConc});
         return;
       }
       var pagamento = r.pagamento && r.pagamento.state === "confirmed";
@@ -3476,8 +3623,9 @@
         cartaoFinal: credito ? (r.final || null) : null,
         idCompra: null, parcelaAtual: null, totalParcelas: null, statusParcela: null, seriesId: null,
         importId: origem.importId, faturaKey: origem.faturaKey,
-        obs: "Importado de extrato PDF" + (r.tipo === "parcelamento_fatura" ? jurosObs : "")
+        obs: "Importado de extrato PDF" + (r.tipo === "parcelamento_fatura" ? jurosObs : "") + (r.obsExtra ? " · " + r.obsExtra : "")
       };
+      if(ctx.conta){ tx.conta = ctx.conta; tx.documento = r.documentoChave || null; } // extrato de conta
       if(!pagamento && r.parcelaAtual && r.totalParcelas){
         var key = impDescKey(r.descricao);
         var group = null;
@@ -3521,6 +3669,791 @@
     return {adds: adds, updates: updates, juros: juros};
   }
   /* ==IMPORT-CORE-END== */
+
+  /* ==EXTRATO-CORE-START== Leitor de extrato de conta corrente (Banco do Brasil). Separado do leitor de faturas. */
+
+  // Regras por "tipo da operação" (o Histórico do extrato). Fácil de editar: a primeira que
+  // casar vale. "padrao" é comparado com o texto sem acento e em maiúsculas.
+  //   acao: interna | fatura | despesa | receita
+  //   pessoa: true = Pix/transferência (pode ser entre contas do próprio titular)
+  var EXTRATO_REGRAS = [
+    {nome: "Aplicação ou resgate automático", padrao: /RENDE FACIL|APLICACAO AUTOM|RESGATE AUTOM|INVEST\.? (RESGATE|APLIC)|\bRDB\b|\bRESGATE\b|\bAPLICACAO\b|CAIXINHA|\bCDB\b/, acao: "interna"},
+    {nome: "Pagamento de fatura de cartão", padrao: /PAGTO\.? CARTAO|PGTO\.? CARTAO|PAGAMENTO (DE |DO |DA )?(CARTAO|FATURA)|PAGTO\.? FATURA|DEBITO FATURA/, acao: "fatura"},
+    {nome: "Juros, IOF e tarifas", padrao: /COBRANCA DE (JUROS|I\.?O\.?F)|\bTARIFA\b|\bIOF\b|\bJUROS\b|\bMULTA\b|ANUIDADE/, acao: "despesa", categoria: "Taxas bancárias", modalidade: "Débito automático"},
+    {nome: "Salário (proventos)", padrao: /RECEBIMENTO DE PROVENTOS|\bPROVENTOS\b|\bSALARIO\b|FOLHA DE PAGAMENTO/, acao: "receita", categoria: "Salário", classificacao: "Fixa", modalidade: "Débito"},
+    {nome: "Cashback", padrao: /CASHBACK/, acao: "receita", categoria: "Cashback", modalidade: "Débito"},
+    {nome: "Compra no débito", padrao: /COMPRA (COM CARTAO|NO DEBITO|DEBITO|CARTAO)/, acao: "despesa", modalidade: "Débito", categoriaPelaContraparte: true},
+    {nome: "Pix enviado", padrao: /PIX - ENVIADO|PIX ENVIADO|TRANSFERENCIA ENVIADA PELO PIX|ENVIO (DE )?PIX/, acao: "despesa", modalidade: "Pix", pessoa: true},
+    {nome: "Transferência enviada", padrao: /TRANSFERENCIA ENVIADA|TED ENVIAD|DOC ENVIAD/, acao: "despesa", modalidade: "Débito", pessoa: true},
+    {nome: "Cheque", padrao: /CHEQUE COMPENSADO/, acao: "despesa", modalidade: "Débito"},
+    {nome: "Boleto ou conta", padrao: /PAGAMENTO (DE )?(BOLETO|TITULO|CONTA)|PAGTO (BOLETO|TITULO|CONTA)/, acao: "despesa", modalidade: "Débito"},
+    {nome: "Pix recebido", padrao: /PIX - RECEBIDO|PIX RECEBIDO|TRANSFERENCIA RECEBIDA PELO PIX|RECEBIMENTO (DE )?PIX/, acao: "receita", modalidade: "Pix", pessoa: true},
+    {nome: "Transferência recebida", padrao: /TRANSFERENCIA RECEBIDA|TED RECEBID|DOC RECEBID|DEPOSITO RECEBIDO/, acao: "receita", modalidade: "Débito", pessoa: true},
+    {nome: "Estorno ou reembolso", padrao: /ESTORNO|REEMBOLSO|DEVOLUCAO/, acao: "receita", modalidade: "Débito"},
+    {nome: "Rendimento", padrao: /RENDIMENTO/, acao: "receita", categoria: "Rendimentos", modalidade: "Débito"}
+  ];
+
+  // Linhas que se repetem no topo de cada página; nunca são lançamento.
+  var EXTRATO_CABECALHO = [/^EXTRATO DE CONTA CORRENTE$/, /^CLIENTE:/, /^PERIODO:/, /^LANCAMENTOS$/, /^DIA LOTE DOCUMENTO HISTORICO VALOR$/];
+  var EXT_DATA = /^(\d{2})\/(\d{2})\/(\d{4})\s*(.*)$/;
+  var EXT_VALOR = /(\d{1,3}(?:\.\d{3})*,\d{2})\s*\(([+-])\)\s*$/;
+
+  // Fatura de cartão ou extrato de conta corrente? Só o extrato tem título e colunas próprios;
+  // qualquer outra coisa segue o caminho de hoje, sem mudança.
+  function detectTipoDocumento(lines){
+    var u = lines.map(function(l){ return impNorm(l).replace(/\s+/g, " ").trim(); });
+    var tem = function(re){ return u.some(function(l){ return re.test(l); }); };
+    var titulo = tem(/^EXTRATO( DE)? (CONTA|CORRENTE)/);
+    var saldoIni = tem(/\bSALDO (ANTERIOR|INICIAL)\b/);
+    var saldoFim = tem(/\bSALDO (FINAL|DO DIA|ATUAL)\b|S A L D O|TOTAL DE (ENTRADAS|CREDITOS)/);
+    var fatura = tem(/\bFATURA\b/) && tem(/VENCIMENTO|LIMITE (TOTAL|UNICO|DISPONIVEL)/) && !titulo && !tem(/^MOVIMENTACOES?$/);
+    return (!fatura && (titulo || (saldoIni && saldoFim))) ? "extrato" : "padrao";
+  }
+
+  function extCents(v){ return Math.round(v * 100); }
+
+  // Lê o extrato inteiro. Cada lançamento junta: o tipo da operação (linha acima), a linha de
+  // data/lote/documento/valor e o detalhe (abaixo). O tipo pode vir na própria linha e o detalhe
+  // pode vir colado nela; por isso a regra é sempre a mesma: entre duas linhas de data, a última
+  // linha de texto é o tipo do lançamento seguinte e o resto é detalhe do anterior.
+  function lerExtratoBB(lines){
+    var ext = {banco: "Banco do Brasil", titular: null, contaFinal: null, periodo: null, saldoAnterior: null, saldoFinal: null,
+      saldosDia: {}, lancamentos: [], futuros: [], avisos: []};
+    var pend = [], ultimo = null, modo = "lanc";
+    function fecharDetalhe(){ if(ultimo && pend.length) ultimo.detalheLinhas = ultimo.detalheLinhas.concat(pend); pend = []; }
+    lines.forEach(function(raw){
+      var l = String(raw).replace(/\s+/g, " ").trim();
+      if(!l) return;
+      var u = impNorm(l);
+      var mc = /^CLIENTE:\s*(.+)$/.exec(u);
+      if(mc){ if(!ext.titular) ext.titular = l.replace(/^Cliente:\s*/i, "").trim(); return; }
+      if(/^PERIODO:/.test(u)){
+        var mp = /(\d{2})(?:\/(\d{2}))?(?:\/(\d{4}))?\s*A\s*(\d{2})\/(\d{2})\/(\d{4})/.exec(u);
+        if(mp && !ext.periodo){
+          var fim = mp[6] + "-" + mp[5] + "-" + mp[4];
+          var ini = (mp[3] || mp[6]) + "-" + (mp[2] || mp[5]) + "-" + mp[1];
+          ext.periodo = {de: ini, ate: fim};
+        }
+        var mcnt = /CONTA:\s*([\d.\-]+)/.exec(u);
+        if(mcnt && !ext.contaFinal){ var dig = mcnt[1].replace(/\D/g, ""); ext.contaFinal = dig.slice(-4); }
+        return;
+      }
+      if(EXTRATO_CABECALHO.some(function(re){ return re.test(u); })) return;
+
+      if(/^INFORMACOES (ADICIONAIS|COMPLEMENTARES)/.test(u) || /^APLICACOES FINANCEIRAS/.test(u)){ fecharDetalhe(); modo = "ignorar"; return; }
+      if(/^LANCAMENTOS FUTUROS/.test(u)){ fecharDetalhe(); modo = "futuros"; return; }
+      if(modo === "ignorar") return;
+
+      var m = EXT_DATA.exec(l), mm = m && EXT_VALOR.exec(m[4]);
+      if(modo === "futuros" || modo === "pos"){
+        if(modo === "pos") return;
+        if(m && mm){
+          ext.futuros.push({data: m[3] + "-" + m[2] + "-" + m[1],
+            historico: m[4].slice(0, m[4].length - mm[0].length).trim(),
+            valor: impMoney(mm[1]) * (mm[2] === "+" ? 1 : -1)});
+        }
+        return;
+      }
+      if(!m || !mm){ pend.push(l); return; } // texto: tipo da próxima operação ou detalhe da anterior
+
+      var iso = m[3] + "-" + m[2] + "-" + m[1];
+      var meio = m[4].slice(0, m[4].length - mm[0].length).trim();
+      var valor = impMoney(mm[1]) * (mm[2] === "+" ? 1 : -1);
+      var nm = impNorm(meio);
+      if(/SALDO ANTERIOR/.test(nm)){ ext.saldoAnterior = {data: iso, valor: valor}; fecharDetalhe(); return; }
+      if(/SALDO DO DIA/.test(nm)){ ext.saldosDia[iso] = valor; fecharDetalhe(); return; }
+      if(/^(\d+ )?(S A L D O|SALDO)$/.test(nm)){ ext.saldoFinal = {data: iso, valor: valor}; fecharDetalhe(); modo = "pos"; return; }
+
+      var t = /^(\d+)\s*(.*)$/.exec(meio);
+      var lote = t ? t[1] : null, resto = t ? t[2] : meio;
+      var d = /^(\d{4,})\s*(.*)$/.exec(resto);
+      var documento = d ? d[1] : null, inline = d ? d[2] : resto;
+      var inlineDetalhe = /^\d{2}\/\d{2}\s+\d{2}:\d{2}/.test(inline);
+      var tipoOp = "", detalhe = [];
+      if(inline && !inlineDetalhe){
+        tipoOp = inline; // o histórico veio na própria linha
+        fecharDetalhe();
+      } else {
+        if(pend.length){ tipoOp = pend[pend.length - 1]; if(ultimo) ultimo.detalheLinhas = ultimo.detalheLinhas.concat(pend.slice(0, -1)); }
+        else ext.avisos.push("Lançamento de " + iso + " sem tipo de operação.");
+        pend = [];
+        if(inlineDetalhe) detalhe.push(inline);
+      }
+      ultimo = {data: iso, lote: lote, documento: documento, tipoOp: tipoOp, detalheLinhas: detalhe, valor: valor};
+      ext.lancamentos.push(ultimo);
+    });
+    if(modo === "lanc") fecharDetalhe();
+    ext.lancamentos.forEach(function(e){
+      var det = e.detalheLinhas.join(" ").replace(/\s+/g, " ").trim();
+      e.hora = null; e.dataReal = e.data; e.contraparte = det; e.cpfCnpj = null;
+      var dm = /^(\d{2})\/(\d{2})\s+(\d{2}:\d{2})\s*(.*)$/.exec(det);
+      if(dm){
+        e.hora = dm[3];
+        var ano = +e.data.slice(0, 4), real = impIso(ano, +dm[2], +dm[1]);
+        if(real > e.data) real = impIso(ano - 1, +dm[2], +dm[1]);
+        e.dataReal = real;
+        var rest = dm[4], dc = /^(\d{6,})\s+(.*)$/.exec(rest);
+        if(dc){ e.cpfCnpj = dc[1]; rest = dc[2]; }
+        e.contraparte = rest;
+      }
+      e.contraparte = e.contraparte.replace(/\s*(\.\.\.|…)$/, "").trim();
+    });
+    return ext;
+  }
+
+  // ---- Titular: a contraparte parece o próprio titular? (sempre pergunta; nunca decide só por semelhança)
+  var NOME_LIGACAO = ["DE", "DA", "DO", "DOS", "DAS", "E"];
+  function tokensNome(s){
+    return impNorm(s).replace(/(\.\.\.|…)$/, "").replace(/[^A-Z ]/g, " ").split(/\s+/)
+      .filter(function(t){ return t && NOME_LIGACAO.indexOf(t) === -1; });
+  }
+  function chaveContraparte(s){ return tokensNome(s).join(" "); }
+  function parecePropria(contraparte, titular){
+    var a = tokensNome(titular), b = tokensNome(contraparte);
+    if(a.length < 2 || b.length < 2 || a[0] !== b[0]) return false;
+    var usados = {}, casados = 0;
+    a.forEach(function(ta){
+      for(var j = 0; j < b.length; j++){
+        if(usados[j]) continue;
+        var tb = b[j];
+        var igual = ta === tb || (ta.length === 1 && tb[0] === ta) || (tb.length === 1 && ta[0] === tb) || (j === b.length - 1 && ta.indexOf(tb) === 0);
+        if(igual){ usados[j] = true; casados++; return; }
+      }
+    });
+    return casados / a.length >= 0.75;
+  }
+
+  // ---- Linhas da tela de revisão
+  function regraDoExtrato(tipoOp){
+    var u = impNorm(tipoOp);
+    for(var i = 0; i < EXTRATO_REGRAS.length; i++){ if(EXTRATO_REGRAS[i].padrao.test(u)) return EXTRATO_REGRAS[i]; }
+    return null;
+  }
+  function documentoChave(e){ return [e.lote || "", e.documento || "", e.hora || ""].concat(e.chaveExtra ? [e.chaveExtra] : []).join("/"); }
+  // Extratos que trazem só "Pix enviado FULANO" numa linha: o nome candidato começa no 1º nome do titular.
+  function nomeCandidato(desc, titular){
+    var t = tokensNome(titular), d = tokensNome(desc);
+    var k = t.length ? d.indexOf(t[0]) : -1;
+    return k >= 0 ? d.slice(k).join(" ") : "";
+  }
+  function extratoParaLinhas(ext){
+    return ext.lancamentos.map(function(e){
+      var regra = regraDoExtrato(e.tipoOp) || regraDoExtrato(e.tipoOp + " " + (e.contraparte || ""));
+      var entrada = e.valor > 0;
+      var r = {selected: true, flagged: false, fonte: "extrato",
+        data: e.dataReal, dataEfet: e.data,
+        descricao: (e.contraparte && e.tipoOp) ? (e.contraparte + " · " + e.tipoOp) : (e.tipoOp || e.contraparte || "Lançamento do extrato"),
+        valor: Math.abs(e.valor), sinal: entrada ? "+" : "-",
+        tipo: entrada ? "receita" : "despesa", modalidade: "Débito", categoria: "A categorizar", classificacao: "Variável",
+        lote: e.lote, documento: e.documento, hora: e.hora, contraparte: e.contraparte, tipoOp: e.tipoOp, documentoChave: documentoChave(e), cpfMask: e.cpfCnpj || null,
+        pagamento: null, proprio: null, pessoa: !!(regra && regra.pessoa),
+        unsure: {tipo: false, categoria: false, modalidade: false, data: false, dataEfet: false}};
+      if(!regra){
+        r.unsure.tipo = true; r.unsure.categoria = true; // tipo de operação desconhecido: confira
+        return r;
+      }
+      r.regra = regra.nome;
+      if(regra.modalidade) r.modalidade = regra.modalidade;
+      if(regra.classificacao) r.classificacao = regra.classificacao;
+      if(regra.acao === "interna"){ r.tipo = "transferencia_interna"; r.categoria = "Transferência interna"; return r; }
+      if(regra.acao === "fatura"){ r.categoria = "Pagamento de fatura"; r.pagamento = {state: "pending"}; if(entrada) r.unsure.tipo = true; return r; }
+      var esperadoEntrada = regra.acao === "receita";
+      if(esperadoEntrada !== entrada) r.unsure.tipo = true; // sinal contrário ao do tipo (ex.: estorno de compra): confira
+      if(regra.categoria) r.categoria = regra.categoria;
+      else if(regra.categoriaPelaContraparte){
+        var g = guessCategoria(e.contraparte || "");
+        r.categoria = g; r.unsure.categoria = g === "A categorizar";
+      } else r.unsure.categoria = true;
+      return r;
+    });
+  }
+
+  // ---- Fatura de cartão que o débito "Pagto cartão crédito" deve ter pago
+  // faturas: [{key, banco, venc, total, cartao}]; casa pelo valor (±1%) e pelo vencimento próximo.
+  function acharFaturaDoPagamento(valor, dataISO, faturas){
+    var melhor = null;
+    (faturas || []).forEach(function(f){
+      if(!(f.total > 0)) return;
+      var difValor = Math.abs(f.total - valor);
+      if(difValor > Math.max(0.05, f.total * 0.01)) return;
+      var dias = daysDiff(f.venc, dataISO);
+      if(dias > 7) return;
+      if(!melhor || dias < melhor.dias) melhor = {fatura: f, dias: dias};
+    });
+    return melhor ? melhor.fatura : null;
+  }
+  // Faturas já importadas, somadas por cartão + vencimento (só crédito, sem pagamentos nem previstas futuras).
+  function faturasImportadas(txs, today){
+    var mapa = {};
+    txs.forEach(function(t){
+      if(t.modalidade !== "Crédito" || t.statusParcela === "prevista" && t.dataEfet > today) return;
+      if(!(t.tipo === "despesa" || t.tipo === "parcelamento_fatura" || t.tipo === "estorno")) return;
+      var k = (t.cartao || t.banco || "") + "|" + t.dataEfet;
+      if(!mapa[k]) mapa[k] = {key: k, banco: t.banco, venc: t.dataEfet, total: 0, cartao: t.cartao || null};
+      mapa[k].total += despVal(t);
+    });
+    return Object.keys(mapa).map(function(k){ mapa[k].total = Math.round(mapa[k].total * 100) / 100; return mapa[k]; });
+  }
+
+  // ---- Conferência de saldo: saldo anterior + lançamentos = saldo final; e dia a dia
+  function conferirSaldoExtrato(ext){
+    var vazio = {aplicavel: false, ok: true, diff: 0, dias: [], saldoAnterior: null, saldoFinal: null, obtido: null};
+    if(!ext.saldoAnterior || !ext.saldoFinal) return vazio;
+    var porDia = {};
+    ext.lancamentos.forEach(function(e){ porDia[e.data] = (porDia[e.data] || 0) + extCents(e.valor); });
+    var datas = {};
+    Object.keys(porDia).forEach(function(d){ datas[d] = 1; });
+    Object.keys(ext.saldosDia).forEach(function(d){ datas[d] = 1; });
+    var acc = extCents(ext.saldoAnterior.valor), total = acc, dias = [];
+    Object.keys(porDia).forEach(function(d){ total += porDia[d]; });
+    Object.keys(datas).sort().forEach(function(d){
+      acc += porDia[d] || 0;
+      if(ext.saldosDia[d] !== undefined){
+        var rel = extCents(ext.saldosDia[d]);
+        if(rel !== acc){
+          dias.push({data: d, esperado: rel / 100, obtido: acc / 100, diff: (rel - acc) / 100,
+            linhas: ext.lancamentos.filter(function(e){ return e.data === d; }).map(function(e){ return {descricao: e.tipoOp + (e.contraparte ? " · " + e.contraparte : ""), valor: e.valor}; })});
+          acc = rel; // recomeça do saldo informado: aponta só o dia em que a conta deixa de fechar
+        }
+      }
+    });
+    var fim = extCents(ext.saldoFinal.valor);
+    return {aplicavel: true, ok: total === fim && !dias.length, diff: (fim - total) / 100, dias: dias,
+      saldoAnterior: ext.saldoAnterior.valor, saldoFinal: ext.saldoFinal.valor, obtido: total / 100};
+  }
+
+  // ---- Chaves, duplicidade e reimportação
+  function contaKeyDe(ext){ return impNorm(ext.banco || "extrato").toLowerCase() + "|conta" + (ext.contaFinal || "semconta"); }
+  function extratoKeyDe(ext){ return ext.periodo ? "extrato|" + contaKeyDe(ext) + "|" + ext.periodo.de + "|" + ext.periodo.ate : null; }
+  // conta + data + documento (lote/documento/hora) + valor — com multiplicidade: duas linhas iguais
+  // no mesmo extrato são duas linhas; só as já gravadas contam como duplicadas.
+  function chaveLinhaExtrato(conta, dataEfet, documento, valor){ return [conta, dataEfet, documento, Number(valor).toFixed(2)].join("|"); }
+  function marcarDuplicadosExtrato(rows, txs, conta){
+    var gravadas = {};
+    txs.forEach(function(t){
+      if(t.conta !== conta || !t.documento) return;
+      var k = chaveLinhaExtrato(t.conta, t.dataEfet, t.documento, t.valor);
+      gravadas[k] = (gravadas[k] || 0) + 1;
+    });
+    var vistas = {};
+    rows.forEach(function(r){
+      var k = chaveLinhaExtrato(conta, r.dataEfet, r.documentoChave, r.valor);
+      vistas[k] = (vistas[k] || 0) + 1;
+      if(vistas[k] <= (gravadas[k] || 0)){
+        r.dup = {level: "confirmed", txId: null, descricao: r.descricao, dataEfet: r.dataEfet, valor: r.valor, extrato: true};
+        r.selected = false;
+      } else if(r.dup && r.dup.extrato){ r.dup = null; r.selected = !r.flagged; }
+    });
+    return rows;
+  }
+
+  // Lançamentos futuros do extrato (empréstimo etc.) como previstas. Nunca por padrão.
+  function futurosComoPrevistas(futuros, ctx){
+    return futuros.map(function(f){
+      return {tipo: f.valor > 0 ? "receita" : "despesa", banco: ctx.banco, modalidade: "Débito automático", valor: Math.abs(f.valor),
+        dataLanc: f.data, dataEfet: f.data, descricao: f.historico, categoria: "A categorizar", classificacao: "Fixa", recorrencia: "Única",
+        parcela: null, obs: "Lançamento futuro do extrato — confirmado quando o extrato do mês chegar",
+        statusParcela: "prevista", idCompra: null, parcelaAtual: null, totalParcelas: null, seriesId: null,
+        conta: ctx.conta, importId: ctx.importId || null, faturaKey: ctx.faturaKey || null};
+    });
+  }
+  // Uma linha do extrato que confirma uma prevista criada a partir dos lançamentos futuros.
+  function acharPrevistaDoExtrato(row, txs, conta){
+    for(var i = 0; i < txs.length; i++){
+      var t = txs[i];
+      if(t.statusParcela !== "prevista" || t.conta !== conta) continue;
+      if(Math.abs(t.valor - row.valor) > 0.05 || daysDiff(t.dataEfet, row.dataEfet) > 5) continue;
+      if(descSimilarity(t.descricao, row.tipoOp + " " + (row.contraparte || "")) < 0.5) continue;
+      return t;
+    }
+    return null;
+  }
+
+  // Marca cada linha do extrato com o que precisa de resposta ou de cuidado.
+  //   ctx: {ext, txs (lançamentos salvos), contrapartes (memória), hoje}
+  function annotateExtratoRows(rows, ctx){
+    var ext = ctx.ext, conta = contaKeyDe(ext), memoria = ctx.contrapartes || {};
+    var faturas = null;
+    rows.forEach(function(r){
+      r.unsure = r.unsure || {};
+      // Transferência entre contas do próprio titular: sempre pergunta; depois de respondida, lembra.
+      if(r.pessoa){
+        var nomeBase = r.contraparte || nomeCandidato(r.tipoOp, ext.titular) || r.tipoOp;
+        var k = chaveContraparte(nomeBase);
+        var lembrado = memoria[k];
+        if(lembrado === "propria"){
+          r.proprio = {state: "lembrado"}; r.tipo = "transferencia_interna"; r.categoria = "Transferência interna";
+        } else if(lembrado === "outra"){
+          if(!r.proprio || r.proprio.state === "pending") r.proprio = {state: "outra"};
+        } else if(r.proprio === null && (parecePropria(nomeBase, ext.titular) || (ext.titularCpf && r.cpfMask && r.cpfMask === ext.titularCpf))){
+          r.proprio = {state: "pending"};
+        }
+      }
+      // Pagamento de fatura: liga ao cartão importado de mesmo valor e vencimento próximo.
+      if(r.pagamento && r.pagamento.fatura === undefined){
+        if(!faturas) faturas = faturasImportadas(ctx.txs || [], ctx.hoje || "9999-12-31");
+        var f = acharFaturaDoPagamento(r.valor, r.dataEfet, faturas);
+        r.pagamento.fatura = f ? {key: f.key, venc: f.venc, total: f.total, cartao: f.cartao, banco: f.banco} : null;
+      }
+      if(r.conciliaId === undefined || r.conciliaId === null){
+        var prev = acharPrevistaDoExtrato(r, ctx.txs || [], conta);
+        r.conciliaId = prev ? prev.id : null;
+      }
+    });
+    marcarDuplicadosExtrato(rows, ctx.txs || [], conta);
+    rows.forEach(function(r){ if(r.conciliaId){ r.dup = null; r.selected = true; } });
+    return {saldo: ext.prova || conferirSaldoExtrato(ext)};
+  }
+  /* ==EXTRATO-CORE-END== */
+
+  /* ==EXTRATO-GENERICO-START== Leitor de extrato que não depende do layout do banco */
+  // Em vez de um leitor por banco, o leitor procura o que todo extrato tem: datas, valores com
+  // sinal, saldos e totais. Tenta mais de uma forma de ler as linhas e fica com a que fecha a
+  // conta (saldo inicial + lançamentos = saldo final). Se nenhuma fecha, avisa e mostra a diferença.
+
+  var EXT_MES_ABR = {JAN: 1, FEV: 2, MAR: 3, ABR: 4, MAI: 5, JUN: 6, JUL: 7, AGO: 8, SET: 9, OUT: 10, NOV: 11, DEZ: 12};
+  // valor no fim da linha, com o sinal em qualquer forma: -12,34  +12,34  12,34-  12,34 (-)  12,34 D  12,34 C
+  var EXT_DIN = /(?:R\$\s*)?([+-]?)\s*(\d{1,3}(?:\.\d{3})*,\d{2})(?:\s*\(([+-])\)|\s+([CD])\b|(-))?\s*$/;
+  function dinheiroNoFim(l){
+    var m = EXT_DIN.exec(l);
+    if(!m) return null;
+    var abs = impMoney(m[2]), sinal = null;
+    if(m[3]) sinal = m[3]; else if(m[1]) sinal = m[1]; else if(m[4]) sinal = (m[4] === "C" ? "+" : "-"); else if(m[5]) sinal = "-";
+    return {abs: abs, sinal: sinal, valor: sinal ? (sinal === "-" ? -abs : abs) : null, texto: l.slice(0, m.index).trim()};
+  }
+  // "SALDO ANTERIOR 1.000,00" / "SALDO FINAL 1.150,10" sem data; devolve true se tratou a linha.
+  function saldoSemData(ext, l){
+    if(/^\d{2}\//.test(l)) return null;
+    var d = dinheiroNoFim(l);
+    if(!d) return null;
+    var nl = impNorm(d.texto), v = d.valor !== null ? d.valor : d.abs;
+    if(/^SALDO (ANTERIOR|INICIAL)$/.test(nl)){ ext.saldoAnterior = {data: null, valor: v}; return "ini"; }
+    if(/^(SALDO FINAL|SALDO ATUAL|S A L D O)$/.test(nl)){ ext.saldoFinal = {data: null, valor: v}; return "fim"; }
+    return null;
+  }
+  function juntarLinhas(a, b){ return /\S-$/.test(a) ? a + b : (a + " " + b).trim(); }
+  function novoExtGenerico(nome){
+    return {formato: "generico", estrategia: nome, banco: null, titular: null, titularCpf: null, contaFinal: null, periodo: null,
+      saldoAnterior: null, saldoFinal: null, saldosDia: {}, lancamentos: [], futuros: [], grupos: [], resumo: null, avisos: []};
+  }
+
+  // Cabeçalho e rodapé que se repetem em cada página: blocos de 3 ou mais linhas seguidas, sem
+  // valores, que aparecem mais de uma vez. Um lançamento nunca entra aqui (sempre tem valor).
+  function normMobiliario(l){
+    var t = String(l).replace(/\s+/g, " ").trim();
+    return /\d,\d{2}/.test(t) ? t : impNorm(t).replace(/\d/g, "0");
+  }
+  function limparMobiliario(lines){
+    var n = lines.length, norm = lines.map(normMobiliario), pares = {}, cand = [], mob = [];
+    for(var i = 0; i < n; i++){ mob.push(false); cand.push(false); }
+    for(var a = 0; a < n - 1; a++){
+      if(/\d,\d{2}/.test(norm[a]) || /\d,\d{2}/.test(norm[a + 1])) continue;
+      var k = norm[a] + "\u0001" + norm[a + 1];
+      (pares[k] = pares[k] || []).push(a);
+    }
+    Object.keys(pares).forEach(function(k){ if(pares[k].length >= 2) pares[k].forEach(function(a){ cand[a] = true; }); });
+    for(var b = 0; b < n - 1; b++){
+      if(!cand[b]) continue;
+      var c = b; while(c + 1 < n - 1 && cand[c + 1]) c++;
+      if(c - b + 1 >= 2){ for(var j = b; j <= c + 1; j++) mob[j] = true; } // 2 pares seguidos = 3+ linhas
+      b = c;
+    }
+    return lines.filter(function(_, idx){ return !mob[idx]; });
+  }
+
+  // Titular, conta (só os 4 últimos dígitos), período e banco, de onde o PDF os mostrar.
+  var EXT_BANCOS = [
+    [/NUBANK|NU PAGAMENTOS|NU FINANCEIRA/, "Nubank"], [/BANCO DO BRASIL|\bBB RENDE|\bOUROCARD|\bBB\b.*RENDE/, "Banco do Brasil"],
+    [/ITAU/, "Itaú"], [/BRADESCO/, "Bradesco"], [/SANTANDER/, "Santander"], [/CAIXA ECONOMICA|\bCAIXA\b/, "Caixa"],
+    [/BANCO INTER\b/, "Inter"], [/\bC6 BANK\b/, "C6 Bank"], [/PICPAY/, "PicPay"], [/MERCADO PAGO/, "Mercado Pago"]];
+  function lerMetadadosExtrato(lines){
+    var meta = {titular: null, titularCpf: null, contaFinal: null, periodo: null, banco: null, ate: null, anoRef: null};
+    var norm = lines.map(function(l){ return impNorm(l).replace(/\s+/g, " ").trim(); });
+    for(var i = 0; i < lines.length; i++){
+      var l = String(lines[i]).replace(/\s+/g, " ").trim(), u = norm[i];
+      var mt = /^(?:CLIENTE|TITULAR|NOME)\s*:\s*(.+)$/.exec(l.replace(/^(cliente|titular|nome)/i, function(x){ return x.toUpperCase(); }));
+      if(mt && !meta.titular) meta.titular = mt[1].trim();
+      var mcpf = /CPF\s*:?\s*([•*\d.\-]{6,})/i.exec(l);
+      if(mcpf && !meta.titularCpf) meta.titularCpf = mcpf[1].replace(/\s+/g, "");
+      if(/^CPF\b/.test(u) && !meta.titular && i > 0 && !/\d/.test(lines[i - 1]) && /[A-Za-z]{2}/.test(lines[i - 1])) meta.titular = String(lines[i - 1]).trim();
+      if(!meta.contaFinal){
+        var mc = /\bCONTA(?: CORRENTE)?\s*:?\s*([\d][\d.\-]*)/.exec(u);
+        if(mc && mc[1].replace(/\D/g, "").length >= 4) meta.contaFinal = mc[1].replace(/\D/g, "").slice(-4);
+        else if(/\bCONTA(?: CORRENTE)?\s*:?$/.test(u) && i + 1 < lines.length && /^\d[\d.\-]{3,}$/.test(String(lines[i + 1]).trim())) meta.contaFinal = String(lines[i + 1]).replace(/\D/g, "").slice(-4);
+      }
+      if(!meta.periodo){
+        var mp = /(\d{2})(?:\/(\d{2}))?(?:\/(\d{4}))?\s*A\s*(\d{2})\/(\d{2})\/(\d{4})/.exec(u);
+        var mn = /(\d{1,2}) DE ([A-Z]+) DE (\d{4})\s*A\s*(\d{1,2}) DE ([A-Z]+) DE (\d{4})/.exec(u);
+        if(mn && EXT_MES_ABR[mn[2].slice(0, 3)] && EXT_MES_ABR[mn[5].slice(0, 3)]){
+          meta.periodo = {de: impIso(+mn[3], EXT_MES_ABR[mn[2].slice(0, 3)], +mn[1]), ate: impIso(+mn[6], EXT_MES_ABR[mn[5].slice(0, 3)], +mn[4])};
+        } else if(mp && /PERIODO|EXTRATO|^\d/.test(u)){
+          meta.periodo = {de: (mp[3] || mp[6]) + "-" + (mp[2] || mp[5]) + "-" + mp[1], ate: mp[6] + "-" + mp[5] + "-" + mp[4]};
+        }
+      }
+    }
+    var tudo = norm.join(" ");
+    for(var b = 0; b < EXT_BANCOS.length; b++){ if(EXT_BANCOS[b][0].test(tudo)){ meta.banco = EXT_BANCOS[b][1]; break; } }
+    meta.ate = meta.periodo ? meta.periodo.ate : null;
+    meta.anoRef = meta.ate ? +meta.ate.slice(0, 4) : (new Date()).getFullYear();
+    return meta;
+  }
+
+  var EXT_CABECALHO_GENERICO = EXTRATO_CABECALHO.concat([/^SALDO (FINAL|DISPONIVEL)? ?DO PERIODO$/]);
+  var EXT_FIM_DE_CONTEUDO = /NAO NOS RESPONSABILIZAMOS|^ASSEGURAMOS|OUVIDORIA|^O SALDO LIQUIDO CORRESPONDE/;
+  var EXT_BLOCOS_IGNORADOS = /^INFORMACOES (ADICIONAIS|COMPLEMENTARES)|^APLICACOES FINANCEIRAS|^RESUMO DO (PERIODO|EXTRATO)|^LIMITES? /;
+  var EXT_BLOCO_FUTUROS = /^LANCAMENTOS FUTUROS|^PROXIMOS LANCAMENTOS|^LANCAMENTOS A (COMPENSAR|VENCER)|^AGENDAMENTOS/;
+
+  // ---- Forma 1: cada lançamento tem uma linha com data e valor com sinal (tipo acima, detalhe abaixo, ou tudo na linha)
+  function lerPorLinhaComData(L, meta, implicito){
+    var ext = novoExtGenerico(implicito ? "linhas com data (valor sem sinal é entrada)" : "linhas com data e valor com sinal");
+    var pend = [], ultimo = null, modo = "lanc", bloco = null;
+    function fechar(){ if(ultimo && pend.length) ultimo.detalheLinhas = ultimo.detalheLinhas.concat(pend); pend = []; }
+    function dataDe(d, m, y){
+      var ano = y ? (+y < 100 ? 2000 + +y : +y) : meta.anoRef;
+      var iso = impIso(ano, +m, +d);
+      if(!y && meta.ate && iso > meta.ate) iso = impIso(ano - 1, +m, +d);
+      return iso;
+    }
+    L.forEach(function(raw){
+      var l = String(raw).replace(/\s+/g, " ").trim();
+      if(!l) return;
+      var u = impNorm(l);
+      if(EXT_CABECALHO_GENERICO.some(function(re){ return re.test(u); }) || /^(CLIENTE|PERIODO|TITULAR):/.test(u)) return;
+      if(EXT_BLOCOS_IGNORADOS.test(u)){ fechar(); modo = "ignorar"; bloco = /^INFORMACOES ADICIONAIS/.test(u) ? "info" : (/^APLICACOES FINANCEIRAS/.test(u) ? "aplic" : null); return; }
+      if(EXT_BLOCO_FUTUROS.test(u)){ fechar(); modo = "futuros"; bloco = null; return; }
+      if(EXT_FIM_DE_CONTEUDO.test(u)){ fechar(); modo = "ignorar"; bloco = null; return; }
+      if(modo === "ignorar"){
+        // Saldo disponível = conta corrente + resgate automático da aplicação (é o que o app do banco mostra).
+        var dib = dinheiroNoFim(l);
+        if(bloco === "info" && dib){
+          var rot = impNorm(dib.texto), vb = dib.valor !== null ? dib.valor : dib.abs;
+          if(/^SALDO( DISPONIVEL)?$/.test(rot)) ext.saldoDisponivel = {valor: vb};
+          else if(/^INVEST\.? RESGATE AUTOM/.test(rot)) ext.resgateAutomatico = vb;
+        } else if(bloco === "aplic" && dib && dib.valor === null && dib.texto){
+          (ext.aplicacoes = ext.aplicacoes || []).push({nome: dib.texto, valor: dib.abs});
+        }
+        return;
+      }
+      if(modo === "lanc"){
+        var sd = saldoSemData(ext, l);
+        if(sd){ fechar(); if(sd === "fim") modo = "pos"; return; }
+      }
+      var m = /^(\d{2})\/(\d{2})(?:\/(\d{2,4}))?\s*(.*)$/.exec(l), din = m ? dinheiroNoFim(m[4]) : null;
+      if(modo === "futuros"){
+        // o BB imprime "00/00/0000 0,00 (+)" quando não há nada futuro: isso não é lançamento
+        if(m && din && din.valor !== null && m[1] !== "00" && m[2] !== "00" && Math.abs(din.valor) > 0.004) ext.futuros.push({data: dataDe(m[1], m[2], m[3]), historico: din.texto, valor: din.valor});
+        return;
+      }
+      if(modo === "pos") return;
+      if(!m || !din){ pend.push(l); return; }
+      var meio = din.texto, nm = impNorm(meio), iso = dataDe(m[1], m[2], m[3]);
+      var saldoSinal = din.valor !== null ? din.valor : din.abs;
+      if(/SALDO (ANTERIOR|INICIAL)/.test(nm)){ ext.saldoAnterior = {data: iso, valor: saldoSinal}; fechar(); return; }
+      if(/SALDO DO DIA/.test(nm)){ ext.saldosDia[iso] = saldoSinal; fechar(); return; }
+      if(/^(\d+ )?(S A L D O|SALDO( FINAL| ATUAL)?)$/.test(nm)){ ext.saldoFinal = {data: iso, valor: saldoSinal}; fechar(); modo = "pos"; return; }
+      if(din.valor === null){
+        if(!implicito){ pend.push(l); return; } // data + valor sem sinal: só vale no modo "sem sinal é entrada"
+        din = {abs: din.abs, sinal: "+", valor: din.abs, texto: din.texto};
+      }
+      var t = /^(\d+)\s*(.*)$/.exec(meio);
+      var lote = t ? t[1] : null, resto = t ? t[2] : meio;
+      var d = /^(\d{4,})\s*(.*)$/.exec(resto);
+      var documento = d ? d[1] : null, inline = d ? d[2] : resto;
+      var inlineDetalhe = /^\d{2}\/\d{2}\s+\d{2}:\d{2}/.test(inline);
+      var tipoOp = "", detalhe = [];
+      if(inline && !inlineDetalhe){
+        tipoOp = inline;
+        fechar(); // descrição na própria linha: o texto que vem depois é continuação da anterior
+      } else {
+        if(pend.length){ tipoOp = pend[pend.length - 1]; if(ultimo) ultimo.detalheLinhas = ultimo.detalheLinhas.concat(pend.slice(0, -1)); }
+        else ext.avisos.push("Lançamento de " + iso + " sem descrição.");
+        pend = [];
+        if(inlineDetalhe) detalhe.push(inline);
+      }
+      ultimo = {data: iso, lote: lote, documento: documento, tipoOp: tipoOp, detalheLinhas: detalhe, valor: din.valor};
+      ext.lancamentos.push(ultimo);
+    });
+    if(modo === "lanc") fechar();
+    finalizarDetalhes(ext);
+    return ext;
+  }
+  // detalhe "dd/mm hh:mm [documento] NOME" -> data real, hora, contraparte
+  function finalizarDetalhes(ext){
+    ext.lancamentos.forEach(function(e){
+      var det = (e.detalheLinhas || []).join(" ").replace(/\s+/g, " ").trim();
+      e.hora = null; e.dataReal = e.data; e.contraparte = det; e.cpfCnpj = e.cpfCnpj || null;
+      var dm = /^(\d{2})\/(\d{2})\s+(\d{2}:\d{2})\s*(.*)$/.exec(det);
+      if(dm){
+        e.hora = dm[3];
+        var ano = +e.data.slice(0, 4), real = impIso(ano, +dm[2], +dm[1]);
+        if(real > e.data) real = impIso(ano - 1, +dm[2], +dm[1]);
+        e.dataReal = real;
+        var rest = dm[4], dc = /^(\d{6,})\s+(.*)$/.exec(rest);
+        if(dc){ e.cpfCnpj = dc[1]; rest = dc[2]; }
+        e.contraparte = rest;
+      }
+      e.contraparte = e.contraparte.replace(/\s*(\.\.\.|…)$/, "").trim();
+    });
+  }
+
+  // ---- Forma 2: a data é título do dia, "Total de entradas/saídas" dá o sinal, e o valor do lançamento vem sem sinal
+  var EXT_TIPOS_CONHECIDOS = ["Transferência recebida pelo Pix", "Transferência enviada pelo Pix", "Pagamento de boleto efetuado", "Pagamento de boleto",
+    "Pagamento de fatura", "Compra no débito", "Compra com Cartão", "Pix recebido", "Pix enviado", "Resgate RDB", "Aplicação RDB", "Transferência recebida", "Transferência enviada",
+    "Débito em conta", "Crédito em conta", "Depósito recebido", "Estorno"];
+  function dividirTipo(texto){
+    var u = impNorm(texto);
+    var ord = EXT_TIPOS_CONHECIDOS.slice().sort(function(a, b){ return b.length - a.length; });
+    for(var i = 0; i < ord.length; i++){
+      if(u.indexOf(impNorm(ord[i])) === 0) return {tipoOp: texto.slice(0, ord[i].length), resto: texto.slice(ord[i].length).trim()};
+    }
+    return {tipoOp: texto, resto: ""};
+  }
+  var EXT_DIA_TEXTO = /^(\d{1,2}) (JAN|FEV|MAR|ABR|MAI|JUN|JUL|AGO|SET|OUT|NOV|DEZ)[A-Z]* (\d{4})\b\s*(.*)$/;
+  var EXT_GRUPO = /^TOTAL DE (ENTRADAS|CREDITOS|SAIDAS|DEBITOS)\s*([+-])?\s*(\d{1,3}(?:\.\d{3})*,\d{2})$/;
+  function resumoDeSaldos(antes){
+    var r = {saldoInicial: null, rendimento: null, entradas: null, saidas: null, saldoFinal: null};
+    var rot = [["saldoInicial", /^SALDO INICIAL\b/], ["rendimento", /^RENDIMENTOS?( LIQUIDO)?\b/], ["entradas", /^TOTAL DE (ENTRADAS|CREDITOS)\b/],
+      ["saidas", /^TOTAL DE (SAIDAS|DEBITOS)\b/], ["saldoFinal", /^SALDO FINAL( DO PERIODO)?\b/]];
+    antes.forEach(function(l){
+      var d = dinheiroNoFim(l);
+      if(!d || !d.texto) return;
+      var u = impNorm(d.texto);
+      rot.forEach(function(p){ if(r[p[0]] === null && p[1].test(u)) r[p[0]] = d.sinal === "-" ? -d.abs : d.abs; });
+    });
+    if(r.saldoInicial === null){ // rótulos numa coluna e valores na outra
+      var i0 = -1;
+      antes.forEach(function(l, i){ if(i0 < 0 && /^SALDO INICIAL$/.test(impNorm(l).trim())) i0 = i; });
+      if(i0 >= 0){
+        var chaves = [], k = i0;
+        for(; k < antes.length; k++){
+          var up = impNorm(antes[k]).trim(), achou = false;
+          rot.forEach(function(p){ if(p[1].test(up) && !dinheiroNoFim(antes[k])){ chaves.push(p[0]); achou = true; } });
+          if(!achou) break;
+        }
+        var vals = [];
+        for(; k < antes.length && vals.length < chaves.length; k++){
+          var dv = dinheiroNoFim(antes[k].replace(/^R\$\s*/, ""));
+          if(dv && !dv.texto) vals.push(dv.sinal === "-" ? -dv.abs : dv.abs);
+        }
+        if(vals.length === chaves.length) chaves.forEach(function(c, n){ r[c] = vals[n]; });
+      }
+    }
+    return r;
+  }
+  function lerPorGrupos(L, meta){
+    var existe = L.some(function(l){ return EXT_GRUPO.test(impNorm(l).replace(/^\d{1,2} [A-Z]{3}[A-Z]* \d{4}\s+/, "")); });
+    if(!existe) return null;
+    var ext = novoExtGenerico("dias com total de entradas e saídas");
+    var ini = -1;
+    L.forEach(function(l, i){ if(ini < 0 && (/^MOVIMENTACOES?$/.test(impNorm(l).trim()) || EXT_DIA_TEXTO.test(impNorm(l).trim()))) ini = i; });
+    var antes = L.slice(0, Math.max(ini, 0)), mov = L.slice(Math.max(ini, 0));
+    ext.resumo = resumoDeSaldos(antes);
+    if(ext.resumo.saldoInicial !== null) ext.saldoAnterior = {data: null, valor: ext.resumo.saldoInicial};
+    if(ext.resumo.saldoFinal !== null) ext.saldoFinal = {data: null, valor: ext.resumo.saldoFinal};
+    var data = null, sinal = 0, pend = [], ultimo = null, grupo = null, fim = false;
+    function fechar(){ if(ultimo && pend.length) ultimo.detalheLinhas = ultimo.detalheLinhas.concat(pend); pend = []; }
+    function novo(texto, abs, detalhe){
+      ultimo = {data: data, lote: null, documento: null, textoBruto: texto, detalheLinhas: (detalhe || []).slice(), valor: sinal * abs, grupo: ext.grupos.length - 1};
+      ext.lancamentos.push(ultimo);
+    }
+    mov.forEach(function(raw){
+      if(fim) return;
+      var l = String(raw).replace(/\s+/g, " ").trim();
+      if(!l) return;
+      var u = impNorm(l);
+      if(/^MOVIMENTACOES?$/.test(u)) return;
+      if(EXT_FIM_DE_CONTEUDO.test(u)){ fechar(); fim = true; return; }
+      var md = EXT_DIA_TEXTO.exec(u);
+      var rest = l;
+      if(md){ fechar(); data = impIso(+md[3], EXT_MES_ABR[md[2]], +md[1]); rest = l.slice(l.search(/\d{4}/) + 4).trim(); u = impNorm(rest); if(!rest) return; }
+      else {
+        var mdd = /^(\d{2})\/(\d{2})\/(\d{4})\s*(.*)$/.exec(l);
+        if(mdd && !dinheiroNoFim(mdd[4]) ){ fechar(); data = impIso(+mdd[3], +mdd[2], +mdd[1]); rest = mdd[4].trim(); u = impNorm(rest); if(!rest) return; }
+      }
+      var mg = EXT_GRUPO.exec(u);
+      if(mg){
+        fechar();
+        sinal = /ENTRADAS|CREDITOS/.test(mg[1]) ? 1 : -1;
+        grupo = {idx: ext.grupos.length, data: data, tipo: sinal > 0 ? "entradas" : "saidas", total: impMoney(mg[3])};
+        ext.grupos.push(grupo);
+        return;
+      }
+      if(sinal === 0) return;
+      // O sinal do lançamento vem do grupo (entradas/saídas); um "-" colado ao valor é só quebra de linha.
+      var dm2 = /^(.*?)\s*(\d{1,3}(?:\.\d{3})*,\d{2})$/.exec(rest);
+      var din = dm2 ? {abs: impMoney(dm2[2]), texto: dm2[1].trim()} : null; // o "-" no fim do texto é a quebra de linha: continua no texto
+      if(din && !din.texto){ // só o valor: fecha o texto acumulado (valor depois da descrição)
+        if(pend.length){ var texto = pend[0], cont = pend.slice(1); pend = []; novo(texto, din.abs, cont); }
+        return;
+      }
+      if(din){ fechar(); novo(din.texto, din.abs, []); return; } // texto + valor: começa um lançamento (valor na 1ª linha)
+      pend.push(rest);
+    });
+    fechar();
+    // Junta a 1ª linha com as continuações (a quebra de linha pode cair em qualquer lugar) e só então
+    // separa tipo da operação, nome, CPF/CNPJ e banco da contraparte.
+    var RE_DOC = /[•*]{3}\.\d{3}\.\d{3}-\s?[•*]{2}|\d{2}\.\d{3}\.\d{3}\s*\/\s*\d{4}-\d{2}|\d{3}\.\d{3}\.\d{3}-\d{2}/;
+    ext.lancamentos.forEach(function(e){
+      if(e.textoBruto === undefined) return;
+      var inteiro = e.detalheLinhas.reduce(juntarLinhas, e.textoBruto);
+      var sp = dividirTipo(inteiro), partes = sp.resto.split(" - ");
+      var nome = partes[0].trim(), md = RE_DOC.exec(sp.resto);
+      e.tipoOp = sp.tipoOp; e.contraparte = partes.length > 1 ? nome : sp.resto; e.cpfCnpj = md ? md[0].replace(/\s+/g, "") : null;
+      e.detalheLinhas = []; e.hora = null; e.dataReal = e.data;
+      e.chaveExtra = impDescKey(e.contraparte || e.tipoOp).slice(0, 24);
+      delete e.textoBruto;
+    });
+    if(ext.resumo && ext.resumo.rendimento && Math.abs(ext.resumo.rendimento) > 0.004){
+      ext.lancamentos.push({data: meta.ate || data, dataReal: meta.ate || data, lote: null, documento: null, tipoOp: "Rendimento líquido", contraparte: "", cpfCnpj: null, hora: null,
+        detalheLinhas: [], valor: ext.resumo.rendimento, grupo: -1, chaveExtra: "rendimento"});
+    }
+    return ext;
+  }
+
+  // ---- Forma 3: cada linha traz o valor e o saldo depois dele; o sinal vem da variação do saldo
+  function lerPorSaldoCorrido(L, meta){
+    var ext = novoExtGenerico("linhas com valor e saldo corrido");
+    var saldo = null, ultimo = null, fim = false;
+    var re2 = /(\d{1,3}(?:\.\d{3})*,\d{2})\s*([CD])?\s+(\d{1,3}(?:\.\d{3})*,\d{2})\s*([CD])?\s*$/;
+    function sv(abs, cd){ return cd === "D" ? -abs : abs; }
+    L.forEach(function(raw){
+      if(fim) return;
+      var l = String(raw).replace(/\s+/g, " ").trim(), u = impNorm(l);
+      if(!l || EXT_CABECALHO_GENERICO.some(function(re){ return re.test(u); })) return;
+      if(EXT_FIM_DE_CONTEUDO.test(u)){ fim = true; return; }
+      var sd = saldoSemData(ext, l);
+      if(sd === "ini"){ saldo = ext.saldoAnterior.valor; return; }
+      if(sd === "fim"){ fim = true; return; }
+      var m = /^(\d{2})\/(\d{2})(?:\/(\d{2,4}))?\s+(.*)$/.exec(l);
+      if(!m){ if(ultimo && !/^SALDO/.test(u)) ultimo.detalheLinhas.push(l); return; }
+      var ano = m[3] ? (+m[3] < 100 ? 2000 + +m[3] : +m[3]) : meta.anoRef, iso = impIso(ano, +m[2], +m[1]);
+      if(!m[3] && meta.ate && iso > meta.ate) iso = impIso(ano - 1, +m[2], +m[1]);
+      var r2 = re2.exec(m[4]);
+      var rotulo = impNorm(m[4]);
+      if(/^SALDO (ANTERIOR|INICIAL)/.test(rotulo)){ var d1 = dinheiroNoFim(m[4]); if(d1){ saldo = d1.valor !== null ? d1.valor : d1.abs; ext.saldoAnterior = {data: iso, valor: saldo}; } return; }
+      if(/^SALDO( FINAL| ATUAL| DO DIA)?\b/.test(rotulo)){ var d2 = dinheiroNoFim(m[4]); if(d2){ var sd = d2.valor !== null ? d2.valor : d2.abs; if(/DO DIA/.test(rotulo)) ext.saldosDia[iso] = sd; else ext.saldoFinal = {data: iso, valor: sd}; } return; }
+      if(!r2) return;
+      var abs = impMoney(r2[1]), novoSaldo = sv(impMoney(r2[3]), r2[4]);
+      if(saldo === null){ ext.avisos.push("Primeiro lançamento sem saldo anterior para dar o sinal."); saldo = novoSaldo; return; }
+      var delta = Math.round((novoSaldo - saldo) * 100) / 100;
+      if(Math.abs(Math.abs(delta) - abs) > 0.005){ ext.avisos.push("O saldo da linha de " + iso + " não acompanha o valor."); }
+      var texto = m[4].slice(0, m[4].length - r2[0].length).trim();
+      ultimo = {data: iso, lote: null, documento: null, tipoOp: texto, detalheLinhas: [], valor: delta >= 0 ? abs : -abs};
+      ext.lancamentos.push(ultimo);
+      saldo = novoSaldo;
+    });
+    finalizarDetalhes(ext);
+    return ext;
+  }
+
+  // ---- Prova: a forma de leitura certa é a que fecha a conta
+  function provarExtrato(ext){
+    var base = conferirSaldoExtrato(ext);
+    if(!ext.grupos || !ext.grupos.length) return base;
+    var dias = base.dias.slice();
+    ext.grupos.forEach(function(g){
+      var soma = 0, linhas = [];
+      ext.lancamentos.forEach(function(e){ if(e.grupo === g.idx){ soma += extCents(Math.abs(e.valor)); linhas.push({descricao: e.tipoOp + (e.contraparte ? " · " + e.contraparte : ""), valor: e.valor}); } });
+      if(extCents(g.total) !== soma){
+        dias.push({data: g.data, esperado: g.total, obtido: soma / 100, diff: (extCents(g.total) - soma) / 100, linhas: linhas,
+          texto: "o extrato informa total de " + g.tipo + " de " + brlTexto(g.total) + " e as linhas somam " + brlTexto(soma / 100)});
+      }
+    });
+    var r = ext.resumo || {}, ent = 0, sai = 0;
+    ext.lancamentos.forEach(function(e){ if(e.valor > 0) ent += extCents(e.valor); else sai += extCents(-e.valor); });
+    var totaisOk = (r.entradas == null || extCents(r.entradas) === ent) && (r.saidas == null || extCents(Math.abs(r.saidas)) === sai);
+    base.dias = dias;
+    base.formato = "grupos";
+    base.aplicavel = base.aplicavel || ext.grupos.length > 0;
+    base.ok = base.aplicavel && base.ok !== false && dias.length === 0 && totaisOk;
+    if(!base.ok && base.diff === 0 && (dias.length || !totaisOk)) base.diff = dias.length ? dias[0].diff : 0;
+    return base;
+  }
+  function brlTexto(v){ return "R$ " + Math.abs(v).toFixed(2).replace(".", ",").replace(/\B(?=(\d{3})+(?!\d))/g, "."); }
+
+  function aplicarMetadados(ext, meta){
+    ext.titular = meta.titular; ext.titularCpf = meta.titularCpf; ext.contaFinal = meta.contaFinal; ext.banco = meta.banco;
+    ext.periodo = meta.periodo;
+    if(!ext.periodo && ext.lancamentos.length){
+      var ds = ext.lancamentos.map(function(e){ return e.data; }).sort();
+      ext.periodo = {de: ds[0], ate: ds[ds.length - 1]};
+    }
+  }
+
+  // Lê o extrato por todas as formas e fica com a que fecha a conta.
+  function lerExtratoGenerico(lines){
+    var meta = lerMetadadosExtrato(lines);
+    var L = limparMobiliario(lines);
+    var cands = [lerPorLinhaComData(L, meta, false), lerPorLinhaComData(L, meta, true), lerPorGrupos(L, meta), lerPorSaldoCorrido(L, meta)].filter(function(c){ return c && c.lancamentos.length; });
+    cands.forEach(function(c){ aplicarMetadados(c, meta); c.prova = provarExtrato(c); });
+    var melhor = null;
+    function pontos(c){ return (c.prova.ok ? 3 : (c.prova.aplicavel ? 2 : 1)); }
+    cands.forEach(function(c){
+      if(!melhor){ melhor = c; return; }
+      var a = pontos(c), b = pontos(melhor);
+      if(a !== b){ if(a > b) melhor = c; return; }
+      var da = Math.abs(c.prova.diff || 0) + c.prova.dias.length, db = Math.abs(melhor.prova.diff || 0) + melhor.prova.dias.length;
+      if(da !== db){ if(da < db) melhor = c; return; }
+      if(c.lancamentos.length > melhor.lancamentos.length) melhor = c;
+    });
+    if(!melhor){ melhor = novoExtGenerico("nenhuma"); aplicarMetadados(melhor, meta); melhor.prova = provarExtrato(melhor); }
+    return melhor;
+  }
+  // ---- Saldo em conta: o dinheiro de verdade, conta por conta ----
+  // saldos[chaveDaConta] = {nome, banco, final, saldo, data (posição do saldo), origem: "extrato"|"manual"}
+  function saldoDoExtrato(ext){
+    if(!ext || !ext.saldoFinal) return null;
+    return {banco: ext.banco, final: ext.contaFinal || null,
+      saldo: ext.saldoDisponivel ? ext.saldoDisponivel.valor : ext.saldoFinal.valor, // disponível = conta + resgate automático
+      data: ext.saldoFinal.data || (ext.periodo && ext.periodo.ate) || null, origem: "extrato"};
+  }
+  // Cada conta guarda o saldo que vale (o mais recente) e, lado a lado, o último saldo de extrato e o
+  // último saldo informado por você — é a comparação entre os dois que revela dinheiro aplicado ou guardado.
+  // Um saldo mais antigo nunca sobrescreve um mais novo (ex.: extrato de 26/10 depois de informar o de 27/10).
+  function atualizarSaldos(saldos, chave, novo){
+    var atual = saldos[chave] || {};
+    var reg = {valor: novo.saldo, data: novo.data};
+    var extrato = atual.extrato, manual = atual.manual;
+    if(novo.origem === "extrato"){ if(!extrato || !extrato.data || !novo.data || novo.data >= extrato.data) extrato = reg; }
+    else { if(!manual || !manual.data || !novo.data || novo.data >= manual.data) manual = reg; }
+    var vale = !(atual.data && novo.data && atual.data > novo.data);
+    var base = vale ? novo : atual;
+    var entrada = {nome: novo.nome || atual.nome || null, banco: novo.banco || atual.banco || null, final: novo.final || atual.final || null,
+      saldo: base.saldo !== undefined ? base.saldo : novo.saldo, data: base.data !== undefined ? base.data : novo.data, origem: base.origem || novo.origem};
+    if(extrato) entrada.extrato = extrato;
+    if(manual) entrada.manual = manual;
+    if(atual.ignorada) entrada.ignorada = atual.ignorada;
+    saldos[chave] = entrada;
+    return vale;
+  }
+  // Contas em que o saldo informado por você não bate com o do extrato (e é do mesmo dia ou mais novo).
+  // "ignorada" guarda a diferença que você mandou não avisar mais; só uma diferença nova volta a avisar.
+  function divergenciasSaldo(saldos){
+    var lista = [];
+    Object.keys(saldos || {}).forEach(function(k){
+      var c = saldos[k];
+      if(!c.extrato || !c.manual) return;
+      if(c.extrato.data && c.manual.data && c.manual.data < c.extrato.data) return; // o informado ficou velho
+      var diff = (extCents(c.manual.valor) - extCents(c.extrato.valor)) / 100;
+      if(Math.abs(diff) < 0.005) return;
+      var sig = k + "|" + diff.toFixed(2) + "|" + (c.extrato.data || "") + "|" + (c.manual.data || "");
+      lista.push({chave: k, rotulo: rotuloConta(c), extrato: c.extrato, manual: c.manual, diff: diff, sig: sig, ignorada: c.ignorada === sig});
+    });
+    return lista;
+  }
+  function somaSaldos(saldos){
+    var c = 0;
+    Object.keys(saldos || {}).forEach(function(k){ c += extCents(saldos[k].saldo); });
+    return c / 100;
+  }
+  function rotuloConta(c){
+    return c.nome || ((c.banco || "Conta") + (c.final ? " · conta final " + c.final : ""));
+  }
+  // O que ainda dá para gastar no mês: dinheiro nas contas + o que ainda entra − o que ainda vence − parcelas já assumidas.
+  function valorComSaldo(base, recPend, despPend, prevDesp){
+    return Math.round((base + recPend - despPend - prevDesp) * 100) / 100;
+  }
+  /* ==EXTRATO-GENERICO-END== */
 
   function extractLinesFromPdf(bytes){
     return pdfjsLib.getDocument({data: bytes}).promise.then(function(pdf){
@@ -3770,6 +4703,7 @@
   }
 
   function annotateDuplicates(rows){
+    if(stagingMeta && stagingMeta.isExtrato) return rows; // o extrato tem a própria chave (conta + data + documento + valor)
     rows.forEach(function(row){
       if(row.conciliaId){ row.dup = null; return; }
       var match = findDuplicate(row);
@@ -3806,11 +4740,13 @@
     return state.transactions.filter(function(t){ return !gone[t.id]; });
   }
   function reannotate(){
+    if(stagingMeta && stagingMeta.isExtrato){ reannotateExtrato(); return; }
     stagingCheck = annotateImportRows(staging, {meta: stagingMeta || {}, card: stagingCard || {}, txs: ledgerParaImportar(),
       totais: ((stagingMeta && stagingMeta.totais) || []).concat(ledgerFaturaTotals(stagingBanco())), banco: stagingBanco()});
   }
   // Mesma fatura (cartão + vencimento) já importada? Pergunta antes de mostrar a revisão.
   function portaoReimportacao(){
+    if(stagingMeta && stagingMeta.isExtrato) return portaoReimportacaoExtrato();
     if(!stagingHasCredit() || !cardComplete(stagingCard) || !stagingCheck || !stagingCheck.vencFatura) return false;
     var key = faturaKeyDe(stagingCard.key, stagingCheck.vencFatura);
     stagingFaturaKey = key;
@@ -3908,7 +4844,7 @@
     if(stagingStep === "setup"){ renderCardSetup(el); return; }
     var selected = staging.filter(function(r){ return r.selected; });
     var selTotal = selected.reduce(function(s,r){
-      if(r.tipo === "pagamento_fatura") return s;
+      if(r.tipo === "pagamento_fatura" || r.tipo === "transferencia_interna") return s;
       return s + (tipoEntra(r.tipo) ? r.valor : -r.valor);
     }, 0);
     var anyUnsure = staging.some(function(r){ return r.unsure && (r.unsure.tipo || r.unsure.categoria || r.unsure.modalidade || r.unsure.data || r.unsure.dataEfet); });
@@ -3934,9 +4870,17 @@
     staging.forEach(function(r, idx){
       var label = '‘'+escapeAttr(r.descricao)+' — '+fmt(r.valor)+'’';
       if(r.pagamento && r.pagamento.state === "pending"){
-        items.push('<div class="attn-item"><span>'+label+' parece ser o pagamento da fatura de '+fmtDate(r.data)+'. Ele não será contado como despesa.</span>'+
+        var qualFatura = !r.pagamento.fatura && r.fonte !== "extrato" ? ' da fatura de '+fmtDate(r.data)
+          : r.pagamento.fatura ? ' da fatura '+(r.pagamento.fatura.cartao ? 'do cartão ' : '')+'que vence em '+fmtDate(r.pagamento.fatura.venc)+' ('+fmt(r.pagamento.fatura.total)+')'
+          : ' de cartão (não achei fatura importada com esse valor e vencimento próximo)';
+        items.push('<div class="attn-item"><span>'+label+' parece ser o pagamento'+qualFatura+'. Ele não será contado como despesa.</span>'+
           '<span class="attn-actions"><button type="button" class="solid" data-act="pag-ok" data-idx="'+idx+'">Confirmar</button>'+
           '<button type="button" class="ghost" data-act="pag-no" data-idx="'+idx+'">Não, é uma despesa</button></span></div>');
+      }
+      if(r.proprio && r.proprio.state === "pending"){
+        items.push('<div class="attn-item"><span>'+label+' — "'+escapeAttr(r.contraparte)+'": isso parece uma transferência entre suas contas. Ela não será contada como '+(r.sinal === "+" ? 'receita' : 'despesa')+'.</span>'+
+          '<span class="attn-actions"><button type="button" class="solid" data-act="prop-ok" data-idx="'+idx+'">Confirmar</button>'+
+          '<button type="button" class="ghost" data-act="prop-no" data-idx="'+idx+'">Não, é outra pessoa</button></span></div>');
       }
       if(r.estorno && r.estorno.state === "pending" && r.tipo === "estorno"){
         items.push('<div class="attn-item"><span>'+label+' parece um estorno, mas não achei a compra original nem a categoria. Está abatendo em <strong>Estornos</strong>. Confirmar?</span>'+
@@ -3954,7 +4898,8 @@
           '<button type="button" class="solid" data-act="parc-n" data-idx="'+idx+'">OK</button></span></div>');
       }
     });
-    var pendingPag = vencPending || staging.some(function(r){ return r.selected && r.pagamento && r.pagamento.state === "pending"; });
+    var pendingProp = staging.some(function(r){ return r.selected && r.proprio && r.proprio.state === "pending"; });
+    var pendingPag = vencPending || pendingProp || staging.some(function(r){ return r.selected && r.pagamento && r.pagamento.state === "pending"; });
 
     var cardHtml = "";
     if(hasCredit && cardComplete(card)){
@@ -3991,12 +4936,35 @@
       confHtml += '<div class="imp-card-note" style="margin-bottom:10px;">Parcelamento de fatura: '+jr.parcelas+'x de '+fmt(jr.valorParcela)+' = '+fmt(jr.totalPago)+' sobre '+fmt(jr.valorParcelado)+' parcelados. Custo de juros: <strong>'+fmt(jr.juros)+'</strong>.</div>';
     }
 
+    var extHtml = "";
+    if(stagingMeta && stagingMeta.isExtrato){
+      var ext = stagingMeta.ext, sc = stagingCheck && stagingCheck.saldo;
+      if(sc && sc.aplicavel){
+        if(sc.ok){
+          extHtml += '<div class="conf-ok">Conferido: saldo anterior '+fmt(sc.saldoAnterior)+' + os lançamentos = saldo final '+fmt(sc.saldoFinal)+(sc.formato === "grupos" ? ', e os totais de cada dia batem.' : ', e todos os "Saldo do dia" batem.')+'</div>';
+        } else {
+          extHtml += '<div class="attn-block conf-warn"><div class="attn-title">O saldo não fecha: saldo anterior '+fmt(sc.saldoAnterior)+' + lançamentos = '+fmt(sc.obtido)+', e o extrato diz '+fmt(sc.saldoFinal)+' (diferença de '+fmt(Math.abs(sc.diff))+')</div>'+
+            '<ul class="conf-list">'+(sc.dias.length ? sc.dias.slice(0, 6).map(function(d){
+              return '<li>Dia '+fmtDate(d.data)+': '+(d.texto || 'o extrato informa saldo '+fmt(d.esperado)+' e as linhas levam a '+fmt(d.obtido))+' (diferença de '+fmt(Math.abs(d.diff))+'). Lançamentos do dia: '+
+                d.linhas.slice(0, 6).map(function(l){ return escapeAttr(l.descricao)+' ('+fmt(l.valor)+')'; }).join("; ")+'</li>';
+            }).join("") : '<li>Nenhum "Saldo do dia" aponta o problema; confira se alguma linha ficou de fora do PDF.</li>')+'</ul></div>';
+        }
+      }
+      if(sc && !sc.aplicavel){
+        extHtml += '<div class="attn-block conf-warn"><div class="attn-title">Não consegui conferir este extrato</div><ul class="conf-list"><li>Não encontrei o saldo inicial e o final (ou os totais). Os lançamentos foram lidos, mas não há como provar que a soma está certa. Confira linha a linha antes de importar.</li></ul></div>';
+      }
+      if(ext.futuros.length){
+        extHtml += '<div class="imp-card-note" style="margin-bottom:10px;"><strong>Lançamentos futuros</strong> (não entram neste período): '+
+          ext.futuros.map(function(f){ return fmtDate(f.data)+' · '+escapeAttr(f.historico)+' · '+fmt(Math.abs(f.valor)); }).join(' | ')+
+          '<br><label class="futuros-opt"><input type="checkbox" id="chkFuturos" '+(stagingMeta.criarFuturos ? "checked" : "")+'> Criar estes como previstas (confirmo quando o extrato do mês chegar)</label></div>';
+      }
+    }
     var attnHtml = items.length ? '<div class="attn-block"><div class="attn-title">'+items.length+(items.length===1?' item precisa':' itens precisam')+' da sua confirmação</div>'+items.join("")+'</div>' : "";
 
     var rowsHtml = staging.map(function(r, idx){
       var un = r.unsure || {};
       var dupClass = r.dup ? (r.dup.level === "confirmed" ? " dup-confirmed" : " dup-possible") : "";
-      var attn = (r.pagamento && r.pagamento.state === "pending") || (r.estorno && r.estorno.state === "pending" && r.tipo === "estorno") || (r.sinalB && (r.sinalB.state === "pending" || r.sinalB.state === "asking"));
+      var attn = (r.pagamento && r.pagamento.state === "pending") || (r.proprio && r.proprio.state === "pending") || (r.estorno && r.estorno.state === "pending" && r.tipo === "estorno") || (r.sinalB && (r.sinalB.state === "pending" || r.sinalB.state === "asking"));
       var rowClass = (r.selected?"":"excluded") + dupClass + (attn ? " attn-row" : "");
       var dupHtml = "";
       if(r.dup){
@@ -4013,6 +4981,8 @@
         (r.pagamento && r.pagamento.state === "confirmed" ? '<span class="badge-pagfat">Pagamento de fatura</span>' : '')+
         (r.conciliaId ? '<span class="badge-concilia">confirma parcela prevista</span>' : '')+
         (r.entrada ? '<span class="badge-pagfat">Fatura parcelada · fora das despesas</span>' : '')+
+        (r.tipo === "transferencia_interna" && r.fonte === "extrato" ? '<span class="badge-pagfat">Transferência interna · fora de receitas e despesas'+(r.proprio && r.proprio.state === "lembrado" ? ' (lembrado)' : '')+'</span>' : '')+
+        (r.pagamento && r.pagamento.state === "confirmed" && r.fonte === "extrato" && r.pagamento.fatura ? '<span class="badge-concilia">fatura de '+fmtDate(r.pagamento.fatura.venc)+'</span>' : '')+
         (r.tipo === "parcelamento_fatura" ? '<span class="badge-pagfat">Parcelamento de fatura</span>' : '')+
         (r.tipo === "estorno" ? '<span class="badge-pagfat">Estorno'+(r.estorno && r.estorno.state === "linked" ? ' de “'+escapeAttr(r.estorno.origem)+'”' : '')+'</span>' : '')+
         (r.modalidade === "Crédito" && r.final && card.final && r.final !== card.final ? '<span class="badge-final">final '+r.final+'</span>' : '');
@@ -4021,7 +4991,7 @@
         '<td><input type="date" class="'+u(un.data).trim()+'" data-idx="'+idx+'" data-f="data" value="'+r.data+'"></td>'+
         '<td><input type="date" class="'+u(un.dataEfet).trim()+'" data-idx="'+idx+'" data-f="dataEfet" value="'+r.dataEfet+'"></td>'+
         '<td><input type="text" data-idx="'+idx+'" data-f="descricao" value="'+escapeAttr(r.descricao)+'">'+badges+(r.flagged?'<span class="row-flag">confira</span>':'')+dupHtml+'</td>'+
-        '<td><select class="'+u(un.tipo).trim()+'" data-idx="'+idx+'" data-f="tipo"><option value="despesa" '+(r.tipo==="despesa"?"selected":"")+'>Despesa</option><option value="receita" '+(r.tipo==="receita"?"selected":"")+'>Receita</option><option value="pagamento_fatura" '+(r.tipo==="pagamento_fatura"?"selected":"")+'>Pagamento de fatura</option><option value="parcelamento_fatura" '+(r.tipo==="parcelamento_fatura"?"selected":"")+'>Parcelamento de fatura</option><option value="estorno" '+(r.tipo==="estorno"?"selected":"")+'>Estorno</option></select></td>'+
+        '<td><select class="'+u(un.tipo).trim()+'" data-idx="'+idx+'" data-f="tipo"><option value="despesa" '+(r.tipo==="despesa"?"selected":"")+'>Despesa</option><option value="receita" '+(r.tipo==="receita"?"selected":"")+'>Receita</option><option value="pagamento_fatura" '+(r.tipo==="pagamento_fatura"?"selected":"")+'>Pagamento de fatura</option><option value="parcelamento_fatura" '+(r.tipo==="parcelamento_fatura"?"selected":"")+'>Parcelamento de fatura</option><option value="estorno" '+(r.tipo==="estorno"?"selected":"")+'>Estorno</option><option value="transferencia_interna" '+(r.tipo==="transferencia_interna"?"selected":"")+'>Transferência interna</option></select></td>'+
         '<td class="num-cell"><input type="number" step="0.01" min="0" data-idx="'+idx+'" data-f="valor" value="'+r.valor.toFixed(2)+'"></td>'+
         '<td><input type="text" class="'+u(un.categoria).trim()+'" list="categoriaOptions" data-idx="'+idx+'" data-f="categoria" value="'+escapeAttr(r.categoria)+'"></td>'+
         '<td><select class="'+u(un.modalidade).trim()+'" data-idx="'+idx+'" data-f="modalidade"><option value="Crédito" '+(r.modalidade==="Crédito"?"selected":"")+'>Crédito</option><option value="Débito" '+(r.modalidade==="Débito"?"selected":"")+'>Débito</option><option value="Pix" '+(r.modalidade==="Pix"?"selected":"")+'>Pix</option><option value="Débito automático" '+(r.modalidade==="Débito automático"?"selected":"")+'>Débito automático</option></select></td>'+
@@ -4029,7 +4999,7 @@
         '</tr>';
     }).join("");
     el.innerHTML =
-      cardHtml + attnHtml + confHtml +
+      cardHtml + attnHtml + confHtml + extHtml +
       ((anyUnsure || anyDupConfirmed || anyDupPossible) ? '<div class="staging-legend">'+
         (anyUnsure ? '<div class="staging-legend-row"><span class="sw unsure"></span>Campos em vermelho nas células são palpites — confira antes de importar.</div>' : '') +
         (anyDupConfirmed ? '<div class="staging-legend-row"><span class="sw dup"></span>Linhas vermelhas já existem no painel — vieram desmarcadas para não duplicar.</div>' : '') +
@@ -4039,7 +5009,7 @@
       '<span>Impacto no saldo: <strong>'+fmt(selTotal)+'</strong></span></div>'+
       '<div class="table-scroll"><table class="staging"><thead><tr><th></th><th>Data</th><th>Disponível em</th><th>Descrição</th><th>Tipo</th><th>Valor</th><th>Categoria</th><th>Modalidade</th><th>Classificação</th></tr></thead><tbody>'+rowsHtml+'</tbody></table></div>'+
       '<div class="staging-actions"><button class="btn btn-ghost" id="btnCancelStaging" type="button">Descartar</button>'+
-      '<button class="btn btn-primary" id="btnConfirmStaging" type="button" '+(pendingPag?"disabled":"")+'>'+(pendingPag ? "Responda os avisos de pagamento para importar" : "Importar selecionados")+'</button></div>';
+      '<button class="btn btn-primary" id="btnConfirmStaging" type="button" '+(pendingPag?"disabled":"")+'>'+(pendingPag ? (pendingProp ? "Responda os avisos para importar" : "Responda os avisos de pagamento para importar") : "Importar selecionados")+'</button></div>';
 
     Array.prototype.forEach.call(el.querySelectorAll("[data-f]"), function(input){
       input.addEventListener("change", function(){
@@ -4080,6 +5050,8 @@
         else if(act === "pag-no"){ r.pagamento.state = "rejected"; r.tipo = "despesa"; }
         else if(act === "dup-fix"){ r.corrigirDup = true; }
         else if(act === "dup-undo"){ r.corrigirDup = false; }
+        else if(act === "prop-ok"){ r.proprio.state = "confirmed"; r.tipo = "transferencia_interna"; r.categoria = "Transferência interna"; lembrarContraparte(chaveContraparte(r.contraparte), "propria"); }
+        else if(act === "prop-no"){ r.proprio.state = "outra"; lembrarContraparte(chaveContraparte(r.contraparte), "outra"); }
         else if(act === "est-ok"){ r.estorno.state = "confirmed"; }
         else if(act === "est-no"){ r.estorno.state = "rejected"; r.tipo = "despesa"; r.categoria = "A categorizar"; if(r.unsure) r.unsure.categoria = true; }
         else if(act === "parc-ok"){ r.sinalB.state = "asking"; }
@@ -4094,6 +5066,8 @@
         refreshStaging();
       });
     });
+    var chkF = document.getElementById("chkFuturos");
+    if(chkF) chkF.onchange = function(){ stagingMeta.criarFuturos = this.checked; };
     var alterar = document.getElementById("btnCardAlterar");
     if(alterar) alterar.onclick = function(){ openCardSetup(stagingCard, "review"); renderStaging(); };
     var trocar = document.getElementById("btnCardTrocar");
@@ -4106,6 +5080,9 @@
       if(staging.some(function(r){ return r.selected && r.pagamento && r.pagamento.state === "pending"; })){
         toast("Responda os avisos de pagamento de fatura antes de importar."); return;
       }
+      if(staging.some(function(r){ return r.selected && r.proprio && r.proprio.state === "pending"; })){
+        toast("Responda se as transferências parecidas com o seu nome são entre suas contas antes de importar."); return;
+      }
       if(!staging.some(function(r){ return r.selected; })){ toast("Selecione pelo menos um lançamento."); return; }
       var banco = stagingBanco();
       var credit = stagingHasCredit();
@@ -4114,15 +5091,36 @@
       var semData = missingFaturaRows(staging);
       if(semData.length){ toast(semData.length + " linha(s) de crédito ainda sem o vencimento da fatura. Informe a data no aviso."); return; }
       if(credit){ adoptPdfFinais(c); saveStagingCard(c); }
+      var ehExtrato = !!(stagingMeta && stagingMeta.isExtrato);
+      if(ehExtrato){
+        staging.forEach(function(r){
+          if(r.pagamento && r.pagamento.state === "confirmed" && r.pagamento.fatura){ r.obsExtra = "Pagamento da fatura que vence em " + fmtDate(r.pagamento.fatura.venc) + " (" + fmt(r.pagamento.fatura.total) + ")"; }
+        });
+      }
       var seq = 0;
+      var importIdNovo = novoImportId(Date.now());
       var plan = buildImportPlan(staging, {txs: ledgerParaImportar(), banco: banco, cardKey: credit ? (c.key || null) : null,
-        importId: novoImportId(Date.now()), faturaKey: credit ? stagingFaturaKey : null,
+        importId: importIdNovo, faturaKey: (credit || ehExtrato) ? stagingFaturaKey : null, conta: ehExtrato ? stagingMeta.contaKey : undefined,
         newId: function(){ return newLocalId("c" + (seq++)); }});
+      if(ehExtrato){
+        var sd = saldoDoExtrato(stagingMeta.ext);
+        if(sd && atualizarSaldos(state.saldos, stagingMeta.contaKey, sd)) saveSaldos();
+      }
+      var futurosCriados = 0;
+      if(ehExtrato && stagingMeta.criarFuturos){
+        var jaExistem = ledgerParaImportar();
+        var novosFuturos = futurosComoPrevistas(stagingMeta.ext.futuros, {banco: banco, conta: stagingMeta.contaKey, importId: importIdNovo, faturaKey: stagingFaturaKey}).filter(function(f){
+          return !jaExistem.some(function(t){ return t.statusParcela === "prevista" && t.conta === f.conta && t.dataEfet === f.dataEfet && Math.abs(t.valor - f.valor) < 0.01 && descSimilarity(t.descricao, f.descricao) >= 0.5; });
+        });
+        futurosCriados = novosFuturos.length;
+        plan.adds = plan.adds.concat(novosFuturos);
+      }
       var substituidos = (stagingReplace && stagingReplace.ids.length) ? stagingReplace.ids.length : 0;
       if(substituidos) Store.removeMany(stagingReplace.ids); // a importação anterior vai para a lixeira antes de gravar a nova
       plan.updates.forEach(function(up){ Store.update(up.id, up.patch); });
       if(plan.adds.length) Store.addMany(plan.adds);
       var previstas = plan.adds.filter(function(t){ return t.statusParcela === "prevista"; }).length;
+      var internas = plan.adds.filter(function(t){ return t.tipo === "transferencia_interna"; }).length;
       var pagamentos = plan.adds.filter(function(t){ return t.tipo === "pagamento_fatura"; }).length;
       var estornos = plan.adds.filter(function(t){ return t.tipo === "estorno"; }).length;
       var confirmadas = plan.updates.filter(function(u){ return u.patch.statusParcela === "confirmada"; }).length;
@@ -4130,7 +5128,9 @@
       var parts = [(plan.adds.length - previstas) + " lançamento(s) importado(s)"];
       if(substituidos) parts.unshift("importação anterior substituída (" + substituidos + " lançamento(s) removido(s))");
       if(corrigidas) parts.push(corrigidas + " data(s) corrigida(s)");
-      if(previstas) parts.push(previstas + " parcela(s) prevista(s) criada(s)");
+      if(futurosCriados) parts.push(futurosCriados + " lançamento(s) futuro(s) criado(s) como previstos");
+      if(internas) parts.push(internas + " transferência(s) interna(s) fora de receitas e despesas");
+      if(previstas - futurosCriados) parts.push((previstas - futurosCriados) + " parcela(s) prevista(s) criada(s)");
       if(confirmadas) parts.push(confirmadas + " parcela(s) prevista(s) confirmada(s)");
       if(pagamentos) parts.push(pagamentos + " pagamento(s) de fatura fora das despesas");
       if(estornos) parts.push(estornos + " estorno(s) abatendo o gasto");
@@ -4148,12 +5148,13 @@
 
   // Aviso antes da revisão: esta fatura (mesmo cartão e mesmo vencimento) já foi importada.
   function renderReimport(el){
-    var prev = importacaoAnterior(state.transactions, faturaKeyDe(stagingCard.key, stagingCheck.vencFatura));
+    var ehExtrato = !!(stagingMeta && stagingMeta.isExtrato);
+    var prev = importacaoAnterior(state.transactions, ehExtrato ? stagingMeta.extratoKey : faturaKeyDe(stagingCard.key, stagingCheck.vencFatura));
     var quando = prev && prev.em ? new Date(prev.em) : null;
     var dia = quando ? pad2(quando.getDate())+"/"+pad2(quando.getMonth()+1)+"/"+quando.getFullYear()+" às "+pad2(quando.getHours())+":"+pad2(quando.getMinutes()) : "uma data anterior";
     el.innerHTML = '<div class="imp-step">'+
-      '<div class="imp-step-title">Esta fatura já foi importada em '+dia+'. Deseja substituir a importação anterior?</div>'+
-      '<div class="imp-step-sub">'+escapeAttr(cardLabel(stagingCard.key) || stagingCard.nome)+' · vencimento '+fmtDate(stagingCheck.vencFatura)+'. '+
+      '<div class="imp-step-title">'+(ehExtrato ? 'Este extrato já foi importado' : 'Esta fatura já foi importada')+' em '+dia+'. Deseja substituir a importação anterior?</div>'+
+      '<div class="imp-step-sub">'+(ehExtrato ? 'Conta final '+stagingMeta.ext.contaFinal+' · de '+fmtDate(stagingMeta.ext.periodo.de)+' a '+fmtDate(stagingMeta.ext.periodo.ate) : escapeAttr(cardLabel(stagingCard.key) || stagingCard.nome)+' · vencimento '+fmtDate(stagingCheck.vencFatura))+'. '+
       'Substituir apaga os '+prev.ids.length+' lançamentos daquela importação ('+prev.confirmadas+' confirmados e '+prev.previstas+' previstos) e grava os desta no lugar.</div>'+
       '<div class="staging-actions"><button class="btn btn-ghost" id="btnCancelStaging" type="button">Cancelar</button>'+
       '<button class="btn btn-primary" id="btnReplaceOk" type="button">Substituir a importação anterior</button></div></div>';
@@ -4256,7 +5257,44 @@
     };
   }
 
+  // Extrato de conta corrente (Banco do Brasil): leitor próprio. A fatura segue o caminho de sempre.
+  function reannotateExtrato(){
+    stagingCheck = annotateExtratoRows(staging, {ext: stagingMeta.ext, txs: ledgerParaImportar(), contrapartes: state.contrapartes, hoje: todayISO()});
+  }
+  function portaoReimportacaoExtrato(){
+    var key = stagingMeta.extratoKey;
+    if(!key) return false;
+    stagingFaturaKey = key;
+    if(stagingReplace && stagingReplace.key === key) return false;
+    var prev = importacaoAnterior(state.transactions, key);
+    if(!prev){ stagingReplace = {key: key, ids: [], em: null}; return false; }
+    stagingReplace = null; stagingStep = "dup";
+    return true;
+  }
+  // Extrato de conta, de qualquer banco. Devolve false se não achou lançamentos (aí vale o fluxo antigo).
+  function handleExtrato(lines){
+    var ext = lerExtratoGenerico(lines);
+    if(!ext.lancamentos.length) return false;
+    ext.banco = ext.banco || document.getElementById("importBanco").value.trim() || "Extrato importado";
+    setImportStatus(null);
+    stagingMeta = {isExtrato: true, banco: ext.banco, ext: ext, contaKey: contaKeyDe(ext), extratoKey: extratoKeyDe(ext), criarFuturos: false};
+    document.getElementById("importBanco").value = ext.banco;
+    document.getElementById("importVencimento").value = "";
+    staging = extratoParaLinhas(ext);
+    stagingCard = null; stagingStep = "review"; stagingReplace = null; stagingFaturaKey = stagingMeta.extratoKey;
+    reannotateExtrato();
+    portaoReimportacaoExtrato();
+    var noteEl = document.getElementById("importMetaNote");
+    noteEl.hidden = false;
+    noteEl.textContent = "Reconheci como extrato de conta corrente do " + ext.banco + (ext.contaFinal ? " · conta final " + ext.contaFinal : "") +
+      (ext.periodo ? " · de " + fmtDate(ext.periodo.de) + " a " + fmtDate(ext.periodo.ate) : "") + ". " + ext.lancamentos.length + " lançamento(s) lido(s)" +
+      (ext.futuros.length ? "; " + ext.futuros.length + " lançamento(s) futuro(s) ficam de fora do período." : ".");
+    renderStaging();
+    return true;
+  }
+
   function handleParsedLines(lines){
+    if(detectTipoDocumento(lines) === "extrato" && handleExtrato(lines)) return;
     var meta = detectStatementMeta(lines);
     stagingMeta = meta;
     var rows = parseStatementLines(lines, meta);
@@ -4344,15 +5382,6 @@
     handleParsedLines(text.split(/\r?\n/).map(function(l){ return l.trim(); }).filter(Boolean));
   });
 
-  document.getElementById("patInvestidoForm").addEventListener("submit", function(e){
-    e.preventDefault();
-    var input = document.getElementById("patInvestidoInput");
-    var delta = parseFloat(input.value);
-    if(!delta){ toast("Digite um valor (positivo para guardar, negativo para retirar)."); return; }
-    updatePatrimonio("investido", delta);
-    input.value = "";
-    toast(delta > 0 ? "Valor adicionado ao guardado/investido." : "Valor retirado do guardado/investido.");
-  });
   document.getElementById("patReservaForm").addEventListener("submit", function(e){
     e.preventDefault();
     var input = document.getElementById("patReservaInput");
@@ -4542,6 +5571,42 @@
 
 
   if(window.__GENESIS_TEST__){ window.__genesis = {Store: Store, state: state, aplicarNuvem: aplicarNuvem, loadSynced: loadSynced, saveSynced: saveSynced, toastUndo: toastUndo, renderTrash: renderTrash}; }
+
+
+  if(window.__GENESIS_TEST__){ window.__genesis = {Store: Store, state: state, aplicarNuvem: aplicarNuvem, loadSynced: loadSynced, saveSynced: saveSynced, toastUndo: toastUndo, renderTrash: renderTrash, lembrarContraparte: lembrarContraparte}; }
+
+
+  if(window.__GENESIS_TEST__){ window.__genesis = {Store: Store, state: state, aplicarNuvem: aplicarNuvem, loadSynced: loadSynced, saveSynced: saveSynced, toastUndo: toastUndo, renderTrash: renderTrash, lembrarContraparte: lembrarContraparte, countsAsSpendTx: countsAsSpendTx}; }
+
+
+  if(window.__GENESIS_TEST__){ window.__genesis = {Store: Store, state: state, aplicarNuvem: aplicarNuvem, loadSynced: loadSynced, saveSynced: saveSynced, toastUndo: toastUndo, renderTrash: renderTrash, lembrarContraparte: lembrarContraparte, countsAsSpendTx: countsAsSpendTx}; }
+
+
+  if(window.__GENESIS_TEST__){ window.__genesis = {Store: Store, state: state, aplicarNuvem: aplicarNuvem, loadSynced: loadSynced, saveSynced: saveSynced, toastUndo: toastUndo, renderTrash: renderTrash, lembrarContraparte: lembrarContraparte, countsAsSpendTx: countsAsSpendTx}; }
+
+
+  if(window.__GENESIS_TEST__){ window.__genesis = {Store: Store, state: state, aplicarNuvem: aplicarNuvem, loadSynced: loadSynced, saveSynced: saveSynced, toastUndo: toastUndo, renderTrash: renderTrash, lembrarContraparte: lembrarContraparte, countsAsSpendTx: countsAsSpendTx, informarSaldo: informarSaldo, renderHero: renderHero}; }
+
+
+  if(window.__GENESIS_TEST__){ window.__genesis = {Store: Store, state: state, aplicarNuvem: aplicarNuvem, loadSynced: loadSynced, saveSynced: saveSynced, toastUndo: toastUndo, renderTrash: renderTrash, lembrarContraparte: lembrarContraparte, countsAsSpendTx: countsAsSpendTx, informarSaldo: informarSaldo, renderHero: renderHero}; }
+
+
+  if(window.__GENESIS_TEST__){ window.__genesis = {Store: Store, state: state, aplicarNuvem: aplicarNuvem, loadSynced: loadSynced, saveSynced: saveSynced, toastUndo: toastUndo, renderTrash: renderTrash, lembrarContraparte: lembrarContraparte, countsAsSpendTx: countsAsSpendTx, informarSaldo: informarSaldo, renderHero: renderHero}; }
+
+
+  if(window.__GENESIS_TEST__){ window.__genesis = {Store: Store, state: state, aplicarNuvem: aplicarNuvem, loadSynced: loadSynced, saveSynced: saveSynced, toastUndo: toastUndo, renderTrash: renderTrash, lembrarContraparte: lembrarContraparte, countsAsSpendTx: countsAsSpendTx, informarSaldo: informarSaldo, renderHero: renderHero, ignorarDivergencia: ignorarDivergencia, divergenciasSaldo: divergenciasSaldo}; }
+
+
+  if(window.__GENESIS_TEST__){ window.__genesis = {Store: Store, state: state, aplicarNuvem: aplicarNuvem, loadSynced: loadSynced, saveSynced: saveSynced, toastUndo: toastUndo, renderTrash: renderTrash, lembrarContraparte: lembrarContraparte, countsAsSpendTx: countsAsSpendTx, informarSaldo: informarSaldo, renderHero: renderHero, ignorarDivergencia: ignorarDivergencia, divergenciasSaldo: divergenciasSaldo}; }
+
+
+  if(window.__GENESIS_TEST__){ window.__genesis = {Store: Store, state: state, aplicarNuvem: aplicarNuvem, loadSynced: loadSynced, saveSynced: saveSynced, toastUndo: toastUndo, renderTrash: renderTrash, lembrarContraparte: lembrarContraparte, countsAsSpendTx: countsAsSpendTx, informarSaldo: informarSaldo, renderHero: renderHero, ignorarDivergencia: ignorarDivergencia, divergenciasSaldo: divergenciasSaldo}; }
+
+
+  if(window.__GENESIS_TEST__){ window.__genesis = {Store: Store, state: state, aplicarNuvem: aplicarNuvem, loadSynced: loadSynced, saveSynced: saveSynced, toastUndo: toastUndo, renderTrash: renderTrash, lembrarContraparte: lembrarContraparte, countsAsSpendTx: countsAsSpendTx, informarSaldo: informarSaldo, renderHero: renderHero, renderAll: renderAll, ignorarDivergencia: ignorarDivergencia, divergenciasSaldo: divergenciasSaldo}; }
+
+
+  if(window.__GENESIS_TEST__){ window.__genesis = {Store: Store, state: state, aplicarNuvem: aplicarNuvem, loadSynced: loadSynced, saveSynced: saveSynced, toastUndo: toastUndo, renderTrash: renderTrash, lembrarContraparte: lembrarContraparte, countsAsSpendTx: countsAsSpendTx, informarSaldo: informarSaldo, renderHero: renderHero, renderAll: renderAll, ignorarDivergencia: ignorarDivergencia, divergenciasSaldo: divergenciasSaldo}; }
   init();
 })();
 </script>
