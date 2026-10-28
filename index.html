@@ -4,7 +4,7 @@
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.0/dist/umd/supabase.js"></script>
-<meta name="app-version" content="20261028-155049">
+<meta name="app-version" content="20261028-164300">
 <script>
 (function(){
   var m = document.querySelector('meta[name="app-version"]'); var cur = m && m.content; if(!cur) return;
@@ -371,6 +371,21 @@
   .modal-caixa h3{margin:0 0 4px; font-size:17px;}
   .modal-caixa label{font-size:12.5px; font-weight:600; color:var(--ink-2); margin-top:4px;}
   .modal-caixa select, .modal-caixa input{font-family:var(--font-ui); font-size:14px; padding:9px 10px; border-radius:9px; border:1px solid var(--border-strong); background:var(--surface-alt); color:var(--ink); min-width:0;}
+  .modal-larga{width:min(680px, 100%); max-height:88vh; overflow-y:auto;}
+  .conc-bloco{margin-top:12px; padding-top:10px; border-top:1px solid var(--border); display:flex; flex-direction:column; gap:2px;}
+  .conc-linha{display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; font-size:13px; padding:4px 0;}
+  .conc-linha > span:first-child{min-width:0; overflow-wrap:anywhere;}
+  .conc-ok{color:var(--good-text, var(--ink-2)); font-weight:600;}
+  .conc-dif{color:var(--warn-text, var(--ink)); font-weight:600;}
+  .conc-nd{color:var(--ink-muted);}
+  .conc-resumo{font-size:13px; color:var(--ink-2); margin:2px 0 8px;}
+  .conc-grupo{margin-top:12px;}
+  .conc-grupo h4{margin:0 0 4px; font-size:13.5px;}
+  .conc-grupo p{margin:0 0 6px; font-size:12.5px; color:var(--ink-muted);}
+  .conc-item{display:grid; grid-template-columns:1fr auto; gap:4px 10px; align-items:center; padding:8px 0; border-top:1px solid var(--border); font-size:13px;}
+  .conc-item small{display:block; color:var(--ink-muted); font-size:12px; overflow-wrap:anywhere;}
+  .conc-item .conc-val{font-family:var(--font-num); white-space:nowrap; text-align:right;}
+  .conc-item .conc-acao{grid-column:1 / -1; display:flex; justify-content:flex-end;}
   .modal-acoes{display:flex; justify-content:flex-end; gap:8px; margin-top:12px;}
   .pf-ativas-barra{margin-top:12px;}
   .pf-ativas{margin-top:10px; font-size:12.5px; color:var(--ink-2);}
@@ -1074,6 +1089,20 @@
     <label for="saldoValor">Saldo de hoje</label>
     <input id="saldoValor" inputmode="decimal" placeholder="R$ 0,00">
     <div class="modal-acoes"><button type="button" class="btn btn-ghost" id="btnSaldoCancelar">Cancelar</button><button type="button" class="btn btn-primary" id="btnSaldoOk">Salvar</button></div>
+  </div>
+</div>
+<div id="concModal" class="modal-fundo" hidden>
+  <div class="modal-caixa modal-larga" role="dialog" aria-modal="true" aria-labelledby="concTitulo">
+    <h3 id="concTitulo">Conciliação da conta</h3>
+    <div id="concCorpo"></div>
+    <div class="modal-acoes"><button type="button" class="btn btn-ghost" id="btnConcFechar">Fechar</button></div>
+  </div>
+</div>
+<div id="confirmaModal" class="modal-fundo" hidden>
+  <div class="modal-caixa" role="alertdialog" aria-modal="true" aria-labelledby="confirmaTitulo">
+    <h3 id="confirmaTitulo">Confirmar</h3>
+    <p id="confirmaTexto" style="margin:0; font-size:14px; color:var(--ink-2);"></p>
+    <div class="modal-acoes"><button type="button" class="btn btn-ghost" id="btnConfirmaNao">Cancelar</button><button type="button" class="btn btn-primary" id="btnConfirmaSim">Continuar</button></div>
   </div>
 </div>
 <div id="undoBar" role="status" hidden><span id="undoText"></span><button type="button" id="undoBtn">Desfazer</button></div>
@@ -2032,6 +2061,109 @@
     saveSaldos();
     renderAll();
   }
+
+  // ---- Conciliação na tela ----
+  function contasConciliaveis(){
+    return Object.keys(state.saldos || {}).filter(function(k){ return state.saldos[k].extrato || state.saldos[k].ref; });
+  }
+  function conciliacaoDe(chave){
+    var c = state.saldos[chave];
+    return conciliarConta(c && c.ref, chave, state.transactions, state.deleted);
+  }
+  function sigConciliacao(chave, res){ return chave + "|" + res.diff.toFixed(2) + "|" + res.ate; }
+  // Uma linha por conta no quadro de resumo: conciliada, com diferença ou sem linhas guardadas.
+  function conciliacaoHtml(){
+    var chaves = contasConciliaveis();
+    if(!chaves.length) return "";
+    return '<div class="conc-bloco" id="concBloco">' + chaves.map(function(k){
+      var res = conciliacaoDe(k), nome = escapeAttr(rotuloConta(state.saldos[k]));
+      if(!res.aplicavel) return '<div class="conc-linha"><span>'+nome+'</span><span class="conc-nd">Não conciliada · envie o PDF do extrato de novo</span></div>';
+      if(res.ok) return '<div class="conc-linha"><span>'+nome+'</span><button type="button" class="resumo-link conc-ok" data-conc="'+escapeAttr(k)+'">✓ Conciliada</button></div>';
+      return '<div class="conc-linha"><span>'+nome+'</span><button type="button" class="resumo-link conc-dif" data-conc="'+escapeAttr(k)+'">Diferença de '+fmt(Math.abs(res.diff))+' · ver detalhes</button></div>';
+    }).join("") + '</div>';
+  }
+  var concAberta = null;
+  function abrirConciliacao(chave){ concAberta = chave; renderConciliacao(); document.getElementById("concModal").hidden = false; }
+  function fecharConciliacao(){ concAberta = null; document.getElementById("concModal").hidden = true; }
+  function linhaDescricao(l){ return escapeAttr((l.contraparte ? l.contraparte + " · " : "") + (l.tipoOp || "Lançamento do extrato")); }
+  function renderConciliacao(){
+    var chave = concAberta, el = document.getElementById("concCorpo");
+    if(!chave || !el) return;
+    var c = state.saldos[chave], res = conciliacaoDe(chave);
+    document.getElementById("concTitulo").textContent = "Conciliação · " + (c ? rotuloConta(c) : "conta");
+    if(!res.aplicavel){ el.innerHTML = '<p class="conc-resumo">Esta conta ainda não tem as linhas do extrato guardadas. Envie o PDF de novo e use "Guardar as linhas só para conferência".</p>'; return; }
+    var html = '<p class="conc-resumo">Extrato de '+fmtDate(res.de)+' a '+fmtDate(res.ate)+': saldo anterior '+fmt(res.saldoAnterior)+' + lançamentos = <strong>'+fmt(res.calculado)+'</strong>; o banco diz <strong>'+fmt(res.saldoFinal)+'</strong>. '+
+      (res.ok ? '<span class="conc-ok">✓ Conciliada.</span>' : '<span class="conc-dif">Diferença de '+fmt(Math.abs(res.diff))+'.</span>')+'</p>';
+    var grupo = function(titulo, texto, itens, fn, todos){
+      if(!itens.length) return "";
+      return '<div class="conc-grupo"><h4>'+titulo+' ('+itens.length+')</h4><p>'+texto+'</p>'+itens.map(fn).join("")+
+        (itens.length > 1 ? '<div class="conc-acao" style="display:flex;justify-content:flex-end;padding-top:6px;"><button type="button" class="btn btn-ghost" data-conc-todos="'+todos+'">'+(todos === "manual" ? "Vincular todos" : todos === "lixeira" ? "Restaurar todos" : "Importar todas")+'</button></div>' : '')+'</div>';
+    };
+    html += grupo("Lançamento manual parecido", "Mesmo valor e data até 3 dias de diferença, ainda sem vínculo com o banco. Vincular passa o lançamento para a data e a conta do extrato.", res.manuais, function(m, i){
+      return '<div class="conc-item"><div>'+linhaDescricao(m.linha)+'<small>Extrato: '+fmtDate(m.linha.data)+' · seu lançamento: "'+escapeAttr(m.tx.descricao)+'" em '+fmtDate(m.tx.dataEfet)+'</small></div><div class="conc-val">'+fmt(m.linha.valor)+'</div>'+
+        '<div class="conc-acao"><button type="button" class="btn btn-primary" data-conc-acao="vincular" data-i="'+i+'">Vincular ao manual</button></div></div>';
+    }, "manual");
+    html += grupo("Na lixeira", "Estas linhas do extrato foram lançadas e depois apagadas.", res.lixeira, function(m, i){
+      return '<div class="conc-item"><div>'+linhaDescricao(m.linha)+'<small>'+fmtDate(m.linha.data)+' · "'+escapeAttr(m.tx.descricao)+'" em Apagados recentemente</small></div><div class="conc-val">'+fmt(m.linha.valor)+'</div>'+
+        '<div class="conc-acao"><button type="button" class="btn btn-primary" data-conc-acao="restaurar" data-i="'+i+'">Restaurar</button></div></div>';
+    }, "lixeira");
+    html += grupo("Nunca salvas", "Estas linhas estão no extrato e não existem nos seus lançamentos.", res.nunca, function(m, i){
+      return '<div class="conc-item"><div>'+linhaDescricao(m.linha)+'<small>'+fmtDate(m.linha.data)+'</small></div><div class="conc-val">'+fmt(m.linha.valor)+'</div>'+
+        '<div class="conc-acao"><button type="button" class="btn btn-primary" data-conc-acao="importar" data-i="'+i+'">Importar</button></div></div>';
+    }, "nunca");
+    if(res.extras.length){
+      html += '<div class="conc-grupo"><h4>Lançamentos da conta que o extrato não tem ('+res.extras.length+')</h4><p>Entram na conta pelo sinal do tipo'+(res.extrasSemSinal ? '; transferências internas sem linha no extrato não têm sinal e ficam de fora da soma' : '')+'.</p>'+
+        res.extras.map(function(t){ return '<div class="conc-item"><div>'+escapeAttr(t.descricao)+'<small>'+fmtDate(t.dataEfet)+'</small></div><div class="conc-val">'+fmt(t.valor)+'</div></div>'; }).join("")+'</div>';
+    }
+    el.innerHTML = html;
+  }
+  function vincularAoManual(m, chave){
+    Store.update(m.tx.id, {conta: chave, documento: m.linha.doc, dataEfet: m.linha.data, obs: obsVinculo(m.tx, m.linha)});
+  }
+  function importarLinhaDoExtrato(lista, chave){
+    var c = state.saldos[chave], ref = c.ref, seq = 0;
+    var rows = lista.map(function(l){ return linhaDeReferencia(ref, l, state.contrapartes); });
+    var plan = buildImportPlan(rows, {txs: state.transactions, banco: ref.banco || "Extrato importado", cardKey: null, importId: novoImportId(Date.now()),
+      faturaKey: null, conta: chave, newId: function(){ return newLocalId("k" + (seq++)); }});
+    if(plan.adds.length) Store.addMany(plan.adds);
+    return plan.adds.length;
+  }
+  function acaoConciliacao(acao, i){
+    var chave = concAberta; if(!chave) return;
+    var res = conciliacaoDe(chave);
+    if(acao === "vincular" && res.manuais[i]){ vincularAoManual(res.manuais[i], chave); toast("Lançamento vinculado ao extrato."); }
+    else if(acao === "restaurar" && res.lixeira[i]){ Store.restore(res.lixeira[i].tx.id); toast("Lançamento restaurado."); }
+    else if(acao === "importar" && res.nunca[i]){ importarLinhaDoExtrato([res.nunca[i].linha], chave); toast("Linha importada do extrato."); }
+    renderConciliacao();
+  }
+  function acaoConciliacaoTodos(grupo){
+    var chave = concAberta; if(!chave) return;
+    var res = conciliacaoDe(chave);
+    if(grupo === "manual"){ res.manuais.forEach(function(m){ vincularAoManual(m, chave); }); toast(res.manuais.length + " lançamento(s) vinculado(s)."); }
+    else if(grupo === "lixeira"){ res.lixeira.forEach(function(m){ Store.restore(m.tx.id); }); toast(res.lixeira.length + " lançamento(s) restaurado(s)."); }
+    else if(grupo === "nunca"){ var n = importarLinhaDoExtrato(res.nunca.map(function(m){ return m.linha; }), chave); toast(n + " linha(s) importada(s) do extrato."); }
+    renderConciliacao();
+  }
+  // Confirmação simples em janela própria (o navegador pode bloquear confirm()).
+  function perguntar(titulo, texto, sim, aoConfirmar){
+    document.getElementById("confirmaTitulo").textContent = titulo;
+    document.getElementById("confirmaTexto").textContent = texto;
+    var m = document.getElementById("confirmaModal"), btn = document.getElementById("btnConfirmaSim");
+    btn.textContent = sim || "Continuar";
+    btn.onclick = function(){ m.hidden = true; aoConfirmar(); };
+    document.getElementById("btnConfirmaNao").onclick = function(){ m.hidden = true; };
+    m.hidden = false;
+  }
+  var AVISO_APAGAR_EXTRATO = "Este lançamento veio do extrato. Apagar vai fazer a conta deixar de bater com o banco. Deseja continuar?";
+  function veioDoExtrato(id){
+    var t = state.transactions.find(function(x){ return x.id === id; });
+    return !!(t && t.conta && t.documento);
+  }
+  // Apaga; se o lançamento veio de um extrato, pergunta antes.
+  function apagarComAviso(id, depois){
+    var executa = function(){ Store.remove(id); if(depois) depois(); };
+    if(veioDoExtrato(id)) perguntar("Apagar lançamento do extrato", AVISO_APAGAR_EXTRATO, "Apagar", executa); else executa();
+  }
   // Avisa quando o saldo informado não bate com o do extrato; o botão silencia ESSA diferença.
   function renderAvisoSaldo(){
     var el = document.getElementById("saldoBanner");
@@ -2042,10 +2174,25 @@
       var c = state.saldos[k];
       if(c.ignorada && !divs.some(function(d){ return d.chave === k; })){ delete c.ignorada; mudou = true; }
     });
+    // conciliação: a conta não fecha com o extrato (soma dos lançamentos x saldo do banco)
+    var concAvisos = [];
+    contasConciliaveis().forEach(function(k){
+      var c = state.saldos[k], res = conciliacaoDe(k);
+      if(!res.aplicavel || res.ok){ if(c.concIgnorada){ delete c.concIgnorada; mudou = true; } return; }
+      var sig = sigConciliacao(k, res);
+      if(c.concIgnorada === sig) return;
+      concAvisos.push({chave: k, rotulo: rotuloConta(c), res: res, sig: sig});
+    });
     if(mudou) saveSaldos();
     var ativas = divs.filter(function(d){ return !d.ignorada; });
-    if(!ativas.length){ el.innerHTML = ""; return; }
-    el.innerHTML = ativas.map(function(d){
+    if(!ativas.length && !concAvisos.length){ el.innerHTML = ""; return; }
+    var concHtml = concAvisos.map(function(a){
+      return '<div class="saldo-aviso" role="alert"><strong>A conta '+escapeAttr(a.rotulo)+' não bate com o banco.</strong>'+
+        '<p>Saldo anterior do extrato + seus lançamentos dão '+fmt(a.res.calculado)+', mas o banco diz '+fmt(a.res.saldoFinal)+': diferença de <strong>'+fmt(Math.abs(a.res.diff))+'</strong>.</p>'+
+        '<button type="button" class="btn btn-primary conc-aviso-ver" data-conta="'+escapeAttr(a.chave)+'">Ver detalhes</button> '+
+        '<button type="button" class="btn btn-ghost conc-aviso-fechar" data-conta="'+escapeAttr(a.chave)+'" data-sig="'+escapeAttr(a.sig)+'">Não avisar mais sobre essa diferença</button></div>';
+    }).join("");
+    el.innerHTML = concHtml + ativas.map(function(d){
       return '<div class="saldo-aviso" role="alert"><strong>O saldo de '+escapeAttr(d.rotulo)+' não está batendo.</strong>'+
         '<p>Você informou '+fmt(d.manual.valor)+(d.manual.data ? ' (em '+fmtDate(d.manual.data)+')' : '')+', mas o extrato diz '+fmt(d.extrato.valor)+(d.extrato.data ? ' (em '+fmtDate(d.extrato.data)+')' : '')+
         ': diferença de <strong>'+fmt(Math.abs(d.diff))+'</strong> '+(d.diff < 0 ? 'a menos' : 'a mais')+' no que você informou.</p>'+
@@ -2054,6 +2201,12 @@
     }).join("");
     Array.prototype.forEach.call(el.querySelectorAll(".saldo-aviso-fechar"), function(b){
       b.onclick = function(){ ignorarDivergencia(this.dataset.conta, this.dataset.sig); };
+    });
+    Array.prototype.forEach.call(el.querySelectorAll(".conc-aviso-ver"), function(b){
+      b.onclick = function(){ abrirConciliacao(this.dataset.conta); };
+    });
+    Array.prototype.forEach.call(el.querySelectorAll(".conc-aviso-fechar"), function(b){
+      b.onclick = function(){ if(state.saldos[this.dataset.conta]){ state.saldos[this.dataset.conta].concIgnorada = this.dataset.sig; saveSaldos(); renderAvisoSaldo(); } };
     });
   }
   function ignorarDivergencia(chave, sig){
@@ -2149,7 +2302,7 @@
       '<div class="resumo-sec">'+
         '<div><span>'+(usaSaldo ? "Saldo hoje" : "Receitas do mês")+'</span><strong>'+fmt(usaSaldo ? base : r.recTotal)+'</strong></div>'+
         '<div><span>Resultado de '+nomeMes+'</span><strong>'+fmt(resultado)+'</strong></div>'+
-      '</div>';
+      '</div>'+conciliacaoHtml();
     if(resumoAberto){
       var itens = function(lista, vazio){
         return lista.length ? '<ul class="resumo-itens">'+lista.map(function(t){
@@ -2222,7 +2375,7 @@
           '</div></div>';
       }).join("")+'</div></div>';
     document.querySelectorAll(".dup-del").forEach(function(btn){
-      btn.onclick = function(){ var id = this.dataset.id; Store.remove(id); toastUndo("Lançamento duplicado apagado.", function(){ Store.restore(id); }); };
+      btn.onclick = function(){ var id = this.dataset.id; apagarComAviso(id, function(){ toastUndo("Lançamento duplicado apagado.", function(){ Store.restore(id); }); }); };
     });
     document.querySelectorAll(".dup-ignore").forEach(function(btn){
       btn.onclick = function(){
@@ -2733,9 +2886,10 @@
       el.onclick = function(){
         if(this.classList.contains("confirm")){
           var apagado = this.dataset.id;
-          Store.remove(apagado);
-          if(editingId === apagado) cancelEdit();
-          toastUndo("Lançamento apagado.", function(){ Store.restore(apagado); });
+          apagarComAviso(apagado, function(){
+            if(editingId === apagado) cancelEdit();
+            toastUndo("Lançamento apagado.", function(){ Store.restore(apagado); });
+          });
         } else {
           var btn = this;
           btn.classList.add("confirm");
@@ -2848,7 +3002,20 @@
   document.getElementById("btnSaldoCancelar").addEventListener("click", fecharModalSaldo);
   document.getElementById("saldoConta").addEventListener("change", function(){ document.getElementById("saldoNome").hidden = this.value !== "__nova__"; });
   document.getElementById("saldoModal").addEventListener("click", function(e){ if(e.target === this) fecharModalSaldo(); });
-  document.addEventListener("keydown", function(e){ if(e.key === "Escape") fecharModalSaldo(); });
+  document.getElementById("btnConcFechar").addEventListener("click", fecharConciliacao);
+  document.getElementById("concModal").addEventListener("click", function(e){
+    if(e.target === this){ fecharConciliacao(); return; }
+    var b = e.target.closest ? e.target.closest("[data-conc-acao],[data-conc-todos]") : null;
+    if(!b) return;
+    if(b.dataset.concAcao) acaoConciliacao(b.dataset.concAcao, parseInt(b.dataset.i, 10));
+    else acaoConciliacaoTodos(b.dataset.concTodos);
+  });
+  document.getElementById("confirmaModal").addEventListener("click", function(e){ if(e.target === this) this.hidden = true; });
+  document.addEventListener("click", function(e){
+    var b = e.target && e.target.closest ? e.target.closest("[data-conc]") : null;
+    if(b) abrirConciliacao(b.dataset.conc);
+  });
+  document.addEventListener("keydown", function(e){ if(e.key === "Escape"){ fecharModalSaldo(); fecharConciliacao(); document.getElementById("confirmaModal").hidden = true; } });
   ["fSearch","fTipo","fStatus","fCategoria"].forEach(function(id){
     document.getElementById(id).addEventListener("input", function(){ renderLedger(refISO()); });
   });
@@ -3688,6 +3855,15 @@
         return;
       }
       if(!r.selected) return;
+      if(r.vincularId){
+        // manual já lançado: vira a linha do extrato (conta, documento e data do banco) em vez de criar outro
+        var manual = (ctx.txs || []).find(function(t){ return t.id === r.vincularId; });
+        if(manual){
+          updates.push({id: manual.id, patch: {conta: ctx.conta, documento: r.documentoChave || null, dataEfet: r.dataEfet,
+            obs: obsVinculo(manual, {data: r.dataEfet})}});
+          return;
+        }
+      }
       if(r.conciliaId){
         var patchConc = {statusParcela: "confirmada", dataLanc: r.data, dataEfet: r.dataEfet, importId: origem.importId, faturaKey: origem.faturaKey};
         if(ctx.conta){ patchConc.conta = ctx.conta; patchConc.documento = r.documentoChave || null; }
@@ -4531,6 +4707,8 @@
     if(extrato) entrada.extrato = extrato;
     if(manual) entrada.manual = manual;
     if(atual.ignorada) entrada.ignorada = atual.ignorada;
+    if(atual.ref) entrada.ref = atual.ref;
+    if(atual.concIgnorada) entrada.concIgnorada = atual.concIgnorada;
     saldos[chave] = entrada;
     return vale;
   }
@@ -4569,6 +4747,127 @@
     if(valor < -0.005) return {estado: "neg", frase: "Suas contas até o fim do mês passam o seu saldo."};
     if(valor < limite) return {estado: "aperto", frase: "O mês está apertado. Confira as contas a pagar."};
     return {estado: "ok", frase: "Você deve terminar o mês com folga."};
+  }
+
+  // ---- Conciliação: o extrato prova a conta ----
+  // Cada conta guarda as linhas do último extrato lido (saldos[chave].ref). A conta "bate" quando
+  //   saldo anterior + lançamentos ativos da conta no período = saldo final do extrato.
+  // Uma linha do extrato conta quando existe lançamento ativo com a mesma data, documento e valor;
+  // as que não têm viram diferença, em três grupos: manual parecido, lixeira ou nunca salva.
+  function referenciaDoExtrato(ext){
+    if(!ext || !ext.saldoAnterior || !ext.saldoFinal || !ext.periodo || !ext.lancamentos) return null;
+    var soma = extCents(ext.saldoAnterior.valor);
+    ext.lancamentos.forEach(function(e){ soma += extCents(e.valor); });
+    if(soma !== extCents(ext.saldoFinal.valor)) return null; // extrato que não fecha não serve de referência
+    return {de: ext.periodo.de, ate: ext.periodo.ate, saldoAnterior: ext.saldoAnterior.valor, saldoFinal: ext.saldoFinal.valor,
+      banco: ext.banco || null, titular: ext.titular || null, titularCpf: ext.titularCpf || null, contaFinal: ext.contaFinal || null,
+      linhas: ext.lancamentos.map(function(e){
+        return {data: e.data, dataReal: e.dataReal || e.data, valor: e.valor, tipoOp: e.tipoOp || "", contraparte: e.contraparte || "",
+          lote: e.lote || "", documento: e.documento || "", hora: e.hora || "", chaveExtra: e.chaveExtra || "", cpfCnpj: e.cpfCnpj || null, doc: documentoChave(e)};
+      })};
+  }
+  // Guarda a referência; um extrato de período mais antigo nunca substitui um mais novo.
+  function guardarReferencia(saldos, chave, ref){
+    var c = saldos[chave];
+    if(!c || !ref) return false;
+    if(c.ref && c.ref.ate > ref.ate) return false;
+    c.ref = ref;
+    return true;
+  }
+  function sinalDoTipo(tx){
+    if(tx.tipo === "receita" || tx.tipo === "estorno") return 1;
+    if(tx.tipo === "despesa" || tx.tipo === "pagamento_fatura") return -1;
+    return 0; // transferência interna: o sinal só se sabe pela linha do extrato
+  }
+  function chaveConc(data, doc, valor){ return data + "|" + doc + "|" + Math.abs(extCents(valor)); }
+  function tipoCompativel(tx, valor){
+    if(tx.tipo === "transferencia_interna") return true;
+    return valor < 0 ? (tx.tipo === "despesa" || tx.tipo === "pagamento_fatura") : (tx.tipo === "receita" || tx.tipo === "estorno");
+  }
+  function mesmoBanco(a, b){
+    if(!a || !b) return true;
+    var x = impNorm(a), y = impNorm(b);
+    return x.indexOf(y) !== -1 || y.indexOf(x) !== -1;
+  }
+  // ativos: lançamentos ativos; lixeira: lançamentos apagados.
+  function conciliarConta(ref, chave, ativos, lixeira){
+    if(!ref || !ref.linhas) return {aplicavel: false};
+    var doConta = ativos.filter(function(t){
+      return t.conta === chave && t.dataEfet >= ref.de && t.dataEfet <= ref.ate && t.statusParcela !== "prevista";
+    });
+    var idx = {};
+    doConta.forEach(function(t){
+      var k = chaveConc(t.dataEfet, t.documento || "", t.valor);
+      (idx[k] = idx[k] || []).push(t);
+    });
+    var usados = {}, soma = extCents(ref.saldoAnterior), sobra = [];
+    ref.linhas.forEach(function(l){
+      var lista = idx[chaveConc(l.data, l.doc, l.valor)];
+      var t = lista && lista.length ? lista.shift() : null;
+      if(t){ usados[t.id] = true; soma += extCents(l.valor); } else sobra.push(l);
+    });
+    // 1) manual parecido sem vínculo: mesmo valor, até 3 dias, ainda sem conta nem documento
+    var candidatos = ativos.filter(function(t){
+      return !t.documento && (!t.conta || t.conta === chave) && t.modalidade !== "Crédito" && t.statusParcela !== "prevista" &&
+        !usados[t.id] && mesmoBanco(t.banco, ref.banco);
+    });
+    var pares = [];
+    sobra.forEach(function(l, i){
+      candidatos.forEach(function(t){
+        if(Math.abs(extCents(t.valor)) !== Math.abs(extCents(l.valor)) || !tipoCompativel(t, l.valor)) return;
+        var d = daysDiff(t.dataEfet, l.data);
+        if(d > 3) return;
+        pares.push({i: i, t: t, d: d, sim: descSimilarity(t.descricao, (l.contraparte || "") + " " + l.tipoOp)});
+      });
+    });
+    pares.sort(function(a, b){ return a.d - b.d || b.sim - a.sim; });
+    var manuais = [], linhaFeita = {};
+    pares.forEach(function(p){
+      if(linhaFeita[p.i] || usados[p.t.id]) return;
+      linhaFeita[p.i] = true; usados[p.t.id] = true;
+      manuais.push({linha: sobra[p.i], tx: p.t});
+    });
+    // 2) na lixeira: mesma data, documento e valor, da mesma conta
+    var lix = {};
+    (lixeira || []).forEach(function(t){
+      if(t.conta !== chave) return;
+      var k = chaveConc(t.dataEfet, t.documento || "", t.valor);
+      (lix[k] = lix[k] || []).push(t);
+    });
+    var naLixeira = [], nunca = [];
+    sobra.forEach(function(l, i){
+      if(linhaFeita[i]) return;
+      var lista = lix[chaveConc(l.data, l.doc, l.valor)];
+      if(lista && lista.length) naLixeira.push({linha: l, tx: lista.shift()}); else nunca.push({linha: l});
+    });
+    // lançamentos da conta que não casam com nenhuma linha entram pelo sinal do tipo
+    var extras = doConta.filter(function(t){ return !usados[t.id]; }), semSinal = 0;
+    extras.forEach(function(t){
+      var sg = sinalDoTipo(t);
+      if(!sg) semSinal++;
+      soma += sg * extCents(t.valor);
+    });
+    var diff = (extCents(ref.saldoFinal) - soma) / 100;
+    return {aplicavel: true, ok: Math.abs(diff) < 0.005, diff: diff, calculado: soma / 100, saldoAnterior: ref.saldoAnterior, saldoFinal: ref.saldoFinal,
+      de: ref.de, ate: ref.ate, casadas: ref.linhas.length - sobra.length, manuais: manuais, lixeira: naLixeira, nunca: nunca, extras: extras, extrasSemSinal: semSinal};
+  }
+  // Lançamento novo a partir de uma linha guardada do extrato (mesma regra de leitura da importação).
+  function linhaDeReferencia(ref, linha, memoria){
+    var rows = extratoParaLinhas({lancamentos: [{data: linha.data, dataReal: linha.dataReal, valor: linha.valor, tipoOp: linha.tipoOp, contraparte: linha.contraparte,
+      lote: linha.lote, documento: linha.documento, hora: linha.hora, chaveExtra: linha.chaveExtra, cpfCnpj: linha.cpfCnpj}]});
+    var r = rows[0];
+    r.selected = true;
+    if(r.pagamento && r.pagamento.state === "pending") r.pagamento.state = "confirmed";
+    if(r.pessoa){
+      var nome = r.contraparte || nomeCandidato(r.tipoOp, ref.titular) || r.tipoOp;
+      if((memoria || {})[chaveContraparte(nome)] === "propria"){ r.tipo = "transferencia_interna"; r.categoria = "Transferência interna"; }
+    }
+    return r;
+  }
+  // Texto do vínculo guardado na observação do lançamento manual.
+  function obsVinculo(tx, linha){
+    var antes = tx.obs ? tx.obs + " · " : "";
+    return antes + "Vinculado ao extrato" + (tx.dataEfet !== linha.data ? " (data original " + tx.dataEfet.slice(8, 10) + "/" + tx.dataEfet.slice(5, 7) + "/" + tx.dataEfet.slice(0, 4) + ")" : "");
   }
   /* ==EXTRATO-GENERICO-END== */
 
@@ -4878,6 +5177,25 @@
   function stagingBanco(){
     return document.getElementById("importBanco").value.trim() || (stagingMeta && stagingMeta.banco) || "Extrato importado";
   }
+  // Lançamento manual que esta linha do extrato pode assumir: mesmo valor, até 3 dias, ainda sem conta nem documento.
+  function podeVincular(r){
+    if(r.fonte !== "extrato" || !stagingMeta || !stagingMeta.contaKey) return null;
+    var conta = stagingMeta.contaKey, banco = stagingMeta.banco;
+    var ok = function(t){
+      return t && !t.documento && (!t.conta || t.conta === conta) && t.modalidade !== "Crédito" && t.statusParcela !== "prevista" &&
+        extCents(t.valor) === extCents(r.valor) && daysDiff(t.dataEfet, r.dataEfet) <= 3 &&
+        tipoCompativel(t, r.sinal === "-" ? -1 : 1) && mesmoBanco(t.banco, banco);
+    };
+    if(r.vincularId){ var j = state.transactions.find(function(x){ return x.id === r.vincularId; }); if(ok(j)) return j; }
+    if(r.dup && !r.dup.extrato && r.dup.txId){ var d = state.transactions.find(function(x){ return x.id === r.dup.txId; }); if(ok(d)) return d; }
+    var melhor = null;
+    state.transactions.forEach(function(t){
+      if(!ok(t)) return;
+      var dd = daysDiff(t.dataEfet, r.dataEfet);
+      if(!melhor || dd < melhor.dd) melhor = {t: t, dd: dd};
+    });
+    return melhor ? melhor.t : null;
+  }
   function stagingHasCredit(){ return staging.some(function(r){ return r.modalidade === "Crédito"; }); }
   function cardKeyFinal(banco, final){ return impNorm(banco).toLowerCase() + "|" + final; }
   function cardKeyNome(banco, nome){ return "nome|" + impNorm(banco).toLowerCase() + "|" + impNorm(nome).toLowerCase(); }
@@ -5070,6 +5388,9 @@
       if(sc && !sc.aplicavel){
         extHtml += '<div class="attn-block conf-warn"><div class="attn-title">Não consegui conferir este extrato</div><ul class="conf-list"><li>Não encontrei o saldo inicial e o final (ou os totais). Os lançamentos foram lidos, mas não há como provar que a soma está certa. Confira linha a linha antes de importar.</li></ul></div>';
       }
+      if(referenciaDoExtrato(ext)){
+        extHtml += '<div class="imp-card-note" style="margin-bottom:10px;">Só quer conferir a conta? <button type="button" class="linkish" id="btnSoReferencia">Guardar as linhas deste extrato só para conferência (não importa nada)</button></div>';
+      }
       if(ext.futuros.length){
         extHtml += '<div class="imp-card-note" style="margin-bottom:10px;"><strong>Lançamentos futuros</strong> (não entram neste período): '+
           ext.futuros.map(function(f){ return fmtDate(f.data)+' · '+escapeAttr(f.historico)+' · '+fmt(Math.abs(f.valor)); }).join(' | ')+
@@ -5094,6 +5415,11 @@
             : '<span class="dup-detail"><button type="button" class="linkish" data-act="dup-fix" data-idx="'+idx+'">Corrigir a data do lançamento existente para '+fmtDate(r.dataEfet)+'</button></span>') : '')+
           '</span>';
       }
+      var vt = podeVincular(r), vincHtml = "";
+      if(vt) vincHtml = r.vincularId
+        ? '<span class="dup-detail">Será vinculada a "'+escapeAttr(vt.descricao)+'" ('+fmtDate(vt.dataEfet)+'): esse lançamento manual vira a linha do banco, sem criar outro. <button type="button" class="linkish" data-act="vinc-undo" data-idx="'+idx+'">desfazer</button></span>'
+        : '<span class="dup-detail">Você já lançou "'+escapeAttr(vt.descricao)+'" ('+fmtDate(vt.dataEfet)+') com o mesmo valor. <button type="button" class="linkish" data-act="vinc-ok" data-idx="'+idx+'">Vincular ao lançamento manual</button></span>';
+      dupHtml += vincHtml;
       var badges = (r.parcelaAtual ? '<span class="badge-parcela">'+r.parcelaAtual+'/'+r.totalParcelas+'</span>' : '')+
         (r.pagamento && r.pagamento.state === "confirmed" ? '<span class="badge-pagfat">Pagamento de fatura</span>' : '')+
         (r.conciliaId ? '<span class="badge-concilia">confirma parcela prevista</span>' : '')+
@@ -5167,6 +5493,8 @@
         else if(act === "pag-no"){ r.pagamento.state = "rejected"; r.tipo = "despesa"; }
         else if(act === "dup-fix"){ r.corrigirDup = true; }
         else if(act === "dup-undo"){ r.corrigirDup = false; }
+        else if(act === "vinc-ok"){ var vt2 = podeVincular(r); if(vt2){ r.vincularId = vt2.id; r.selected = true; } }
+        else if(act === "vinc-undo"){ r.vincularId = null; r.selected = false; }
         else if(act === "prop-ok"){ r.proprio.state = "confirmed"; r.tipo = "transferencia_interna"; r.categoria = "Transferência interna"; lembrarContraparte(chaveContraparte(r.contraparte), "propria"); }
         else if(act === "prop-no"){ r.proprio.state = "outra"; lembrarContraparte(chaveContraparte(r.contraparte), "outra"); }
         else if(act === "est-ok"){ r.estorno.state = "confirmed"; }
@@ -5193,6 +5521,14 @@
     if(review) review.onclick = function(){ openCardSetup(stagingCard, "review"); renderStaging(); };
 
     document.getElementById("btnCancelStaging").onclick = discardStaging;
+    var soRef = document.getElementById("btnSoReferencia");
+    if(soRef) soRef.onclick = function(){
+      var sd = saldoDoExtrato(stagingMeta.ext);
+      if(sd) atualizarSaldos(state.saldos, stagingMeta.contaKey, sd);
+      var ok = guardarReferencia(state.saldos, stagingMeta.contaKey, referenciaDoExtrato(stagingMeta.ext));
+      saveSaldos(); discardStaging(); renderAll();
+      toast(ok ? "Linhas do extrato guardadas para conferência. Nenhum lançamento foi alterado." : "Já existe um extrato mais novo guardado para essa conta.");
+    };
     document.getElementById("btnConfirmStaging").onclick = function(){
       if(staging.some(function(r){ return r.selected && r.pagamento && r.pagamento.state === "pending"; })){
         toast("Responda os avisos de pagamento de fatura antes de importar."); return;
@@ -5221,7 +5557,11 @@
         newId: function(){ return newLocalId("c" + (seq++)); }});
       if(ehExtrato){
         var sd = saldoDoExtrato(stagingMeta.ext);
-        if(sd && atualizarSaldos(state.saldos, stagingMeta.contaKey, sd)) saveSaldos();
+        if(sd){
+          atualizarSaldos(state.saldos, stagingMeta.contaKey, sd);
+          guardarReferencia(state.saldos, stagingMeta.contaKey, referenciaDoExtrato(stagingMeta.ext));
+          saveSaldos();
+        }
       }
       var futurosCriados = 0;
       if(ehExtrato && stagingMeta.criarFuturos){
@@ -5742,6 +6082,12 @@
 
 
   if(window.__GENESIS_TEST__){ window.__genesis = {Store: Store, state: state, aplicarNuvem: aplicarNuvem, loadSynced: loadSynced, saveSynced: saveSynced, toastUndo: toastUndo, renderTrash: renderTrash, lembrarContraparte: lembrarContraparte, countsAsSpendTx: countsAsSpendTx, informarSaldo: informarSaldo, renderHero: renderHero, renderAll: renderAll, acaoResumo: acaoResumo, abrirModalSaldo: abrirModalSaldo, compoePrevisao: compoePrevisao, computeTotals: computeTotals, ignorarDivergencia: ignorarDivergencia, divergenciasSaldo: divergenciasSaldo}; }
+
+
+  if(window.__GENESIS_TEST__){ window.__genesis = {Store: Store, state: state, aplicarNuvem: aplicarNuvem, loadSynced: loadSynced, saveSynced: saveSynced, toastUndo: toastUndo, renderTrash: renderTrash, lembrarContraparte: lembrarContraparte, countsAsSpendTx: countsAsSpendTx, informarSaldo: informarSaldo, renderHero: renderHero, renderAll: renderAll, acaoResumo: acaoResumo, abrirModalSaldo: abrirModalSaldo, compoePrevisao: compoePrevisao, computeTotals: computeTotals, ignorarDivergencia: ignorarDivergencia, divergenciasSaldo: divergenciasSaldo, conciliarConta: conciliarConta, conciliacaoDe: conciliacaoDe, abrirConciliacao: abrirConciliacao, acaoConciliacao: acaoConciliacao, acaoConciliacaoTodos: acaoConciliacaoTodos, apagarComAviso: apagarComAviso, perguntar: perguntar, referenciaDoExtrato: referenciaDoExtrato, guardarReferencia: guardarReferencia, atualizarSaldos: atualizarSaldos, podeVincular: podeVincular}; }
+
+
+  if(window.__GENESIS_TEST__){ window.__genesis = {Store: Store, state: state, aplicarNuvem: aplicarNuvem, loadSynced: loadSynced, saveSynced: saveSynced, toastUndo: toastUndo, renderTrash: renderTrash, lembrarContraparte: lembrarContraparte, countsAsSpendTx: countsAsSpendTx, informarSaldo: informarSaldo, renderHero: renderHero, renderAll: renderAll, acaoResumo: acaoResumo, abrirModalSaldo: abrirModalSaldo, compoePrevisao: compoePrevisao, computeTotals: computeTotals, ignorarDivergencia: ignorarDivergencia, divergenciasSaldo: divergenciasSaldo, conciliarConta: conciliarConta, conciliacaoDe: conciliacaoDe, abrirConciliacao: abrirConciliacao, acaoConciliacao: acaoConciliacao, acaoConciliacaoTodos: acaoConciliacaoTodos, apagarComAviso: apagarComAviso, perguntar: perguntar, referenciaDoExtrato: referenciaDoExtrato, guardarReferencia: guardarReferencia, atualizarSaldos: atualizarSaldos, podeVincular: podeVincular}; }
   init();
 })();
 </script>
