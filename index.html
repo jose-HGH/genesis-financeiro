@@ -4,7 +4,7 @@
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.0/dist/umd/supabase.js"></script>
-<meta name="app-version" content="20261028-012942">
+<meta name="app-version" content="20261028-155049">
 <script>
 (function(){
   var m = document.querySelector('meta[name="app-version"]'); var cur = m && m.content; if(!cur) return;
@@ -335,6 +335,43 @@
   .conf-warn .conf-list{margin:6px 0 0; padding-left:18px; font-size:12.5px; color:var(--ink-2);}
   .saldo-aviso{border:1px solid var(--warn-text, var(--border-strong)); background:var(--warn-wash); border-radius:12px; padding:12px 14px; font-size:13px; margin-top:12px; color:var(--ink);}
   .saldo-aviso p{margin:4px 0 6px; color:var(--ink-2);}
+  /* ---------- Quadro de resumo do topo ---------- */
+  .resumo-card{background:var(--surface); border:1px solid var(--border); border-radius:20px; padding:clamp(18px, 4vw, 30px); color:var(--ink); box-shadow:var(--shadow-card); display:flex; flex-direction:column; gap:10px; min-width:0;}
+  .resumo-titulo{font-size:13px; color:var(--ink-2); letter-spacing:.02em;}
+  .resumo-valor{font-family:var(--font-num); font-size:clamp(34px, 9vw, 54px); font-weight:700; line-height:1.1; letter-spacing:-0.01em; overflow-wrap:anywhere;}
+  .resumo-neg{color:var(--critical-text);}
+  .resumo-aperto{color:var(--warn-text);}
+  .resumo-ok{color:var(--good-text);}
+  .resumo-frase{margin:0; font-size:15px; color:var(--ink-2); max-width:46ch;}
+  .resumo-sec{display:grid; grid-template-columns:1fr 1fr; gap:18px; margin-top:12px; padding-top:16px; border-top:1px solid var(--border);}
+  .resumo-sec div{display:flex; flex-direction:column; gap:4px; min-width:0;}
+  .resumo-sec span{font-size:12px; color:var(--ink-muted);}
+  .resumo-sec strong{font-family:var(--font-num); font-size:19px; font-weight:600; overflow-wrap:anywhere;}
+  @media (max-width:560px){.resumo-sec{grid-template-columns:1fr; gap:12px;}}
+  .resumo-rodape{display:flex; justify-content:space-between; gap:16px; margin-top:8px;}
+  .resumo-link{background:none; border:0; padding:8px 0; font:inherit; font-size:13px; color:var(--ink-2); text-decoration:underline; text-underline-offset:3px; cursor:pointer;}
+  .resumo-link:hover{color:var(--ink);}
+  .resumo-link:focus-visible, .resumo-linha button:focus-visible{outline:2px solid var(--ink); outline-offset:3px; border-radius:4px;}
+  .resumo-det{display:flex; flex-direction:column; gap:2px; margin-top:6px; padding:12px 14px; border-radius:12px; background:var(--surface-alt); font-size:14px;}
+  .resumo-linha{display:flex; justify-content:space-between; align-items:baseline; gap:12px; padding:7px 0; font-variant-numeric:tabular-nums;}
+  .resumo-linha > span:last-child{white-space:nowrap; font-family:var(--font-num);}
+  .resumo-linha button{background:none; border:0; padding:0; font:inherit; color:inherit; text-align:left; text-decoration:underline dotted; text-underline-offset:3px; cursor:pointer;}
+  .resumo-total{border-top:1px solid var(--border-strong); margin-top:4px; padding-top:10px; font-weight:700;}
+  .resumo-itens{list-style:none; margin:0 0 4px; padding:0 0 0 12px; display:flex; flex-direction:column; gap:3px; font-size:12.5px; color:var(--ink-2);}
+  .resumo-item{display:grid; grid-template-columns:minmax(0,1fr) auto auto; gap:10px; align-items:baseline;}
+  .resumo-item span:first-child{overflow-wrap:anywhere;}
+  .resumo-item em{font-style:normal; color:var(--ink-muted);}
+  .resumo-item span:not(:first-child){font-family:var(--font-num); white-space:nowrap;}
+  .resumo-vazio p{margin:6px 0 14px; font-size:16px; color:var(--ink-2); max-width:44ch;}
+  .card-rodape{display:flex; justify-content:space-between; gap:12px; margin-top:12px; padding-top:10px; border-top:1px solid var(--border); font-size:12.5px; color:var(--ink-2);}
+  .card-rodape strong{font-family:var(--font-num); color:var(--ink);}
+  .modal-fundo{position:fixed; inset:0; background:rgba(0,0,0,.45); display:flex; align-items:center; justify-content:center; padding:16px; z-index:60;}
+  .modal-fundo[hidden]{display:none;}
+  .modal-caixa{background:var(--surface); color:var(--ink); border-radius:16px; padding:20px; width:min(380px, 100%); display:flex; flex-direction:column; gap:8px; box-shadow:0 18px 50px rgba(0,0,0,.3);}
+  .modal-caixa h3{margin:0 0 4px; font-size:17px;}
+  .modal-caixa label{font-size:12.5px; font-weight:600; color:var(--ink-2); margin-top:4px;}
+  .modal-caixa select, .modal-caixa input{font-family:var(--font-ui); font-size:14px; padding:9px 10px; border-radius:9px; border:1px solid var(--border-strong); background:var(--surface-alt); color:var(--ink); min-width:0;}
+  .modal-acoes{display:flex; justify-content:flex-end; gap:8px; margin-top:12px;}
   .pf-ativas-barra{margin-top:12px;}
   .pf-ativas{margin-top:10px; font-size:12.5px; color:var(--ink-2);}
   .pf-parc-row{display:flex; justify-content:space-between; gap:12px; padding:5px 0; border-top:1px solid var(--border); font-variant-numeric:tabular-nums;}
@@ -734,6 +771,7 @@
         <h2>Maiores gastos do mês</h2>
       </div>
       <div class="bar-list" id="categoryChart"></div>
+      <button type="button" class="btn btn-ghost" id="btnGastosToggle" hidden style="margin-top:10px;">Ver todos os gastos</button>
     </div>
   </section>
 
@@ -1027,6 +1065,17 @@
 </div>
 
 <div id="toast" role="status" aria-live="polite"></div>
+<div id="saldoModal" class="modal-fundo" hidden>
+  <div class="modal-caixa" role="dialog" aria-modal="true" aria-labelledby="saldoModalTitulo">
+    <h3 id="saldoModalTitulo">Atualizar saldo</h3>
+    <label for="saldoConta">Conta</label>
+    <select id="saldoConta"></select>
+    <input id="saldoNome" placeholder="Nome da conta" aria-label="Nome da conta" hidden>
+    <label for="saldoValor">Saldo de hoje</label>
+    <input id="saldoValor" inputmode="decimal" placeholder="R$ 0,00">
+    <div class="modal-acoes"><button type="button" class="btn btn-ghost" id="btnSaldoCancelar">Cancelar</button><button type="button" class="btn btn-primary" id="btnSaldoOk">Salvar</button></div>
+  </div>
+</div>
 <div id="undoBar" role="status" hidden><span id="undoText"></span><button type="button" id="undoBtn">Desfazer</button></div>
 
 <script>
@@ -2020,100 +2069,114 @@
     return isNaN(v) ? null : Math.round(v * 100) / 100;
   }
 
+  // Lançamentos que compõem "A receber" e "A pagar" (a mesma regra do computeTotals: pendentes do mês,
+  // sem pagamentos de fatura nem transferências; previstas de despesa entram em "A pagar").
+  function compoePrevisao(ref){
+    var ym = monthKey(ref), receber = [], pagar = [];
+    state.transactions.forEach(function(tx){
+      if(monthKey(tx.dataEfet) !== ym || isNeutro(tx)) return;
+      if(isPrevista(tx)){ if(tx.tipo !== "receita") pagar.push(tx); return; }
+      if(isRealized(tx, ref)) return;
+      if(tx.tipo === "receita") receber.push(tx); else pagar.push(tx);
+    });
+    var porData = function(a, b){ return a.dataEfet.localeCompare(b.dataEfet); };
+    return {receber: receber.sort(porData), pagar: pagar.sort(porData)};
+  }
+  var resumoAberto = false, resumoLista = null; // "Ver detalhes" fechado por padrão
+  function acaoResumo(a){
+    if(a === "atualizar-saldo"){ abrirModalSaldo(); return; }
+    if(a === "detalhes"){ resumoAberto = !resumoAberto; if(!resumoAberto) resumoLista = null; }
+    else if(a === "saldos" || a === "receber" || a === "pagar"){ resumoLista = (resumoLista === a ? null : a); }
+    renderHero(refISO());
+  }
+  // Janela pequena "Atualizar saldo"
+  function abrirModalSaldo(){
+    var modal = document.getElementById("saldoModal"), sel = document.getElementById("saldoConta"), nome = document.getElementById("saldoNome");
+    var chaves = Object.keys(state.saldos || {});
+    sel.innerHTML = chaves.map(function(k){ return '<option value="'+escapeAttr(k)+'">'+escapeAttr(rotuloConta(state.saldos[k]))+'</option>'; }).join("") + '<option value="__nova__">Outra conta…</option>';
+    sel.value = chaves.length ? chaves[0] : "__nova__";
+    nome.hidden = sel.value !== "__nova__"; nome.value = "";
+    document.getElementById("saldoValor").value = "";
+    modal.hidden = false;
+    var campo = document.getElementById("saldoValor");
+    if(campo.focus) campo.focus();
+  }
+  function fecharModalSaldo(){ var m = document.getElementById("saldoModal"); if(m) m.hidden = true; }
+  function salvarSaldoModal(){
+    var sel = document.getElementById("saldoConta"), nome = document.getElementById("saldoNome");
+    var v = lerValorBR(document.getElementById("saldoValor").value);
+    if(v === null){ toast("Digite o saldo da conta (ex.: 2,93)."); return; }
+    var chave = sel.value, nm = (nome.value || "").trim();
+    if(chave === "__nova__"){
+      if(!nm){ toast("Dê um nome para a conta."); return; }
+      chave = "manual|" + impNorm(nm).toLowerCase();
+    }
+    informarSaldo(chave, nm || null, v);
+    fecharModalSaldo();
+    toast("Saldo atualizado.");
+  }
+
   function renderHero(ref){
     var r = computeTotals(ref);
     var mr = monthRange(ref);
-    var bd = computeHeroBreakdown(ref, r);
-    var hoje = new Date(ref+"T00:00:00");
-    var diasRestantes = Math.max(mr.daysInMonth - hoje.getDate() + 1, 1);
     var fimMes = mr.last.getFullYear()+"-"+pad2(mr.last.getMonth()+1)+"-"+pad2(mr.last.getDate());
-    // Com o saldo das contas conhecido (e olhando o mês de hoje), o número parte do dinheiro real.
+    var ym = monthKey(ref), nomeMes = MESES_NOME[parseInt(ym.slice(5, 7), 10) - 1].toLowerCase();
+    var mesAtual = ym === monthKey(todayISO());
     var chaves = Object.keys(state.saldos || {});
-    var usaSaldo = chaves.length > 0 && monthKey(ref) === monthKey(todayISO());
+    var card = document.getElementById("heroCard");
+    card.className = "resumo-card fade-in";
+    var rodape = function(){
+      return '<div class="resumo-rodape"><button type="button" class="resumo-link" data-resumo="detalhes" aria-expanded="'+(resumoAberto ? "true" : "false")+'">'+(resumoAberto ? "Ocultar detalhes" : "Ver detalhes")+'</button>'+
+        '<button type="button" class="resumo-link" data-resumo="atualizar-saldo">Atualizar saldo</button></div>';
+    };
+    // Sem saldo informado nem extrato importado: nada de números zerados.
+    if(mesAtual && !chaves.length){
+      card.innerHTML = '<div class="resumo-titulo">Previsão para '+fmtDate(fimMes)+'</div>'+
+        '<div class="resumo-vazio"><p>Importe um extrato ou informe seu saldo para ver a previsão do mês</p>'+
+        '<button type="button" class="btn btn-primary" data-resumo="atualizar-saldo">Atualizar saldo</button></div>';
+      renderAvisoSaldo();
+      return r;
+    }
+    var usaSaldo = mesAtual && chaves.length > 0;
     var base = somaSaldos(state.saldos);
     var valor = usaSaldo ? valorComSaldo(base, r.recPend, r.despPend, r.prevDesp) : r.saldoProjetado;
-    var perDia = valor / diasRestantes;
-    var ok = valor >= 0;
-
-    var linhasConta = chaves.map(function(k){
-      var c = state.saldos[k];
-      return '<div class="hero-b-row hero-conta"><span>'+escapeAttr(rotuloConta(c))+' <em>· '+(c.origem === "manual" ? 'informado' : 'extrato')+' de '+(c.data ? fmtDate(c.data) : 's/ data')+'</em></span><span>'+fmt(c.saldo)+'</span></div>';
-    }).join("");
-    var opcoes = chaves.map(function(k){ return '<option value="'+escapeAttr(k)+'">'+escapeAttr(rotuloConta(state.saldos[k]))+'</option>'; }).join("") + '<option value="__nova__">Outra conta…</option>';
-    var formSaldo = '<div class="hero-saldo-form">'+
-      '<label for="saldoConta">Informar saldo de hoje</label>'+
-      '<select id="saldoConta">'+opcoes+'</select>'+
-      '<input id="saldoNome" placeholder="Nome da conta" '+(chaves.length ? 'hidden' : '')+'>'+
-      '<input id="saldoValor" inputmode="decimal" placeholder="R$ 0,00">'+
-      '<button type="button" class="btn btn-ghost" id="btnSaldoOk">Salvar</button></div>';
-
-    var html;
-    if(usaSaldo){
-      html = '<div class="hero-eyebrow">'+(ok ? "Você ainda pode gastar até "+fmtDate(fimMes) : "O que vence ainda passa do que você tem")+'</div>'+
-        '<div class="hero-pill '+(ok?"hero-pill-good":"hero-pill-bad")+'">'+(ok?"Dinheiro nas contas":"Atenção")+'</div>'+
-        '<div class="hero-value">'+(ok?"":"-")+fmt(Math.abs(valor))+'</div>'+
-        '<div class="hero-sub">'+(ok
-          ? "Cerca de "+fmt(Math.abs(perDia))+" por dia nos próximos "+diasRestantes+" dias"
-          : "Faltam "+fmt(Math.abs(valor))+" para cobrir o que ainda vence neste mês")+'</div>'+
-        '<div class="hero-breakdown">'+
-          '<div class="hero-b-head">Como chegamos nesse número</div>'+
-          '<div class="hero-b-row hero-b-total"><span>Saldo nas contas</span><span>'+fmt(base)+'</span></div>'+
-          linhasConta+
-          '<div class="hero-b-row"><span>+ Receitas ainda a receber</span><span>'+fmt(r.recPend)+'</span></div>'+
-          '<div class="hero-b-row"><span>− Contas a pagar até '+fmtDate(fimMes)+'</span><span>'+fmt(bd.contasPagar)+'</span></div>'+
-          (bd.faturaPend > 0 ? '<div class="hero-b-row"><span>− Fatura do cartão'+(bd.faturaVenc?" (vence "+fmtDate(bd.faturaVenc)+")":"")+'</span><span>'+fmt(bd.faturaPend)+'</span></div>' : '')+
-          (bd.previstas > 0 ? '<div class="hero-b-row"><span>− Parcelas já assumidas</span><span>'+fmt(bd.previstas)+'</span></div>' : '')+
-          '<div class="hero-b-row"><span>Reserva de emergência guardada</span><span>'+fmt(bd.reserva)+'</span></div>'+
-        '</div>'+
-        '<div class="hero-stats">'+
-          '<div class="hero-stat"><span>Saldo nas contas</span><strong>'+fmt(base)+'</strong></div>'+
-          '<div class="hero-stat"><span>Receitas previstas</span><strong>'+fmt(r.recTotal)+'</strong></div>'+
-          '<div class="hero-stat"><span>Comprometido fixo</span><strong>'+fmt(r.fixoTotal)+'</strong></div>'+
-        '</div>'+ formSaldo;
-    } else {
-      html = '<div class="hero-eyebrow">'+(ok ? "Você ainda pode gastar até "+fmtDate(fimMes) : "Você já passou do previsto para este mês")+'</div>'+
-        '<div class="hero-pill '+(ok?"hero-pill-good":"hero-pill-bad")+'">'+(ok?"No ritmo certo":"Fora do previsto")+'</div>'+
-        '<div class="hero-value">'+(ok?"":"-")+fmt(Math.abs(valor))+'</div>'+
-        '<div class="hero-sub">'+(ok
-          ? "Cerca de "+fmt(Math.abs(perDia))+" por dia nos próximos "+diasRestantes+" dias"
-          : "Já "+fmt(Math.abs(valor))+" além do que as receitas do mês cobrem")+'</div>'+
-        '<div class="hero-breakdown">'+
-          '<div class="hero-b-head">Como chegamos nesse número</div>'+
-          '<div class="hero-b-row"><span>Despesas já confirmadas</span><span>'+fmt(bd.despReal)+'</span></div>'+
-          '<div class="hero-b-row"><span>Contas a pagar até '+fmtDate(fimMes)+'</span><span>'+fmt(bd.contasPagar)+'</span></div>'+
-          (bd.faturaPend > 0 ? '<div class="hero-b-row"><span>Fatura do cartão'+(bd.faturaVenc?" (vence "+fmtDate(bd.faturaVenc)+")":"")+'</span><span>'+fmt(bd.faturaPend)+'</span></div>' : '')+
-          (bd.previstas > 0 ? '<div class="hero-b-row"><span>Parcelas já assumidas</span><span>'+fmt(bd.previstas)+'</span></div>' : '')+
-          '<div class="hero-b-row"><span>Reserva de emergência guardada</span><span>'+fmt(bd.reserva)+'</span></div>'+
-        '</div>'+
-        '<div class="hero-stats">'+
-          '<div class="hero-stat"><span>Saldo já confirmado</span><strong>'+fmt(r.saldoAtual)+'</strong></div>'+
-          '<div class="hero-stat"><span>Receitas previstas</span><strong>'+fmt(r.recTotal)+'</strong></div>'+
-          '<div class="hero-stat"><span>Comprometido fixo</span><strong>'+fmt(r.fixoTotal)+'</strong></div>'+
-        '</div>'+
-        (monthKey(ref) === monthKey(todayISO()) ? '<p class="hero-dica">Para ver o dinheiro que você tem nas contas, importe um extrato ou informe o saldo.</p>' + formSaldo : '');
-    }
-    var card = document.getElementById("heroCard");
-    card.innerHTML = html;
-    card.className = "hero-card fade-in";
-    renderAvisoSaldo();
-    var sel = document.getElementById("saldoConta"), nome = document.getElementById("saldoNome"), ok2 = document.getElementById("btnSaldoOk");
-    if(sel){
-      sel.onchange = function(){ if(nome) nome.hidden = this.value !== "__nova__"; };
-      sel.onchange();
-    }
-    if(ok2){
-      ok2.onclick = function(){
-        var v = lerValorBR((document.getElementById("saldoValor") || {}).value);
-        if(v === null){ toast("Digite o saldo da conta (ex.: 2,93)."); return; }
-        var chave = sel ? sel.value : "__nova__", nm = nome ? nome.value.trim() : "";
-        if(chave === "__nova__"){
-          if(!nm){ toast("Dê um nome para a conta."); return; }
-          chave = "manual|" + impNorm(nm).toLowerCase();
-        }
-        informarSaldo(chave, nm || null, v);
-        toast("Saldo salvo.");
+    var renda = r.recTotal || (state.patrimonio && state.patrimonio.rendaMensal) || 0;
+    var sit = situacaoPrevisao(valor, renda);
+    var resultado = Math.round((r.recTotal - r.despTotal) * 100) / 100;
+    var html = '<div class="resumo-titulo">Previsão para '+fmtDate(fimMes)+'</div>'+
+      '<div class="resumo-valor resumo-'+sit.estado+'">'+fmt(valor)+'</div>'+
+      '<p class="resumo-frase">'+sit.frase+'</p>'+
+      '<div class="resumo-sec">'+
+        '<div><span>'+(usaSaldo ? "Saldo hoje" : "Receitas do mês")+'</span><strong>'+fmt(usaSaldo ? base : r.recTotal)+'</strong></div>'+
+        '<div><span>Resultado de '+nomeMes+'</span><strong>'+fmt(resultado)+'</strong></div>'+
+      '</div>';
+    if(resumoAberto){
+      var itens = function(lista, vazio){
+        return lista.length ? '<ul class="resumo-itens">'+lista.map(function(t){
+          return '<li class="resumo-item"><span>'+escapeAttr(t.descricao)+(isPrevista(t) ? ' <em>(prevista)</em>' : '')+'</span><span>'+fmtDate(t.dataEfet)+'</span><span>'+fmt(t.tipo === "receita" ? t.valor : despVal(t))+'</span></li>';
+        }).join("")+'</ul>' : '<ul class="resumo-itens"><li>'+vazio+'</li></ul>';
       };
+      if(usaSaldo){
+        var comp = compoePrevisao(ref), aPagar = Math.round((r.despPend + r.prevDesp) * 100) / 100;
+        var nPagar = comp.pagar.length + " " + (comp.pagar.length === 1 ? "conta" : "contas");
+        html += '<div class="resumo-det">'+
+          '<div class="resumo-linha">'+(chaves.length > 1 ? '<button type="button" data-resumo="saldos">Saldo hoje</button>' : '<span>Saldo hoje</span>')+'<span>'+fmt(base)+'</span></div>'+
+          (resumoLista === "saldos" ? '<ul class="resumo-itens">'+chaves.map(function(k){ var c = state.saldos[k];
+            return '<li class="resumo-item"><span>'+escapeAttr(rotuloConta(c))+' <em>('+(c.origem === "manual" ? "informado" : "extrato")+')</em></span><span>'+(c.data ? fmtDate(c.data) : "")+'</span><span>'+fmt(c.saldo)+'</span></li>'; }).join("")+'</ul>' : '')+
+          '<div class="resumo-linha"><button type="button" data-resumo="receber">+ A receber até '+fmtDate(fimMes)+'</button><span>'+fmt(r.recPend)+'</span></div>'+
+          (resumoLista === "receber" ? itens(comp.receber, "Nada a receber até "+fmtDate(fimMes)+".") : '')+
+          '<div class="resumo-linha"><button type="button" data-resumo="pagar">− A pagar até '+fmtDate(fimMes)+' ('+nPagar+')</button><span>'+fmt(aPagar)+'</span></div>'+
+          (resumoLista === "pagar" ? itens(comp.pagar, "Nada a pagar até "+fmtDate(fimMes)+".") : '')+
+          '<div class="resumo-linha resumo-total"><span>= Previsão</span><span>'+fmt(valor)+'</span></div></div>';
+      } else {
+        html += '<div class="resumo-det">'+
+          '<div class="resumo-linha"><span>Receitas de '+nomeMes+'</span><span>'+fmt(r.recTotal + r.prevRec)+'</span></div>'+
+          '<div class="resumo-linha"><span>− Despesas de '+nomeMes+'</span><span>'+fmt(r.despTotal + r.prevDesp)+'</span></div>'+
+          '<div class="resumo-linha resumo-total"><span>= Previsão</span><span>'+fmt(valor)+'</span></div></div>';
+      }
     }
+    card.innerHTML = html + rodape();
+    renderAvisoSaldo();
     return r;
   }
 
@@ -2328,6 +2391,8 @@
     return Object.keys(map).map(function(k){ return {label:k, value:map[k]}; }).sort(function(a,b){ return b.value-a.value; });
   }
 
+  var gastosAbertos = false;
+  var GASTOS_LINHAS = 4; // quantas categorias aparecem antes de pedir para ver todas
   function renderCategoryChart(){
     var ref = refISO();
     var mr = monthRange(ref);
@@ -2343,7 +2408,13 @@
       return (d.getFullYear()===mr.first.getFullYear() && d.getMonth()===mr.first.getMonth()) ? sum + t.valor : sum;
     }, 0);
     var max = Math.max.apply(null, data.map(function(d){ return d.value; }).concat([0.0001]));
-    var html = data.map(function(d){
+    var visiveis = gastosAbertos ? data : data.slice(0, GASTOS_LINHAS);
+    var tg = document.getElementById("btnGastosToggle");
+    if(tg){
+      tg.hidden = data.length <= GASTOS_LINHAS;
+      tg.textContent = gastosAbertos ? "Mostrar menos" : "Ver todos os gastos (" + data.length + ")";
+    }
+    var html = visiveis.map(function(d){
       var lim = state.budgets[d.label];
       var over = !!(lim && d.value > lim);
       var pct = lim ? Math.min((d.value/lim)*100, 100) : Math.max((d.value/max)*100, 2);
@@ -2383,7 +2454,8 @@
       return '<div class="stack-legend-item"><span class="sl-top"><span class="sl-dot" style="background:'+CLASS_COLOR[k]+'"></span>'+k+'</span>'+
         '<span class="sl-value">'+fmt(sums[k])+'</span><span class="sl-pct">'+pct+'% das despesas</span></div>';
     }).join("");
-    document.getElementById("classLegend").innerHTML = legendHtml;
+    document.getElementById("classLegend").innerHTML = legendHtml +
+      '<div class="card-rodape"><span>Comprometido fixo do mês</span><strong>'+fmt(computeTotals(refISO()).fixoTotal)+'</strong></div>';
   }
 
   function renderAccountTiles(ref){
@@ -2429,7 +2501,9 @@
         '<div class="pay-value '+cls+'">'+sign+fmt(t.valor)+'</div></div>';
     }).join("");
     if(doMes.length > items.length) html += '<div class="empty-note">+ '+(doMes.length - items.length)+' lançamento(s) a mais em '+nomeMes+'. Veja todos na tabela de lançamentos.</div>';
-    document.getElementById("upcomingList").innerHTML = html || '<div class="empty-note">Nada pendente em '+nomeMes+' — todos os lançamentos do mês já foram efetivados.</div>';
+    if(!html) html = '<div class="empty-note">Nada pendente em '+nomeMes+' — todos os lançamentos do mês já foram efetivados.</div>';
+    html += '<div class="card-rodape"><span>Receitas previstas de '+nomeMes+'</span><strong>'+fmt(computeTotals(ref).recTotal)+'</strong></div>';
+    document.getElementById("upcomingList").innerHTML = html;
   }
 
   function monthRange(ref){
@@ -2764,6 +2838,17 @@
     renderAll();
   });
   document.getElementById("btnVerParcelas").addEventListener("click", function(){ parcelasAbertas = !parcelasAbertas; renderFaturas(refISO()); });
+  document.getElementById("btnGastosToggle").addEventListener("click", function(){ gastosAbertos = !gastosAbertos; renderCategoryChart(); });
+  // quadro de resumo: um só ouvinte para "Ver detalhes", "Atualizar saldo" e as listas clicáveis
+  document.getElementById("heroCard").addEventListener("click", function(e){
+    var b = e.target && e.target.closest ? e.target.closest("[data-resumo]") : null;
+    if(b) acaoResumo(b.dataset.resumo);
+  });
+  document.getElementById("btnSaldoOk").addEventListener("click", salvarSaldoModal);
+  document.getElementById("btnSaldoCancelar").addEventListener("click", fecharModalSaldo);
+  document.getElementById("saldoConta").addEventListener("change", function(){ document.getElementById("saldoNome").hidden = this.value !== "__nova__"; });
+  document.getElementById("saldoModal").addEventListener("click", function(e){ if(e.target === this) fecharModalSaldo(); });
+  document.addEventListener("keydown", function(e){ if(e.key === "Escape") fecharModalSaldo(); });
   ["fSearch","fTipo","fStatus","fCategoria"].forEach(function(id){
     document.getElementById(id).addEventListener("input", function(){ renderLedger(refISO()); });
   });
@@ -4476,6 +4561,15 @@
   function valorComSaldo(base, recPend, despPend, prevDesp){
     return Math.round((base + recPend - despPend - prevDesp) * 100) / 100;
   }
+  // Situação da previsão do mês, para a cor e a frase do quadro de resumo.
+  //  negativo -> vermelho; positivo mas abaixo de 10% da renda do mês -> amarelo; senão verde.
+  // A frase sempre diz a situação: a cor nunca é a única pista.
+  function situacaoPrevisao(valor, renda){
+    var limite = Math.max(0.1 * (renda || 0), 0.005);
+    if(valor < -0.005) return {estado: "neg", frase: "Suas contas até o fim do mês passam o seu saldo."};
+    if(valor < limite) return {estado: "aperto", frase: "O mês está apertado. Confira as contas a pagar."};
+    return {estado: "ok", frase: "Você deve terminar o mês com folga."};
+  }
   /* ==EXTRATO-GENERICO-END== */
 
   function extractLinesFromPdf(bytes){
@@ -5639,6 +5733,15 @@
 
 
   if(window.__GENESIS_TEST__){ window.__genesis = {Store: Store, state: state, aplicarNuvem: aplicarNuvem, loadSynced: loadSynced, saveSynced: saveSynced, toastUndo: toastUndo, renderTrash: renderTrash, lembrarContraparte: lembrarContraparte, countsAsSpendTx: countsAsSpendTx, informarSaldo: informarSaldo, renderHero: renderHero, renderAll: renderAll, ignorarDivergencia: ignorarDivergencia, divergenciasSaldo: divergenciasSaldo}; }
+
+
+  if(window.__GENESIS_TEST__){ window.__genesis = {Store: Store, state: state, aplicarNuvem: aplicarNuvem, loadSynced: loadSynced, saveSynced: saveSynced, toastUndo: toastUndo, renderTrash: renderTrash, lembrarContraparte: lembrarContraparte, countsAsSpendTx: countsAsSpendTx, informarSaldo: informarSaldo, renderHero: renderHero, renderAll: renderAll, acaoResumo: acaoResumo, abrirModalSaldo: abrirModalSaldo, compoePrevisao: compoePrevisao, computeTotals: computeTotals, ignorarDivergencia: ignorarDivergencia, divergenciasSaldo: divergenciasSaldo}; }
+
+
+  if(window.__GENESIS_TEST__){ window.__genesis = {Store: Store, state: state, aplicarNuvem: aplicarNuvem, loadSynced: loadSynced, saveSynced: saveSynced, toastUndo: toastUndo, renderTrash: renderTrash, lembrarContraparte: lembrarContraparte, countsAsSpendTx: countsAsSpendTx, informarSaldo: informarSaldo, renderHero: renderHero, renderAll: renderAll, acaoResumo: acaoResumo, abrirModalSaldo: abrirModalSaldo, compoePrevisao: compoePrevisao, computeTotals: computeTotals, ignorarDivergencia: ignorarDivergencia, divergenciasSaldo: divergenciasSaldo}; }
+
+
+  if(window.__GENESIS_TEST__){ window.__genesis = {Store: Store, state: state, aplicarNuvem: aplicarNuvem, loadSynced: loadSynced, saveSynced: saveSynced, toastUndo: toastUndo, renderTrash: renderTrash, lembrarContraparte: lembrarContraparte, countsAsSpendTx: countsAsSpendTx, informarSaldo: informarSaldo, renderHero: renderHero, renderAll: renderAll, acaoResumo: acaoResumo, abrirModalSaldo: abrirModalSaldo, compoePrevisao: compoePrevisao, computeTotals: computeTotals, ignorarDivergencia: ignorarDivergencia, divergenciasSaldo: divergenciasSaldo}; }
   init();
 })();
 </script>
