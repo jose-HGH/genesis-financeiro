@@ -4,7 +4,7 @@
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.0/dist/umd/supabase.js"></script>
-<meta name="app-version" content="20261028-011026">
+<meta name="app-version" content="20261028-012942">
 <script>
 (function(){
   var m = document.querySelector('meta[name="app-version"]'); var cur = m && m.content; if(!cur) return;
@@ -3928,21 +3928,43 @@
   // conta + data + documento (lote/documento/hora) + valor — com multiplicidade: duas linhas iguais
   // no mesmo extrato são duas linhas; só as já gravadas contam como duplicadas.
   function chaveLinhaExtrato(conta, dataEfet, documento, valor){ return [conta, dataEfet, documento, Number(valor).toFixed(2)].join("|"); }
-  function marcarDuplicadosExtrato(rows, txs, conta){
+  // Duas verificações, nesta ordem:
+  //  1) a chave exata conta + data + documento + valor, contra lançamentos que vieram de outro extrato;
+  //  2) o mesmo critério das faturas (mesmo valor + data próxima ou descrição parecida), contra os
+  //     lançamentos comuns: manuais, de importações antigas, sem conta nem documento.
+  // Crédito fica de fora (compra no cartão não sai da conta) e o banco tem que ser o mesmo.
+  // A linha só é desmarcada quando a duplicidade é detectada; se você marcar de volta, fica marcada.
+  function marcarDuplicadosExtrato(rows, txs, conta, banco){
     var gravadas = {};
     txs.forEach(function(t){
       if(t.conta !== conta || !t.documento) return;
       var k = chaveLinhaExtrato(t.conta, t.dataEfet, t.documento, t.valor);
       gravadas[k] = (gravadas[k] || 0) + 1;
     });
+    var comuns = txs.filter(function(t){
+      return !(t.conta && t.documento) && t.modalidade !== "Crédito" && (!banco || !t.banco || impNorm(t.banco) === impNorm(banco));
+    });
     var vistas = {};
     rows.forEach(function(r){
-      var k = chaveLinhaExtrato(conta, r.dataEfet, r.documentoChave, r.valor);
+      var k = chaveLinhaExtrato(conta, r.dataEfet, r.documentoChave, r.valor), novo = null;
       vistas[k] = (vistas[k] || 0) + 1;
       if(vistas[k] <= (gravadas[k] || 0)){
-        r.dup = {level: "confirmed", txId: null, descricao: r.descricao, dataEfet: r.dataEfet, valor: r.valor, extrato: true};
-        r.selected = false;
-      } else if(r.dup && r.dup.extrato){ r.dup = null; r.selected = !r.flagged; }
+        novo = {level: "confirmed", txId: null, descricao: r.descricao, dataEfet: r.dataEfet, valor: r.valor, extrato: true};
+      } else if(!r.conciliaId){
+        var melhor = null;
+        comuns.forEach(function(t){
+          var m = compararDuplicado(r, t);
+          if(!m) return;
+          var rank = m.level === "confirmed" ? 2 : 1;
+          if(!melhor || rank > melhor.rank) melhor = {level: m.level, rank: rank, tx: t};
+        });
+        if(melhor) novo = {level: melhor.level, txId: melhor.tx.id, descricao: melhor.tx.descricao, dataEfet: melhor.tx.dataEfet, valor: melhor.tx.valor, extrato: false};
+      }
+      if(novo){
+        var igual = r.dup && r.dup.txId === novo.txId && r.dup.extrato === novo.extrato && r.dup.level === novo.level;
+        r.dup = novo;
+        if(!igual && novo.level === "confirmed") r.selected = false;
+      } else if(r.dup){ r.dup = null; r.selected = !r.flagged; }
     });
     return rows;
   }
@@ -4000,7 +4022,8 @@
         r.conciliaId = prev ? prev.id : null;
       }
     });
-    marcarDuplicadosExtrato(rows, ctx.txs || [], conta);
+    // banco "Extrato importado" é só o nome padrão quando o PDF não diz de que banco é: aí não restringe por banco
+    marcarDuplicadosExtrato(rows, ctx.txs || [], conta, ext.banco === "Extrato importado" ? null : ext.banco);
     rows.forEach(function(r){ if(r.conciliaId){ r.dup = null; r.selected = true; } });
     return {saldo: ext.prova || conferirSaldoExtrato(ext)};
   }
@@ -5601,6 +5624,15 @@
 
 
   if(window.__GENESIS_TEST__){ window.__genesis = {Store: Store, state: state, aplicarNuvem: aplicarNuvem, loadSynced: loadSynced, saveSynced: saveSynced, toastUndo: toastUndo, renderTrash: renderTrash, lembrarContraparte: lembrarContraparte, countsAsSpendTx: countsAsSpendTx, informarSaldo: informarSaldo, renderHero: renderHero, ignorarDivergencia: ignorarDivergencia, divergenciasSaldo: divergenciasSaldo}; }
+
+
+  if(window.__GENESIS_TEST__){ window.__genesis = {Store: Store, state: state, aplicarNuvem: aplicarNuvem, loadSynced: loadSynced, saveSynced: saveSynced, toastUndo: toastUndo, renderTrash: renderTrash, lembrarContraparte: lembrarContraparte, countsAsSpendTx: countsAsSpendTx, informarSaldo: informarSaldo, renderHero: renderHero, renderAll: renderAll, ignorarDivergencia: ignorarDivergencia, divergenciasSaldo: divergenciasSaldo}; }
+
+
+  if(window.__GENESIS_TEST__){ window.__genesis = {Store: Store, state: state, aplicarNuvem: aplicarNuvem, loadSynced: loadSynced, saveSynced: saveSynced, toastUndo: toastUndo, renderTrash: renderTrash, lembrarContraparte: lembrarContraparte, countsAsSpendTx: countsAsSpendTx, informarSaldo: informarSaldo, renderHero: renderHero, renderAll: renderAll, ignorarDivergencia: ignorarDivergencia, divergenciasSaldo: divergenciasSaldo}; }
+
+
+  if(window.__GENESIS_TEST__){ window.__genesis = {Store: Store, state: state, aplicarNuvem: aplicarNuvem, loadSynced: loadSynced, saveSynced: saveSynced, toastUndo: toastUndo, renderTrash: renderTrash, lembrarContraparte: lembrarContraparte, countsAsSpendTx: countsAsSpendTx, informarSaldo: informarSaldo, renderHero: renderHero, renderAll: renderAll, ignorarDivergencia: ignorarDivergencia, divergenciasSaldo: divergenciasSaldo}; }
 
 
   if(window.__GENESIS_TEST__){ window.__genesis = {Store: Store, state: state, aplicarNuvem: aplicarNuvem, loadSynced: loadSynced, saveSynced: saveSynced, toastUndo: toastUndo, renderTrash: renderTrash, lembrarContraparte: lembrarContraparte, countsAsSpendTx: countsAsSpendTx, informarSaldo: informarSaldo, renderHero: renderHero, renderAll: renderAll, ignorarDivergencia: ignorarDivergencia, divergenciasSaldo: divergenciasSaldo}; }
