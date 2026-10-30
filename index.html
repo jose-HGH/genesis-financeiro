@@ -4,7 +4,7 @@
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.0/dist/umd/supabase.js"></script>
-<meta name="app-version" content="20261028-165055">
+<meta name="app-version" content="20261030-224623">
 <script>
 (function(){
   var m = document.querySelector('meta[name="app-version"]'); var cur = m && m.content; if(!cur) return;
@@ -2354,11 +2354,16 @@
     return known ? ("background:"+known.bg+"; color:"+known.ink+";") : ("background:"+hashColor(key)+";");
   }
 
-  var dupIgnored = {};
+  // "São diferentes": guardado junto das contrapartes (vai para a nuvem), para o par não voltar ao recarregar.
+  var DUP_IGNORADOS = "__dupIgnorados__";
+  function dupIgnorados(){
+    var o = state.contrapartes && state.contrapartes[DUP_IGNORADOS];
+    return (o && typeof o === "object") ? o : {};
+  }
   function dupPairKey(p){ return [p.a.id, p.b.id].sort().join("::"); }
   function renderDupBanner(){
     var el = document.getElementById("dupBanner");
-    var pairs = findLedgerDuplicates().filter(function(p){ return !dupIgnored[dupPairKey(p)]; });
+    var pairs = findLedgerDuplicates().filter(function(p){ return !dupIgnorados()[dupPairKey(p)]; });
     if(!pairs.length){ el.innerHTML = ""; return; }
     el.innerHTML = '<div class="card fade-in">'+
       '<div class="card-head"><h2>Para revisar</h2><span class="hint">'+pairs.length+' lançamento'+(pairs.length>1?'s':'')+'</span></div>'+
@@ -2380,7 +2385,10 @@
     document.querySelectorAll(".dup-ignore").forEach(function(btn){
       btn.onclick = function(){
         var p = pairs[parseInt(this.dataset.idx,10)];
-        dupIgnored[dupPairKey(p)] = true;
+        var marcados = Object.assign({}, dupIgnorados());
+        marcados[dupPairKey(p)] = true;
+        state.contrapartes[DUP_IGNORADOS] = marcados;
+        saveContrapartes();
         renderDupBanner();
       };
     });
@@ -6091,6 +6099,9 @@
 
 
   if(window.__GENESIS_TEST__){ window.__genesis = {Store: Store, state: state, aplicarNuvem: aplicarNuvem, loadSynced: loadSynced, saveSynced: saveSynced, toastUndo: toastUndo, renderTrash: renderTrash, lembrarContraparte: lembrarContraparte, countsAsSpendTx: countsAsSpendTx, informarSaldo: informarSaldo, renderHero: renderHero, renderAll: renderAll, acaoResumo: acaoResumo, abrirModalSaldo: abrirModalSaldo, compoePrevisao: compoePrevisao, computeTotals: computeTotals, ignorarDivergencia: ignorarDivergencia, divergenciasSaldo: divergenciasSaldo}; }
+
+
+  if(window.__GENESIS_TEST__){ window.__genesis = {Store: Store, state: state, aplicarNuvem: aplicarNuvem, loadSynced: loadSynced, saveSynced: saveSynced, toastUndo: toastUndo, renderTrash: renderTrash, lembrarContraparte: lembrarContraparte, countsAsSpendTx: countsAsSpendTx, informarSaldo: informarSaldo, renderHero: renderHero, renderAll: renderAll, acaoResumo: acaoResumo, abrirModalSaldo: abrirModalSaldo, compoePrevisao: compoePrevisao, computeTotals: computeTotals, ignorarDivergencia: ignorarDivergencia, divergenciasSaldo: divergenciasSaldo, conciliarConta: conciliarConta, conciliacaoDe: conciliacaoDe, abrirConciliacao: abrirConciliacao, acaoConciliacao: acaoConciliacao, acaoConciliacaoTodos: acaoConciliacaoTodos, apagarComAviso: apagarComAviso, perguntar: perguntar, referenciaDoExtrato: referenciaDoExtrato, guardarReferencia: guardarReferencia, atualizarSaldos: atualizarSaldos, podeVincular: podeVincular}; }
 
 
   if(window.__GENESIS_TEST__){ window.__genesis = {Store: Store, state: state, aplicarNuvem: aplicarNuvem, loadSynced: loadSynced, saveSynced: saveSynced, toastUndo: toastUndo, renderTrash: renderTrash, lembrarContraparte: lembrarContraparte, countsAsSpendTx: countsAsSpendTx, informarSaldo: informarSaldo, renderHero: renderHero, renderAll: renderAll, acaoResumo: acaoResumo, abrirModalSaldo: abrirModalSaldo, compoePrevisao: compoePrevisao, computeTotals: computeTotals, ignorarDivergencia: ignorarDivergencia, divergenciasSaldo: divergenciasSaldo, conciliarConta: conciliarConta, conciliacaoDe: conciliacaoDe, abrirConciliacao: abrirConciliacao, acaoConciliacao: acaoConciliacao, acaoConciliacaoTodos: acaoConciliacaoTodos, apagarComAviso: apagarComAviso, perguntar: perguntar, referenciaDoExtrato: referenciaDoExtrato, guardarReferencia: guardarReferencia, atualizarSaldos: atualizarSaldos, podeVincular: podeVincular}; }
