@@ -691,8 +691,18 @@
   /* ---------- Família ---------- */
   .fam-col{display:none;}
   #ledgerSection.fam-on .fam-col{display:table-cell;}
-  .fam-tabs{display:inline-flex; margin:0 0 12px;}
-  .fam-tabs[hidden]{display:none;}
+  .vista-tabs{display:inline-flex; align-self:flex-start; gap:4px; padding:5px; border-radius:16px; background:var(--surface); border:1px solid var(--border); box-shadow:var(--shadow-card);}
+  .vista-tabs[hidden]{display:none;}
+  .vista-tabs button{border:0; background:transparent; color:var(--ink-2); font-family:var(--font-ui); font-size:15px; font-weight:600; padding:10px 26px; border-radius:12px; cursor:pointer;}
+  .vista-tabs button.active{background:var(--brand-dark); color:#fff;}
+  .vista-tabs button:focus-visible{outline:2px solid var(--brand); outline-offset:2px;}
+  #famTopo{display:none;}
+  .app.vista-familia #famTopo{display:block;}
+  .app.vista-familia > *:not(.topbar):not(#famTabs):not(#famTopo):not(#ledgerSection):not(#familiaCard):not(#authCard):not(.trust-footer):not(footer){display:none !important;}
+  .app.vista-familia{--vista-borda:#2a78d6;}
+  .app.vista-familia .topbar .eyebrow::after{content:" · Família"; color:#1f5fa8;}
+  .app.vista-familia #famTopo, .app.vista-familia #ledgerSection{border-color:rgba(42,120,214,0.35);}
+  .fam-h3{font-size:13px; font-weight:600; color:var(--ink-2); margin:0 0 10px;}
   .badge-fam{display:inline-block; font-size:10px; font-weight:700; color:#1f5fa8; background:rgba(42,120,214,0.12); border-radius:5px; padding:1px 6px; margin-left:6px;}
   .fam-batch{display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin:0 0 12px; padding:10px 12px; border:1px solid var(--border-strong); border-radius:12px; background:var(--surface-alt);}
   .fam-batch[hidden]{display:none;}
@@ -734,6 +744,8 @@
       <button type="button" class="month-nav" id="btnNextMonth" aria-label="Próximo mês">&#8250;</button>
     </div>
   </div>
+
+  <div class="vista-tabs" id="famTabs" role="group" aria-label="O que você quer ver" hidden><button type="button" data-aba="meu" class="active">Meu</button><button type="button" data-aba="familia" id="famTabFam">Família</button></div>
 
   <section class="quick-bar">
     <a href="#txFormCard" class="btn btn-primary">+ Lançamento</a>
@@ -914,12 +926,24 @@
     </div>
   </section>
 
+  <section class="card" id="famTopo">
+    <div class="card-head"><h2 id="famTopoTitulo">Família</h2><span class="hint" id="famTopoHint"></span></div>
+    <div class="kpi-row" id="famKpis"></div>
+    <div class="charts-grid" style="margin-top:16px;">
+      <div><h3 class="fam-h3">Quem trouxe</h3><div class="bar-list" id="famPorPessoa"></div></div>
+      <div><h3 class="fam-h3">Maiores gastos do mês</h3><div class="bar-list" id="famPorCategoria"></div></div>
+    </div>
+    <div class="charts-grid" style="margin-top:16px;">
+      <div><h3 class="fam-h3">Fixo, variável ou parcelado</h3><div class="stack-bar" id="famClassStack"></div><div class="stack-legend" id="famClassLegend"></div></div>
+      <div><h3 class="fam-h3">Comparado ao mês anterior</h3><div id="famComparativo"></div></div>
+    </div>
+  </section>
+
   <section class="card" id="ledgerSection">
     <div class="card-head">
       <h2>Lançamentos</h2>
       <span class="hint" id="ledgerCount"></span>
     </div>
-    <div class="segmented fam-tabs" id="famTabs" role="group" aria-label="Ver lançamentos" hidden><button type="button" class="seg-btn active" data-aba="meu">Meu</button><button type="button" class="seg-btn" data-aba="familia" id="famTabFam">Família</button></div>
     <div class="fam-batch" id="famBatch" hidden><strong id="famBatchN"></strong><button type="button" class="btn btn-primary" data-batch="familia">Compartilhar com a família</button><button type="button" class="btn btn-ghost" data-batch="meu">Deixar só meus</button><button type="button" class="btn btn-ghost" data-batch="limpar">Limpar seleção</button></div>
     <div class="filters-row">
       <input type="month" id="fMes" class="fatura-mes-filter" aria-label="Filtrar lançamentos por mês">
@@ -1685,7 +1709,11 @@
   var FAM = {grupo: null, papel: null, membros: [], convites: [], meusConvites: [], lanc: [], aba: "meu", sel: {}, editId: null, ultimo: 0};
   function famEsc(s){ return escapeAttr(s == null ? "" : s); }
   function famRpc(fn, args){ return DB.rpc(fn, args || {}).then(function(r){ if(r.error) throw r.error; return r.data; }); }
-  function famErro(e){ toast((e && e.message) || "Não foi possível concluir."); }
+  function famMsg(e){
+    if(e && e.code === "42501") return "A sua sessão mudou (outra conta entrou neste navegador?). Recarregue a página e entre de novo.";
+    return (e && e.message) || "Não foi possível concluir.";
+  }
+  function famErro(e){ toast(famMsg(e)); }
   function famAtivo(){ return !!(DB && state.mode === "db" && FAM.grupo); }
   function famReset(){
     FAM.grupo = null; FAM.papel = null; FAM.membros = []; FAM.convites = []; FAM.meusConvites = []; FAM.lanc = []; FAM.aba = "meu"; FAM.sel = {}; REGRAS = [];
@@ -1788,7 +1816,7 @@
     if(!valor){ toast("Escreva a palavra da regra."); return; }
     if(tipo === "palavra" && valor.length < 2){ toast("Use pelo menos 2 letras na palavra."); return; }
     return DB.from("regras").insert({user_id: state.uid, tipo: tipo, valor: valor, escopo: esc === "meu" ? "meu" : "familia"}).then(function(r){
-      if(r.error){ toast(r.error.code === "23505" ? "Essa regra já existe." : r.error.message); return; }
+      if(r.error){ toast(r.error.code === "23505" ? "Essa regra já existe." : famMsg(r.error)); return; }
       return famRefresh().then(function(){ toast("Regra criada. Vale para as próximas importações."); });
     });
   }
@@ -1880,6 +1908,66 @@
     var r = famAcao(b); if(r && r.catch) r.catch(famErro);
   });
 
+
+  // --- visão "Família": resumo do que o grupo compartilhou (só leitura) ---
+  function famMesAnterior(m){ var d = new Date(m + "-01T00:00:00"); d.setMonth(d.getMonth() - 1); return d.getFullYear() + "-" + pad2(d.getMonth() + 1); }
+  function famSoma(lista){
+    var e = 0, s = 0;
+    lista.forEach(function(t){
+      var v = Number(t.valor); if(isNeutro({tipo: t.tipo})) return;
+      if(t.tipo === "estorno") s -= v; else if(tipoEntra(t.tipo)) e += v; else s += v;
+    });
+    return {e: e, s: s};
+  }
+  function famBarras(pares, cor){
+    var max = Math.max.apply(null, pares.map(function(p){ return p[1]; }).concat([0.0001]));
+    return pares.map(function(p){
+      return '<div class="spend-item"><div class="spend-row-head"><span>' + famEsc(p[0]) + '</span><span>' + fmt(p[1]) + '</span></div>' +
+        '<div class="spend-track"><div class="spend-fill" style="width:' + Math.max(p[1] / max * 100, 2) + '%;' + (cor ? 'background:' + cor : '') + '"></div></div></div>';
+    }).join("") || '<div class="empty-note">Sem dados neste mês.</div>';
+  }
+  function renderFamTopo(){
+    var box = document.getElementById("famTopo"); if(!box || !famAtivo() || FAM.aba !== "familia") return;
+    var mes = document.getElementById("fMes").value || monthKey(refISO()), ant = famMesAnterior(mes);
+    var doMes = FAM.lanc.filter(function(t){ return monthKey(t.data_efet) === mes; }), doAnt = FAM.lanc.filter(function(t){ return monthKey(t.data_efet) === ant; });
+    var a = famSoma(doMes), b = famSoma(doAnt);
+    document.getElementById("famTopoTitulo").textContent = (FAM.grupo ? FAM.grupo.nome : "Família") + " · " + fmtMonthLabel(mes);
+    document.getElementById("famTopoHint").textContent = "Só o que foi compartilhado no grupo · " + doMes.length + " lançamento(s) no mês";
+    document.getElementById("famKpis").innerHTML =
+      '<div class="kpi"><div class="kpi-label">Entradas da família</div><div class="kpi-value pos">' + fmt(a.e) + '</div></div>' +
+      '<div class="kpi"><div class="kpi-label">Saídas da família</div><div class="kpi-value">' + fmt(a.s) + '</div></div>' +
+      '<div class="kpi"><div class="kpi-label">Resultado</div><div class="kpi-value ' + (a.e - a.s < 0 ? "neg" : "pos") + '">' + fmt(a.e - a.s) + '</div></div>' +
+      '<div class="kpi"><div class="kpi-label">Membros</div><div class="kpi-value">' + FAM.membros.length + '</div><div class="kpi-caption">de ' + FAM.grupo.limite + ' logins</div></div>';
+    var porPessoa = {}, porCat = {}, cls = {Fixa: 0, "Variável": 0, Parcelada: 0};
+    doMes.forEach(function(t){
+      if(isNeutro({tipo: t.tipo}) || tipoEntra(t.tipo)) return;
+      var v = Number(t.valor); porPessoa[t.trouxe_nome] = (porPessoa[t.trouxe_nome] || 0) + v; porCat[t.categoria] = (porCat[t.categoria] || 0) + v; cls[t.classificacao] = (cls[t.classificacao] || 0) + v;
+    });
+    var ord = function(o){ return Object.keys(o).map(function(k){ return [k, o[k]]; }).sort(function(x, y){ return y[1] - x[1]; }); };
+    document.getElementById("famPorPessoa").innerHTML = famBarras(ord(porPessoa), "var(--brand)");
+    document.getElementById("famPorCategoria").innerHTML = famBarras(ord(porCat).slice(0, 6));
+    var tot = cls.Fixa + cls["Variável"] + cls.Parcelada || 1, cores = {Fixa: "var(--cat-1)", "Variável": "var(--cat-3)", Parcelada: "var(--cat-7)"};
+    document.getElementById("famClassStack").innerHTML = ["Fixa", "Variável", "Parcelada"].map(function(k){ return cls[k] > 0 ? '<div class="stack-seg" style="width:' + (cls[k] / tot * 100) + '%; background:' + cores[k] + '" title="' + k + ': ' + fmt(cls[k]) + '"></div>' : ""; }).join("");
+    document.getElementById("famClassLegend").innerHTML = ["Fixa", "Variável", "Parcelada"].map(function(k){
+      return '<div class="stack-legend-item"><span class="sl-top"><span class="sl-dot" style="background:' + cores[k] + '"></span>' + k + '</span><span class="sl-value">' + fmt(cls[k]) + '</span><span class="sl-pct">' + Math.round(cls[k] / tot * 100) + '% das saídas</span></div>';
+    }).join("");
+    var dif = a.s - b.s, pct = b.s > 0 ? Math.round(dif / b.s * 100) : null;
+    document.getElementById("famComparativo").innerHTML = doAnt.length
+      ? '<div class="mc-stat"><div class="mc-label">Saídas em ' + fmtMonthLabel(mes) + '</div><div class="mc-value">' + fmt(a.s) + '</div><div class="mc-sub">' + fmtMonthLabel(ant) + ': ' + fmt(b.s) + '</div></div>' +
+        '<p class="fam-nota" style="margin-top:10px;">' + (dif > 0 ? "A família gastou " + fmt(dif) + " a mais" : dif < 0 ? "A família gastou " + fmt(-dif) + " a menos" : "Mesmo valor") + (pct !== null ? " (" + (pct > 0 ? "+" : "") + pct + "%)" : "") + " do que no mês anterior.</p>"
+      : '<div class="empty-note">Sem lançamentos compartilhados no mês anterior para comparar.</div>';
+  }
+  // Duas contas no mesmo navegador dividem o login. Se outra conta entrar com esta página aberta, recarrega,
+  // para nunca gravar como uma conta usando o login de outra.
+  if(sb){
+    sb.auth.onAuthStateChange(function(ev, session){
+      if(session && session.user && state.uid && session.user.id !== state.uid){
+        toast("Outra conta entrou neste navegador. Recarregando…");
+        setTimeout(function(){ location.reload(); }, 1200);
+      }
+    });
+  }
+
   // --- Meu x Família no ledger ---
   function famAplicarUI(){
     var sec = document.getElementById("ledgerSection"); if(!sec) return;
@@ -1889,6 +1977,9 @@
     var tabs = document.getElementById("famTabs"); tabs.hidden = !on;
     Array.prototype.forEach.call(tabs.querySelectorAll("[data-aba]"), function(b){ b.classList.toggle("active", b.dataset.aba === FAM.aba); });
     document.getElementById("famTabFam").textContent = "Família" + (on ? " (" + FAM.lanc.length + ")" : "");
+    var vistaFam = on && FAM.aba === "familia";
+    document.querySelector(".app").classList.toggle("vista-familia", vistaFam);
+    document.querySelector("#ledgerSection .card-head h2").textContent = vistaFam ? "Lançamentos da família" : "Lançamentos";
     renderLedger(refISO());
   }
   document.getElementById("famTabs").addEventListener("click", function(e){
@@ -1933,7 +2024,8 @@
   });
   // o gancho do final do renderLedger: ligações da seleção/escopo e o painel da Família
   function famAfterLedger(){
-    renderFamPane();
+    renderFamPane(); renderFamTopo();
+    if(famAtivo() && FAM.aba === "familia"){ document.getElementById("ledgerCount").textContent = famFiltradas().length + " de " + FAM.lanc.length + " compartilhados"; }
     var sec = document.getElementById("ledgerSection"); if(!sec || !famAtivo()) { famBatchUI(); return; }
     document.querySelectorAll(".fam-sel").forEach(function(c){
       c.onchange = function(){ if(this.checked) FAM.sel[this.dataset.id] = true; else delete FAM.sel[this.dataset.id]; famBatchUI(); };
