@@ -5030,8 +5030,9 @@
         // manual já lançado: vira a linha do extrato (conta, documento e data do banco) em vez de criar outro
         var manual = (ctx.txs || []).find(function(t){ return t.id === r.vincularId; });
         if(manual){
-          updates.push({id: manual.id, patch: {conta: ctx.conta, documento: r.documentoChave || null, dataEfet: r.dataEfet,
-            obs: obsVinculo(manual, {data: r.dataEfet})}});
+          var pv = {conta: ctx.conta, documento: r.documentoChave || null, dataEfet: r.dataEfet, obs: obsVinculo(manual, {data: r.dataEfet})};
+          if(Math.abs(manual.valor - r.valor) > 0.004){ pv.valor = r.valor; pv.obs += " · valor ajustado de " + impBRL(manual.valor) + " para " + impBRL(r.valor) + " pelo extrato"; }
+          updates.push({id: manual.id, patch: pv});
           return;
         }
       }
@@ -6360,7 +6361,7 @@
         extCents(t.valor) === extCents(r.valor) && daysDiff(t.dataEfet, r.dataEfet) <= 3 &&
         tipoCompativel(t, r.sinal === "-" ? -1 : 1) && mesmoBanco(t.banco, banco);
     };
-    if(r.vincularId){ var j = state.transactions.find(function(x){ return x.id === r.vincularId; }); if(ok(j)) return j; }
+    if(r.vincularId){ var j = state.transactions.find(function(x){ return x.id === r.vincularId; }); if(ok(j) || impTolOk(j, r, conta, banco)) return j; }
     if(r.dup && !r.dup.extrato && r.dup.txId){ var d = state.transactions.find(function(x){ return x.id === r.dup.txId; }); if(ok(d)) return d; }
     var melhor = null;
     state.transactions.forEach(function(t){
@@ -6368,7 +6369,7 @@
       var dd = daysDiff(t.dataEfet, r.dataEfet);
       if(!melhor || dd < melhor.dd) melhor = {t: t, dd: dd};
     });
-    return melhor ? melhor.t : null;
+    return melhor ? melhor.t : impVinculoParecido(r, conta, banco);
   }
   function stagingHasCredit(){ return staging.some(function(r){ return r.modalidade === "Crédito"; }); }
   function cardKeyFinal(banco, final){ return impNorm(banco).toLowerCase() + "|" + final; }
@@ -6548,7 +6549,8 @@
     var extHtml = "";
     if(stagingMeta && stagingMeta.isExtrato){
       var ext = stagingMeta.ext, sc = stagingCheck && stagingCheck.saldo;
-      if(sc && sc.aplicavel){
+      if(sc && sc.aplicavel && sc.continuidade){ extHtml += impProvaHtml(sc); }
+      if(sc && sc.aplicavel && !sc.continuidade){
         if(sc.ok){
           extHtml += '<div class="conf-ok">Conferido: saldo anterior '+fmt(sc.saldoAnterior)+' + os lançamentos = saldo final '+fmt(sc.saldoFinal)+(sc.formato === "grupos" ? ', e os totais de cada dia batem.' : ', e todos os "Saldo do dia" batem.')+'</div>';
         } else {
@@ -6594,8 +6596,8 @@
       }
       var vt = podeVincular(r), vincHtml = "";
       if(vt) vincHtml = r.vincularId
-        ? '<span class="dup-detail">Será vinculada a "'+escapeAttr(vt.descricao)+'" ('+fmtDate(vt.dataEfet)+'): esse lançamento manual vira a linha do banco, sem criar outro. <button type="button" class="linkish" data-act="vinc-undo" data-idx="'+idx+'">desfazer</button></span>'
-        : '<span class="dup-detail">Você já lançou "'+escapeAttr(vt.descricao)+'" ('+fmtDate(vt.dataEfet)+') com o mesmo valor. <button type="button" class="linkish" data-act="vinc-ok" data-idx="'+idx+'">Vincular ao lançamento manual</button></span>';
+        ? '<span class="dup-detail">Será vinculada a "'+escapeAttr(vt.descricao)+'" ('+fmtDate(vt.dataEfet)+'): esse lançamento manual vira a linha do banco, sem criar outro.'+impNotaValor(vt, r)+' <button type="button" class="linkish" data-act="vinc-undo" data-idx="'+idx+'">desfazer</button></span>'
+        : '<span class="dup-detail">Você já lançou "'+escapeAttr(vt.descricao)+'" ('+fmtDate(vt.dataEfet)+') '+impTextoVinc(vt, r)+' <button type="button" class="linkish" data-act="vinc-ok" data-idx="'+idx+'">Vincular ao lançamento manual</button></span>';
       dupHtml += vincHtml;
       var badges = (r.parcelaAtual ? '<span class="badge-parcela">'+r.parcelaAtual+'/'+r.totalParcelas+'</span>' : '')+
         (r.pagamento && r.pagamento.state === "confirmed" ? '<span class="badge-pagfat">Pagamento de fatura</span>' : '')+
@@ -6734,7 +6736,7 @@
         newId: function(){ return newLocalId("c" + (seq++)); }});
       if(ehExtrato){
         var sd = saldoDoExtrato(stagingMeta.ext);
-        if(sd){
+        if(sd && impPodeAtualizarSaldo()){
           atualizarSaldos(state.saldos, stagingMeta.contaKey, sd);
           guardarReferencia(state.saldos, stagingMeta.contaKey, referenciaDoExtrato(stagingMeta.ext));
           saveSaldos();
@@ -6770,6 +6772,7 @@
       if(pagamentos) parts.push(pagamentos + " pagamento(s) de fatura fora das despesas");
       if(estornos) parts.push(estornos + " estorno(s) abatendo o gasto");
       if(plan.juros) parts.push("custo de juros do parcelamento: " + fmt(plan.juros.juros));
+      if(impSaldoBloqueado){ parts.push("saldo da conta NÃO atualizado: não fecha com o arquivo"); impSaldoBloqueado = false; }
       toast(parts.join(" · ") + ".");
       discardStaging();
     };
@@ -6929,7 +6932,7 @@
     document.getElementById("importBanco").value = ext.banco;
     document.getElementById("importVencimento").value = "";
     staging = extratoParaLinhas(ext);
-    if(ext.origemTexto) impMelhoraLinhas(staging);
+    if(ext.origemTexto){ impMelhoraLinhas(staging); ext.prova = impProvaContinuidade(ext); }
     stagingCard = null; stagingStep = "review"; stagingReplace = null; stagingFaturaKey = stagingMeta.extratoKey;
     reannotateExtrato();
     portaoReimportacaoExtrato();
@@ -7635,6 +7638,56 @@ var IMPF = (function(){
     if(!famAtivo()) return "";
     var padrao = famEscopoPorRegras({descricao: r.descricao, categoria: r.categoria, conta: stagingMeta && stagingMeta.contaKey}) || "meu", v = r.escopo || padrao;
     return '<td><select data-idx="' + idx + '" data-f="escopo"><option value="meu" ' + (v === "meu" ? "selected" : "") + '>Meu</option><option value="familia" ' + (v === "familia" ? "selected" : "") + '>Família</option></select></td>';
+  }
+
+  // ---- conferência de continuidade: saldo do último extrato guardado + lançamentos do arquivo = saldo final do arquivo
+  var impSaldoBloqueado = false;
+  function impProvaContinuidade(ext){
+    if(!ext.saldoFinal || !ext.saldoFinal.data) return null;
+    var sd = state.saldos && state.saldos[contaKeyDe(ext)], ant = sd && sd.extrato;
+    if(!ant || !ant.data || ant.data >= ext.saldoFinal.data) return null;
+    var soma = 0, n = 0;
+    ext.lancamentos.forEach(function(e){ if(e.data > ant.data && e.data <= ext.saldoFinal.data){ soma += extCents(e.valor); n++; } });
+    var obtido = (extCents(ant.valor) + soma) / 100, fim = ext.saldoFinal.valor, diff = (extCents(fim) - extCents(obtido)) / 100;
+    return {aplicavel: true, continuidade: true, ok: diff === 0, diff: diff, saldoAnterior: ant.valor, dataAnterior: ant.data, saldoFinal: fim, dataFinal: ext.saldoFinal.data, obtido: obtido, n: n, dias: [], formato: "continuidade"};
+  }
+  function impProvaHtml(sc){
+    if(sc.ok) return '<div class="conf-ok">Conferido: o último extrato guardado fechou em ' + fmt(sc.saldoAnterior) + ' (' + fmtDate(sc.dataAnterior) + '); somando os ' + sc.n + ' lançamento(s) deste arquivo chega a ' + fmt(sc.saldoFinal) + ', o saldo final do arquivo.</div>';
+    return '<div class="attn-block conf-warn"><div class="attn-title">O saldo não fecha: diferença de ' + fmt(Math.abs(sc.diff)) + '</div>' +
+      '<ul class="conf-list"><li>O último extrato guardado fechou em ' + fmt(sc.saldoAnterior) + ' (' + fmtDate(sc.dataAnterior) + ').</li>' +
+      '<li>Somando os ' + sc.n + ' lançamento(s) deste arquivo, o saldo seria ' + fmt(sc.obtido) + '.</li>' +
+      '<li>O arquivo diz ' + fmt(sc.saldoFinal) + ' em ' + fmtDate(sc.dataFinal) + '.</li>' +
+      '<li>Costuma ser um lançamento anterior guardado com valor diferente do banco, ou um lançamento que faltou. Confira o período anterior.</li></ul>' +
+      '<label class="imp-chk"><input type="checkbox" id="impSaldoForcar"' + (stagingMeta && stagingMeta.saldoMesmoAssim ? " checked" : "") + '> Atualizar o saldo da conta para o do arquivo mesmo assim (sem marcar, os lançamentos entram e o saldo fica como está)</label></div>';
+  }
+  function impPodeAtualizarSaldo(){
+    var p = stagingMeta && stagingMeta.ext && stagingMeta.ext.prova;
+    if(p && p.continuidade && !p.ok && !stagingMeta.saldoMesmoAssim){ impSaldoBloqueado = true; return false; }
+    return true;
+  }
+  document.addEventListener("change", function(e){ if(e.target && e.target.id === "impSaldoForcar" && stagingMeta) stagingMeta.saldoMesmoAssim = e.target.checked; });
+
+  // ---- vínculo com lançamento manual de valor parecido (ex.: boleto pago com multa)
+  function impTolOk(t, r, conta, banco){
+    if(!t || !(stagingMeta && stagingMeta.ext && stagingMeta.ext.origemTexto)) return false;
+    var dif = Math.abs(t.valor - r.valor);
+    return !t.documento && (!t.conta || t.conta === conta) && t.modalidade !== "Crédito" && t.statusParcela !== "prevista" && dif > 0.004 &&
+      dif <= Math.max(1, Math.min(0.05 * r.valor, 500)) && daysDiff(t.dataEfet, r.dataEfet) <= 7 && tipoCompativel(t, r.sinal === "-" ? -1 : 1) && mesmoBanco(t.banco, banco);
+  }
+  function impVinculoParecido(r, conta, banco){
+    var melhor = null;
+    state.transactions.forEach(function(t){
+      if(!impTolOk(t, r, conta, banco)) return;
+      var k = Math.abs(t.valor - r.valor) + daysDiff(t.dataEfet, r.dataEfet);
+      if(!melhor || k < melhor.k) melhor = {t: t, k: k};
+    });
+    return melhor ? melhor.t : null;
+  }
+  function impTextoVinc(vt, r){
+    return Math.abs(vt.valor - r.valor) < 0.005 ? "com o mesmo valor." : "com valor parecido (" + fmt(vt.valor) + " no painel e " + fmt(r.valor) + " no banco, diferença de " + fmt(Math.abs(vt.valor - r.valor)) + ").";
+  }
+  function impNotaValor(vt, r){
+    return Math.abs(vt.valor - r.valor) < 0.005 ? "" : " O valor passa a ser o do banco: " + fmt(r.valor) + " (era " + fmt(vt.valor) + ").";
   }
 
   function handlePdfFile(file){
