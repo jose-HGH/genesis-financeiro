@@ -2504,7 +2504,7 @@ var FLX = (function(){
   ];
 
   // Custo de ficar devedor por um tempo: multa de 2% + juros do mês (informado ou 1% padrão).
-  var JURO_NEG = 15; // média de juros do saldo negativo / atraso, % ao mês
+  var JURO_NEG = 8; // média de juros do saldo negativo / atraso, % ao mês
   function custoAtraso(e){ return cent(e.valor * (0.02 + ((e.juro != null ? e.juro : JURO_NEG) / 100))); }
   // juros estimados de ficar no vermelho: saldo negativo de cada dia x taxa mensal / 30
   function custoNegativo(s, pct){ return cent(s.dias.reduce(function(a, d){ return a + (d.saldo < 0 ? -d.saldo : 0); }, 0) * (pct == null ? JURO_NEG : pct) / 100 / 30); }
@@ -2741,7 +2741,7 @@ var FLX = (function(){
       "<div>Mesmo mexendo em tudo o que você liberou (datas, cortáveis e reserva), <b>faltam " + fmt(s.falta) + "</b> no pior dia (" + flxDia(s.pior) + "). O saldo fica negativo a partir de " + flxDia(s.primeiroNeg) + ".</div>" +
       "<div>Do que vence até lá: <b>essencial " + fmt(s.essencial) + "</b> e <b>cortável " + fmt(s.cortavel) + "</b>.</div>";
     if(s.escolha.length) h += "<div>O negativo mais barato é deixar para depois: " + s.escolha.map(function(e){ return "«" + flxEsc(e.desc) + "» (" + fmt(e.valor) + (e.essencial ? ", essencial" : "") + ")"; }).join(", ") +
-      ". Custo estimado de atraso: <b>" + fmt(s.custo) + "</b> (multa de 2% mais juros do mês; usa o juro que você informou na conta, ou a média de 15% ao mês).</div>";
+      ". Custo estimado de atraso: <b>" + fmt(s.custo) + "</b> (multa de 2% mais juros do mês; usa o juro que você informou na conta, ou a média de 8% ao mês).</div>";
     h += s.recuperaEm ? "<div>Previsão para voltar ao positivo: <b>" + flxDia(s.recuperaEm) + "/" + s.recuperaEm.slice(0, 4) + "</b>, quando as próximas entradas cobrirem o que ficou para trás.</div>"
       : "<div>Com os dados de hoje o saldo <b>não volta ao positivo</b> até " + flxDia(s.horizonteAte) + "/" + s.horizonteAte.slice(0, 4) + ". Cadastre entradas previstas ou reduza saídas para ver uma data.</div>";
     return h + "</div>";
