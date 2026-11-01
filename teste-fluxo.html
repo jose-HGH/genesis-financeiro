@@ -1064,6 +1064,8 @@
   #fxModal .modal-caixa{max-height:92vh; overflow:auto; width:min(420px,100%);}
   #fxModal .fx-chk{display:flex; gap:8px; align-items:center; font-weight:400; font-size:13.5px; margin-top:6px;}
   #fxModal .fx-chk input{width:auto; min-width:0;}
+  .fx-alerta{display:flex; flex-direction:column; gap:6px;}
+  .fx-det2 summary{cursor:pointer; font-size:14px; padding:6px 0; color:var(--ink-2);}
 </style>
 
 <div class="app">
@@ -2502,7 +2504,10 @@ var FLX = (function(){
   ];
 
   // Custo de ficar devedor por um tempo: multa de 2% + juros do mês (informado ou 1% padrão).
-  function custoAtraso(e){ return cent(e.valor * (0.02 + ((e.juro != null ? e.juro : 1) / 100))); }
+  var JURO_NEG = 15; // média de juros do saldo negativo / atraso, % ao mês
+  function custoAtraso(e){ return cent(e.valor * (0.02 + ((e.juro != null ? e.juro : JURO_NEG) / 100))); }
+  // juros estimados de ficar no vermelho: saldo negativo de cada dia x taxa mensal / 30
+  function custoNegativo(s, pct){ return cent(s.dias.reduce(function(a, d){ return a + (d.saldo < 0 ? -d.saldo : 0); }, 0) * (pct == null ? JURO_NEG : pct) / 100 / 30); }
 
   function analisar(o){
     var hoje = o.hoje, fim = o.fim, ctx = {saldoIni: o.saldoIni, hoje: hoje, fim: fim, reserva: o.reserva};
@@ -2537,7 +2542,8 @@ var FLX = (function(){
 
     var semSaida = null;
     if(base.buraco > 0 && sPlano.buraco > 0) semSaida = analisarSemSaida(o, ctx, cur, sPlano);
-    return {base: base, antes: r0, solucoes: solucoes, sugestao: sug, plano: plano, semSaida: semSaida};
+    r0.jurosNeg = custoNegativo(base); plano.depois.jurosNeg = custoNegativo(sPlano);
+    return {base: base, antes: r0, jurosPct: JURO_NEG, solucoes: solucoes, sugestao: sug, plano: plano, semSaida: semSaida};
   }
 
   // Nenhuma solução fecha o buraco: separa essencial de cortável, escolhe o atraso mais barato e dá a data de volta ao positivo.
@@ -2572,7 +2578,7 @@ var FLX = (function(){
   }
 
   return {parse: parse, iso: iso, addDias: addDias, ultimoDia: ultimoDia, expandir: expandir, simular: simular, analisar: analisar,
-          resumo: resumo, custoAtraso: custoAtraso, cent: cent};
+          resumo: resumo, custoNegativo: custoNegativo, custoAtraso: custoAtraso, cent: cent};
 })();
 
   // ===== Fluxo de caixa (tela) =====
@@ -2712,13 +2718,6 @@ var FLX = (function(){
   function flxSolucoes(c){
     var an = c.an, h = "";
     if(an.base.buraco <= 0) return "";
-    if(an.plano.passos.length){
-      var nomes = {mover: "mover vencimentos", antecipar: "antecipar entrada", adiar: "adiar cortáveis", reserva: "usar a reserva"};
-      h += '<div class="fx-sol plano"><h4>Plano sugerido</h4><div class="mut">' + an.plano.passos.map(function(p){ return nomes[p]; }).join(" → ") + "</div>" +
-        flxEfeito(an.antes, an.plano.depois) +
-        '<div class="mut">' + (an.plano.resolvido ? "Fecha o buraco." : "Reduz o buraco, mas não fecha.") + '</div>' +
-        '<button type="button" class="btn btn-primary" data-ver="plano">Ver o plano no calendário</button></div>';
-    }
     an.solucoes.forEach(function(s){
       h += '<div class="fx-sol"><h4>' + flxEsc(s.titulo) + "</h4>";
       if(!s.aplicavel) h += '<div class="mut">' + flxEsc(s.vazio) + "</div>";
@@ -2733,7 +2732,7 @@ var FLX = (function(){
       h += '<div class="fx-sol"><h4>Parcelar ou renegociar</h4><div>Sugestão: pedir para dividir «' + flxEsc(g.alvo.desc) + "» (" + fmt(g.alvo.valor) + ") em 3 vezes, ou renegociar o prazo.</div>" + flxEfeito(g.antes, g.depois) +
         '<div class="fx-nota">Estimativa sem juros. Só vale se o credor aceitar; por isso não entra no plano nem altera o calendário.</div></div>';
     }
-    return '<h3 style="margin:4px 0 0; font-size:15px">O que fazer</h3><div class="fx-sols">' + h + "</div>";
+    return '<details class="fx-det2"><summary>Ver as opções, uma a uma</summary><div class="fx-sols" style="margin-top:10px">' + h + "</div></details>";
   }
 
   function flxSemSaida(c){
@@ -2742,7 +2741,7 @@ var FLX = (function(){
       "<div>Mesmo mexendo em tudo o que você liberou (datas, cortáveis e reserva), <b>faltam " + fmt(s.falta) + "</b> no pior dia (" + flxDia(s.pior) + "). O saldo fica negativo a partir de " + flxDia(s.primeiroNeg) + ".</div>" +
       "<div>Do que vence até lá: <b>essencial " + fmt(s.essencial) + "</b> e <b>cortável " + fmt(s.cortavel) + "</b>.</div>";
     if(s.escolha.length) h += "<div>O negativo mais barato é deixar para depois: " + s.escolha.map(function(e){ return "«" + flxEsc(e.desc) + "» (" + fmt(e.valor) + (e.essencial ? ", essencial" : "") + ")"; }).join(", ") +
-      ". Custo estimado de atraso: <b>" + fmt(s.custo) + "</b> (multa de 2% mais juros do mês; usa o juro que você informou, ou 1%).</div>";
+      ". Custo estimado de atraso: <b>" + fmt(s.custo) + "</b> (multa de 2% mais juros do mês; usa o juro que você informou na conta, ou a média de 15% ao mês).</div>";
     h += s.recuperaEm ? "<div>Previsão para voltar ao positivo: <b>" + flxDia(s.recuperaEm) + "/" + s.recuperaEm.slice(0, 4) + "</b>, quando as próximas entradas cobrirem o que ficou para trás.</div>"
       : "<div>Com os dados de hoje o saldo <b>não volta ao positivo</b> até " + flxDia(s.horizonteAte) + "/" + s.horizonteAte.slice(0, 4) + ". Cadastre entradas previstas ou reduza saídas para ver uma data.</div>";
     return h + "</div>";
@@ -2789,7 +2788,15 @@ var FLX = (function(){
     if(c.esc === "meu" && c.ini.n === 0) h += '<div class="fx-nota fx-neg">Nenhum saldo informado: o calendário parte de R$ 0,00. Use "Atualizar saldo" na tela inicial para partir do saldo real.</div>';
     if(c.esc === "familia") h += '<div class="fx-nota">Na aba Família não existe saldo compartilhado: o calendário mostra o movimento acumulado só do que foi compartilhado, partindo de R$ 0,00.</div>';
     if(an.base.buraco > 0){
-      h += '<div class="fx-alerta">⚠ O saldo fica <b>negativo a partir de ' + flxDia(an.base.primeiroNeg) + "</b>. O buraco chega a <b>" + fmt(an.base.buraco) + "</b> em " + flxDia(an.base.menor.data) + " (" + an.base.diasNeg + (an.base.diasNeg === 1 ? " dia" : " dias") + " no vermelho).</div>";
+      var pl = an.plano, nomesP = {mover: "mover vencimentos", antecipar: "antecipar entrada", adiar: "adiar cortáveis", reserva: "usar a reserva"};
+      h += '<div class="fx-alerta"><div>⚠ <b>Descasamento no fluxo de caixa:</b> o saldo fica negativo por <b>' + an.base.diasNeg + (an.base.diasNeg === 1 ? " dia" : " dias") + "</b>, a partir de <b>" + flxDia(an.base.primeiroNeg) +
+        "</b>. O buraco chega a <b>" + fmt(an.base.buraco) + "</b> em " + flxDia(an.base.menor.data) + ".</div>" +
+        "<div>Ficar no negativo custa, em média, <b>" + an.jurosPct + "% ao mês</b> de juros: cerca de <b>" + fmt(an.antes.jurosNeg) + "</b> neste período.</div>" +
+        (pl.passos.length
+          ? "<div>" + (pl.resolvido ? "<b>Solução:</b> " : "<b>Melhor caminho (não fecha tudo):</b> ") + pl.passos.map(function(p){ return nomesP[p]; }).join(" + ") + ". Buraco de " + fmt(an.base.buraco) + " → " + (pl.depois.buraco > 0 ? fmt(pl.depois.buraco) : "sem buraco") + (pl.depois.buraco > 0 ? "" : ", juros evitados") + ". " +
+            '<button type="button" class="fx-mini" data-ver="plano">Ver no calendário</button></div>'
+          : "<div><b>Sem solução</b> dentro das regras que você liberou.</div>") +
+        "</div>";
     } else h += '<div class="fx-ok">Nenhum dia fica negativo até ' + flxDia(c.j.fim) + ".</div>";
     if(sim){
       h += '<div class="fx-sim"><span>Simulação: <b>' + (sim === "plano" ? "plano sugerido" : an.solucoes.filter(function(s){ return s.id === sim; })[0].titulo) + "</b>. Nada foi salvo nem alterado nos seus lançamentos.</span><button type=\"button\" class=\"btn btn-ghost\" data-ver=\"\">Voltar ao real</button></div>";
