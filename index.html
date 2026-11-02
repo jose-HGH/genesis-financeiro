@@ -5,7 +5,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.0/dist/umd/supabase.js"></script>
-<meta name="app-version" content="20261102-162833">
+<meta name="app-version" content="20261102-163805">
 <script>
 (function(){
   var m = document.querySelector('meta[name="app-version"]'); var cur = m && m.content; if(!cur) return;
@@ -3795,6 +3795,7 @@ var FLX = (function(){
   function isRealized(tx, ref){
     if(tx.pagoManual === true) return true;
     if(tx.pagoManual === false) return false;
+    if(tx.fonte === "extrato") return true;
     return tx.dataEfet <= todayISO();
   }
   function daysBetween(a, b){
@@ -8617,6 +8618,8 @@ var IMPF = (function(){
 
   window.__v5api = {renderAll: renderAll, info: v5Info, fmt: fmt, guessCategoria: guessCategoria, famRefresh: (typeof famRefresh === 'function' ? famRefresh : null)};
   if(window.__GENESIS_TEST__){ window.__genesis = {Store: Store, state: state, aplicarNuvem: aplicarNuvem, loadSynced: loadSynced, saveSynced: saveSynced}; }
+
+
 
 
 
