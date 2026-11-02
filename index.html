@@ -5,7 +5,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.0/dist/umd/supabase.js"></script>
-<meta name="app-version" content="20261102-163805">
+<meta name="app-version" content="20261102-203732">
 <script>
 (function(){
   var m = document.querySelector('meta[name="app-version"]'); var cur = m && m.content; if(!cur) return;
@@ -5815,6 +5815,11 @@ var FLX = (function(){
   //   acao: interna | fatura | despesa | receita
   //   pessoa: true = Pix/transferência (pode ser entre contas do próprio titular)
   var EXTRATO_REGRAS = [
+    {nome: "Pix enviado (Caixa)", padrao: /\bDEB PIX\b/, acao: "despesa", modalidade: "Pix", pessoa: true},
+    {nome: "Pix recebido (Caixa)", padrao: /\bCRED PIX\b/, acao: "receita", modalidade: "Pix", pessoa: true},
+    {nome: "Tarifa de cesta de serviços", padrao: /CESTA (DE )?SERVICO|MENSALIDADE CESTA/, acao: "despesa", categoria: "Taxas bancárias", modalidade: "Débito automático"},
+    {nome: "Imposto (DARF e guias)", padrao: /\bDARF\b|\bDAS\b|\bGPS\b|\bIPTU\b/, acao: "despesa", categoria: "Impostos", modalidade: "Débito"},
+    {nome: "Aposta ou loteria", padrao: /APOSTA|LOTERIA/, acao: "despesa", categoria: "Lazer", modalidade: "Débito"},
     {nome: "Saque no caixa", padrao: /\bSAQUE\b/, acao: "interna", destino: "dinheiro", origem: "banco"},
     {nome: "Depósito em dinheiro", padrao: /DEPOSITO (EM )?(DINHEIRO|ESPECIE)|DEPOSITO ENVELOPE/, acao: "interna", destino: "banco", origem: "dinheiro"},
     {nome: "Aplicação ou resgate automático", padrao: /RENDE FACIL|APLICACAO AUTOM|RESGATE AUTOM|INVEST\.? (RESGATE|APLIC)|\bRDB\b|\bRESGATE\b|\bAPLICACAO\b|CAIXINHA|\bCDB\b/, acao: "interna"},
@@ -7276,6 +7281,9 @@ var FLX = (function(){
       if(referenciaDoExtrato(ext)){
         extHtml += '<div class="imp-card-note" style="margin-bottom:10px;">Só quer conferir a conta? <button type="button" class="linkish" id="btnSoReferencia">Guardar as linhas deste extrato só para conferência (não importa nada)</button></div>';
       }
+      if(ext.avisosLeitura && ext.avisosLeitura.length){
+        extHtml += '<div class="attn-block conf-warn"><div class="attn-title">'+ext.avisosLeitura.length+' linha(s) com saldo que não confere (provável erro de leitura)</div><ul class="conf-list">'+ext.avisosLeitura.slice(0, 8).map(function(t){ return '<li>'+escapeAttr(t)+'</li>'; }).join("")+'</ul></div>';
+      }
       if(ext.futuros.length){
         extHtml += '<div class="imp-card-note" style="margin-bottom:10px;"><strong>Lançamentos futuros</strong> (não entram neste período): '+
           ext.futuros.map(function(f){ return fmtDate(f.data)+' · '+escapeAttr(f.historico)+' · '+fmt(Math.abs(f.valor)); }).join(' | ')+
@@ -7639,6 +7647,7 @@ var FLX = (function(){
     document.getElementById("importVencimento").value = "";
     staging = extratoParaLinhas(ext);
     if(ext.origemTexto){ impMelhoraLinhas(staging); ext.prova = impProvaContinuidade(ext); }
+    if(ext.suspeitasDocs){ staging.forEach(function(r){ if(ext.suspeitasDocs[r.documentoChave]) r.flagged = true; }); }
     stagingCard = null; stagingStep = "review"; stagingReplace = null; stagingFaturaKey = stagingMeta.extratoKey;
     reannotateExtrato();
     portaoReimportacaoExtrato();
@@ -7658,7 +7667,7 @@ var FLX = (function(){
     var rows = parseStatementLines(lines, meta);
     setImportStatus(null);
     if(!rows.length){
-      toast("Não encontrei linhas com data e valor reconhecíveis neste conteúdo.");
+      impErro("Li " + lines.length + " linha(s) de texto, mas nenhuma tinha data e valor reconhecíveis. Confira se o arquivo é um extrato ou uma fatura." + DICA_OFX);
       return;
     }
     var bancoInput = document.getElementById("importBanco");
@@ -8396,23 +8405,265 @@ var IMPF = (function(){
     return Math.abs(vt.valor - r.valor) < 0.005 ? "" : " O valor passa a ser o do banco: " + fmt(r.valor) + " (era " + fmt(vt.valor) + ").";
   }
 
+// Leitor do "Extrato por período" da Caixa Econômica Federal (conta corrente). Funções puras, sem DOM e sem rede.
+// Entrada: páginas {largura, altura, palavras:[{t, x0, x1, y}]} (y = centro da palavra; vale tanto para texto do PDF quanto para OCR).
+var CAIXA = (function(){
+  function norm(s){ return String(s == null ? "" : s).toUpperCase().normalize("NFD").replace(/[̀-ͯ]/g, ""); }
+  function cent(v){ return Math.round(v * 100) / 100; }
+  function p2(n){ return (n < 10 ? "0" : "") + n; }
+  function iso(d){ var m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(d); return m ? m[3] + "-" + m[2] + "-" + m[1] : null; }
+  function dinheiro(s){ // "1.225,00" -> 1225
+    var m = /^(\d{1,3}(?:\.\d{3})*|\d+),(\d{2})$/.exec(String(s).trim());
+    return m ? parseFloat(m[1].replace(/\./g, "") + "." + m[2]) : null;
+  }
+  // "25,00 D" / "1.225,00 C" -> número com sinal (D = negativo, C = positivo)
+  function valorDC(txt){
+    // aceita até 2 símbolos soltos entre o valor e a letra (o OCR às vezes lê o espaço como "€" ou ".")
+    var m = /(\d{1,3}(?:\.\d{3})*,\d{2}|\d+,\d{2})\s*[^\dA-Za-z\s]{0,2}\s*([DC])(?![A-Za-z])/i.exec(String(txt).replace(/\s+/g, " "));
+    if(!m) return null;
+    var v = dinheiro(m[1]); if(v === null) return null;
+    return m[2].toUpperCase() === "D" ? -v : v;
+  }
+  // Um item de texto do PDF pode juntar várias palavras ("Nr. Doc"): separa em palavras, com a posição estimada pelo número de caracteres.
+  function explodir(palavras){
+    var out = [];
+    palavras.forEach(function(w){
+      var t = String(w.t), n = t.length, larg = w.x1 - w.x0;
+      if(!/\s/.test(t.trim()) || !(larg > 0)){ out.push(w); return; }
+      var re = /\S+/g, m;
+      while((m = re.exec(t))){ out.push({t: m[0], x0: w.x0 + larg * m.index / n, x1: w.x0 + larg * (m.index + m[0].length) / n, y: w.y}); }
+    });
+    return out;
+  }
+  function agrupar(palavras, tol){
+    var ord = palavras.slice().sort(function(a, b){ return a.y - b.y; }), linhas = [], cur = null;
+    ord.forEach(function(w){
+      if(!cur || Math.abs(w.y - cur.y) > tol){ cur = {y: w.y, p: []}; linhas.push(cur); }
+      cur.p.push(w); cur.y = (cur.y * (cur.p.length - 1) + w.y) / cur.p.length;
+    });
+    linhas.forEach(function(l){ l.p.sort(function(a, b){ return a.x0 - b.x0; }); });
+    return linhas;
+  }
+  function texto(l){ return l.p.map(function(w){ return w.t; }).join(" "); }
+
+  // É um extrato da Caixa? ("Extrato por período" + colunas do cabeçalho)
+  function reconhece(paginas){
+    var t = norm(paginas.map(function(pg){ return pg.palavras.map(function(w){ return w.t; }).join(" "); }).join(" "));
+    return /EXTRATO POR PERIODO/.test(t) && /HISTORICO\/COMPLEMENTO/.test(t) && /FAVORECIDO/.test(t) && /CPF\/CNPJ/.test(t);
+  }
+
+  // Posição (x, em fração da largura da página) de cada coluna, lida na linha de cabeçalho da primeira página.
+  function colunas(paginas){
+    for(var i = 0; i < paginas.length; i++){
+      var pg = paginas[i], tol = pg.altura * 0.004, ls = agrupar(explodir(pg.palavras), tol);
+      for(var j = 0; j < ls.length; j++){
+        var n = norm(texto(ls[j]));
+        if(/HISTORICO\/COMPLEMENTO/.test(n) && /FAVORECIDO/.test(n) && /VALOR/.test(n) && /SALDO/.test(n)){
+          var x = {}, ws = ls[j].p;
+          ws.forEach(function(w){
+            var u = norm(w.t);
+            if(/^NR\.?$/.test(u)) x.doc = w.x0;
+            else if(/^HISTORICO/.test(u)) x.hist = w.x0;
+            else if(/^FAVORECIDO/.test(u)) x.fav = w.x0;
+            else if(/^CPF/.test(u)) x.cpf = w.x0;
+            else if(/^VALOR$/.test(u)) x.valor = w.x0;
+            else if(/^SALDO$/.test(u)) x.saldo = w.x0;
+          });
+          if(x.doc !== undefined && x.hist !== undefined && x.fav !== undefined && x.cpf !== undefined && x.valor !== undefined && x.saldo !== undefined){
+            var f = {}; Object.keys(x).forEach(function(k){ f[k] = x[k] / pg.largura; }); return f;
+          }
+        }
+      }
+    }
+    return null;
+  }
+
+  // Lê tudo: cabeçalho, lançamentos (ignorando SALDO DIA, cabeçalho e rodapé) e a cadeia de saldos.
+  function ler(paginas){
+    var col = colunas(paginas);
+    if(!col) throw erro("Não encontrei o cabeçalho das colunas (Nr. Doc, Histórico, Favorecido, Valor, Saldo) neste extrato.");
+    var margem = 0.004;
+    var cab = {cliente: null, conta: null, de: null, ate: null, saldoAnterior: null};
+    var linhasOut = [], saldosDia = {}, ignoradas = 0, ilegiveis = [];
+    paginas.forEach(function(pg, ip){
+      var tol = pg.altura * 0.004, ls = agrupar(explodir(pg.palavras), tol), L = pg.largura;
+      var xs = {doc: (col.doc - margem) * L, hist: (col.hist - margem) * L, fav: (col.fav - margem) * L, cpf: (col.cpf - margem) * L, valor: (col.valor - margem) * L, saldo: (col.saldo - margem) * L};
+      function faixa(l, a, b){ return l.p.filter(function(w){ var c = (w.x0 + w.x1) / 2; return w.x0 >= a - 1 && c < b; }).map(function(w){ return w.t; }).join(" ").replace(/\s+/g, " ").trim(); }
+      ls.forEach(function(l){
+        var inicio = faixa(l, 0, xs.doc), n = norm(texto(l));
+        if(ip === 0){
+          var mc = /^CLIENTE\s+(.+)$/.exec(n);
+          if(mc && !cab.cliente) cab.cliente = texto(l).replace(/^Cliente\s+/i, "").trim();
+          if(/^CONTA\b/.test(n) && !cab.conta){ var mt = /(\d{4})\s*\/\s*([\d.\-]+)/.exec(texto(l)); if(mt) cab.conta = mt[1] + " / " + mt[2]; }
+          if(/^PERIODO DOS LANCAMENTOS/.test(n) && !cab.de){ var mp = /(\d{2}\/\d{2}\/\d{4}).*?(\d{2}\/\d{2}\/\d{4})/.exec(texto(l)); if(mp){ cab.de = iso(mp[1]); cab.ate = iso(mp[2]); } }
+          if(/SALDO ANTERIOR/.test(n) && cab.saldoAnterior === null){ var v0 = valorDC(texto(l).replace(/^.*SALDO\s+ANTERIOR/i, "")); if(v0 !== null) cab.saldoAnterior = v0; }
+        }
+        var md = /(\d{2}\/\d{2}\/\d{4})\s*[-–—]?\s*(\d{2}:\d{2}:\d{2})?/.exec(inicio);
+        if(!md || !/^\d{2}\/\d{2}\/\d{4}/.test(inicio.replace(/^\W+/, ""))) { ignoradas++; return; } // cabeçalho, título, rodapé
+        var data = iso(md[1]), hora = md[2] || null;
+        var doc = faixa(l, xs.doc, xs.hist), hist = faixa(l, xs.hist, xs.fav), fav = faixa(l, xs.fav, xs.cpf);
+        var valorT = faixa(l, xs.valor, xs.saldo), saldoT = faixa(l, xs.saldo, 1e9);
+        var valor = valorDC(valorT), saldo = valorDC(saldoT);
+        if(/^SALDO DIA$/.test(norm(hist))){ if(saldo !== null && data) saldosDia[data] = saldo; return; } // não é lançamento
+        if(!data || !hora || valor === null || saldo === null || !hist){
+          ilegiveis.push({pagina: ip + 1, texto: texto(l).slice(0, 120), motivo: !data ? "data" : !hora ? "hora" : valor === null ? "valor" : saldo === null ? "saldo" : "histórico"});
+          return;
+        }
+        linhasOut.push({data: data, hora: hora, doc: doc.replace(/\D/g, "") || doc, hist: hist, fav: fav, valor: valor, saldo: saldo, pagina: ip + 1});
+      });
+    });
+    return {cab: cab, linhas: linhasOut, saldosDia: saldosDia, ilegiveis: ilegiveis, ignoradas: ignoradas};
+  }
+  function erro(msg){ var e = new Error(msg); e.amigavel = true; return e; }
+
+  // Do mais novo para o mais antigo: saldo da linha = saldo da linha mais antiga + valor da linha.
+  // A mais antiga parte do saldo anterior. Devolve as linhas que não fecham (provável erro de leitura).
+  function conferir(r){
+    var ls = r.linhas, n = ls.length, suspeitas = [];
+    for(var i = 0; i < n; i++){
+      var base = i === n - 1 ? r.cab.saldoAnterior : ls[i + 1].saldo;
+      if(base === null || base === undefined) continue;
+      var esperado = cent(base + ls[i].valor);
+      if(Math.abs(esperado - ls[i].saldo) > 0.004) suspeitas.push({idx: i, linha: ls[i], esperado: esperado, lido: ls[i].saldo});
+    }
+    var soma = cent(ls.reduce(function(a, l){ return a + l.valor; }, 0));
+    var ultimo = n ? ls[0].saldo : r.cab.saldoAnterior;
+    var calculado = r.cab.saldoAnterior === null ? null : cent(r.cab.saldoAnterior + soma);
+    return {suspeitas: suspeitas, soma: soma, calculado: calculado, ultimoSaldo: ultimo, bate: calculado !== null && Math.abs(calculado - ultimo) < 0.005 && !suspeitas.length};
+  }
+
+  // Extrato no formato que o painel já usa (mesma tela de revisão, conferência de saldo e anti-duplicata).
+  function paraExt(r, o){
+    o = o || {};
+    var cab = r.cab, chron = r.linhas.slice().sort(function(a, b){ return a.data < b.data ? -1 : a.data > b.data ? 1 : (a.hora < b.hora ? -1 : a.hora > b.hora ? 1 : 0); });
+    var dig = (cab.conta || "").split("/")[1] ? (cab.conta.split("/")[1].replace(/\D/g, "")) : "";
+    var ult = r.linhas.length ? r.linhas[0].saldo : cab.saldoAnterior;
+    var ext = {formato: "caixa", banco: "Caixa", titular: cab.cliente, titularCpf: null, contaFinal: dig ? dig.slice(-4) : null,
+      periodo: cab.de && cab.ate ? {de: cab.de, ate: cab.ate} : null,
+      saldoAnterior: cab.saldoAnterior !== null ? {data: cab.de, valor: cab.saldoAnterior} : null,
+      saldoFinal: ult !== null && ult !== undefined ? {data: cab.ate || (chron.length ? chron[chron.length - 1].data : null), valor: ult} : null,
+      saldosDia: {}, lancamentos: [], futuros: [], grupos: [], resumo: null, avisos: [], leituraOcr: !!o.ocr};
+    Object.keys(r.saldosDia).forEach(function(d){ if(!cab.ate || d <= cab.ate) ext.saldosDia[d] = r.saldosDia[d]; });
+    chron.forEach(function(l){
+      ext.lancamentos.push({data: l.data, lote: null, documento: l.doc, tipoOp: l.hist, detalheLinhas: [], valor: l.valor, hora: l.hora, dataReal: l.data, contraparte: l.fav, cpfCnpj: null, idExterno: l.doc + "|" + l.data + " " + l.hora + "|" + l.valor.toFixed(2)});
+    });
+    return ext;
+  }
+  return {reconhece: reconhece, colunas: colunas, ler: ler, conferir: conferir, paraExt: paraExt, agrupar: agrupar, explodir: explodir, valorDC: valorDC, norm: norm};
+})();
+
+  // ===== PDF: extrato da Caixa, PDF de imagem (OCR no navegador) e erros que ficam na tela =====
+  var PDF_MAX_BYTES = 15 * 1024 * 1024;
+  var OCR_FONTE = {js: "https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js", sri: "sha384-GJqSu7vueQ9qN0E9yLPb3Wtpd7OrgK8KmYzC8T1IysG1bcvxvIO4qtYR/D3A991F", lang: "https://cdn.jsdelivr.net/npm/@tesseract.js-data/por/4.0.0_best_int"};
+  var DICA_OFX = " Se puder, baixe o extrato em OFX ou CSV no Internet Banking e envie esse arquivo: é mais seguro que ler PDF.";
+  function impCarregaOcr(){
+    if(window.Tesseract) return Promise.resolve(window.Tesseract);
+    return new Promise(function(ok, no){
+      var s = document.createElement("script"); s.src = OCR_FONTE.js; s.crossOrigin = "anonymous";
+      if(OCR_FONTE.sri.indexOf("sha") === 0) s.integrity = OCR_FONTE.sri;
+      s.onload = function(){ window.Tesseract ? ok(window.Tesseract) : no(new Error("sem ocr")); };
+      s.onerror = function(){ no(new Error("sem ocr")); };
+      document.head.appendChild(s);
+    });
+  }
   function handlePdfFile(file){
     if(!file) return;
-    if(typeof pdfjsLib === "undefined"){
-      toast("Não consegui carregar o leitor de PDF. Cole o texto do extrato abaixo.");
-      return;
-    }
+    if(typeof pdfjsLib === "undefined"){ impErro("Não consegui carregar o leitor de PDF." + DICA_OFX + " Você também pode colar o texto do extrato abaixo."); return; }
+    if(file.size > PDF_MAX_BYTES){ impErro("Arquivo grande demais: " + (file.size / 1048576).toFixed(1).replace(".", ",") + " MB. O limite para PDF é " + (PDF_MAX_BYTES / 1048576) + " MB." + DICA_OFX); return; }
     setImportStatus("Lendo o PDF…");
     var reader = new FileReader();
     reader.onload = function(){
       pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
-      extractLinesFromPdf(new Uint8Array(reader.result)).then(handleParsedLines).catch(function(){
+      impLerPdf(new Uint8Array(reader.result)).catch(function(e){
         setImportStatus(null);
-        toast("Não consegui ler este PDF — ele pode ser uma imagem escaneada. Tente colar o texto.");
+        var n = e && e.name, msg = (e && e.amigavel) ? e.message : n === "PasswordException" ? "Este PDF tem senha. Abra-o, salve uma cópia sem senha e envie de novo." : n === "InvalidPDFException" ? "Este arquivo não é um PDF válido ou está corrompido." : "Não consegui ler este PDF (" + ((e && e.message) || "erro desconhecido") + ").";
+        impErro(msg + DICA_OFX);
       });
     };
-    reader.onerror = function(){ setImportStatus(null); toast("Não consegui abrir o arquivo."); };
+    reader.onerror = function(){ setImportStatus(null); impErro("Não consegui abrir o arquivo."); };
     reader.readAsArrayBuffer(file);
+  }
+  async function impLerPdf(bytes){
+    var pdf = await pdfjsLib.getDocument({data: bytes}).promise, paginas = [], lines = [], chars = 0;
+    for(var i = 1; i <= pdf.numPages; i++){
+      var pg = await pdf.getPage(i), tc = await pg.getTextContent(), vp = pg.getViewport({scale: 1});
+      lines = lines.concat(linesFromTextContent(tc));
+      var pal = tc.items.filter(function(it){ return it.str && it.str.trim(); }).map(function(it){ return {t: it.str.trim(), x0: it.transform[4], x1: it.transform[4] + (it.width || 0), y: vp.height - it.transform[5]}; });
+      pal.forEach(function(w){ chars += w.t.length; });
+      paginas.push({largura: vp.width, altura: vp.height, palavras: pal});
+    }
+    if(chars > 0){
+      if(CAIXA.reconhece(paginas) && impCaixaAbrir(paginas, false, lines)) return;
+      setImportStatus(null);
+      handleParsedLines(lines); // caminho de sempre para os demais bancos
+      return;
+    }
+    await impOcrPdf(pdf);
+  }
+  // PDF de imagem: lê o texto da imagem no próprio navegador (OCR). O arquivo não sai do computador.
+  async function impOcrPdf(pdf){
+    setImportStatus("Este PDF é uma imagem (não tem texto). Lendo a imagem no seu computador; pode levar até 1 minuto…");
+    var T;
+    try{ T = await impCarregaOcr(); }catch(e){ setImportStatus(null); impErro("Este PDF é uma imagem (não tem texto) e não consegui carregar o leitor de imagem." + DICA_OFX); return; }
+    var worker = null, paginas = [];
+    try{
+      var pagAtual = 0;
+      worker = await T.createWorker("por", 1, {langPath: OCR_FONTE.lang, logger: function(m){
+        if(m && m.status === "recognizing text") setImportStatus("Lendo a imagem (OCR), página " + pagAtual + " de " + pdf.numPages + ": " + Math.round(m.progress * 100) + "%");
+      }});
+      for(var i = 1; i <= pdf.numPages; i++){
+        pagAtual = i;
+        var pg = await pdf.getPage(i), v1 = pg.getViewport({scale: 1}), esc = Math.max(1.5, Math.min(4, 2000 / v1.width)), vp = pg.getViewport({scale: esc});
+        var cv = document.createElement("canvas"); cv.width = Math.round(vp.width); cv.height = Math.round(vp.height);
+        await pg.render({canvasContext: cv.getContext("2d"), viewport: vp}).promise;
+        var res = await worker.recognize(cv, {}, {blocks: true}), pal = [];
+        ((res.data && res.data.blocks) || []).forEach(function(b){ (b.paragraphs || []).forEach(function(p){ (p.lines || []).forEach(function(l){ (l.words || []).forEach(function(w){
+          if(w.text && w.text.trim()) pal.push({t: w.text.trim(), x0: w.bbox.x0, x1: w.bbox.x1, y: (w.bbox.y0 + w.bbox.y1) / 2});
+        }); }); }); });
+        paginas.push({largura: cv.width, altura: cv.height, palavras: pal});
+        cv.width = cv.height = 0;
+      }
+    }catch(e){ setImportStatus(null); impErro("Este PDF é uma imagem e a leitura da imagem falhou (" + ((e && e.message) || "erro") + ")." + DICA_OFX); return; }
+    finally{ if(worker){ try{ await worker.terminate(); }catch(e){} } }
+    var total = paginas.reduce(function(s, p){ return s + p.palavras.length; }, 0);
+    setImportStatus(null);
+    if(!total){ impErro("Li a imagem do PDF, mas não encontrei nenhum texto. Ela pode estar borrada, muito pequena ou em branco." + DICA_OFX); return; }
+    if(CAIXA.reconhece(paginas) && impCaixaAbrir(paginas, true, null)) return;
+    // outro banco: usa as linhas lidas da imagem no leitor de sempre
+    var linhas = [];
+    paginas.forEach(function(pg){ CAIXA.agrupar(pg.palavras, pg.altura * 0.004).forEach(function(l){ linhas.push(l.p.map(function(w){ return w.t; }).join(" ")); }); });
+    handleParsedLines(linhas);
+    var nt = impEl("importMetaNote"); if(nt && !nt.hidden) nt.textContent += " Lido por reconhecimento de imagem (OCR): confira os valores.";
+  }
+  // devolve true quando tratou o arquivo (abriu a prévia ou mostrou o erro)
+  function impCaixaAbrir(paginas, ocr, linhasTexto){
+    var r;
+    try{ r = CAIXA.ler(paginas); }catch(e){
+      if(linhasTexto){ return false; } // PDF de texto com outro desenho: deixa o leitor de sempre tentar
+      setImportStatus(null); impErro("Reconheci o extrato da Caixa, mas não consegui ler as colunas: " + (e.amigavel ? e.message : "erro de leitura") + "." + DICA_OFX); return true;
+    }
+    if(!r.linhas.length){
+      if(linhasTexto) return false;
+      setImportStatus(null); impErro("Reconheci o extrato da Caixa, mas não li nenhum lançamento." + DICA_OFX); return true;
+    }
+    if(r.ilegiveis.length){
+      setImportStatus(null);
+      impErro("Reconheci o extrato da Caixa, mas " + r.ilegiveis.length + " linha(s) não puderam ser lidas e nada foi importado: " + r.ilegiveis.slice(0, 4).map(function(x){ return "«" + x.texto + "» (faltou " + x.motivo + ")"; }).join("; ") + (r.ilegiveis.length > 4 ? "; …" : "") + "." + DICA_OFX);
+      return true;
+    }
+    var c = CAIXA.conferir(r), ext = CAIXA.paraExt(r, {ocr: ocr});
+    ext.suspeitasDocs = {}; ext.avisosLeitura = [];
+    c.suspeitas.forEach(function(s){
+      ext.suspeitasDocs["/" + s.linha.doc + "/" + s.linha.hora] = true;
+      ext.avisosLeitura.push(fmtDate(s.linha.data) + " " + s.linha.hora + " · " + s.linha.hist + (s.linha.fav ? " · " + s.linha.fav : "") + ": o saldo lido é " + fmt(s.lido) + " e pela conta deveria ser " + fmt(s.esperado) + " (confira o valor ou o saldo desta linha)");
+    });
+    setImportStatus(null);
+    abrirExtrato(ext);
+    var nt = impEl("importMetaNote");
+    if(nt){
+      nt.textContent += " As linhas SALDO DIA foram ignoradas." + (ocr ? " Lido por reconhecimento de imagem (OCR): confira os valores; a conferência de saldo abaixo valida cada linha." : "");
+    }
+    return true;
   }
 
   document.getElementById("pdfFileInput").addEventListener("change", function(){
@@ -8618,6 +8869,12 @@ var IMPF = (function(){
 
   window.__v5api = {renderAll: renderAll, info: v5Info, fmt: fmt, guessCategoria: guessCategoria, famRefresh: (typeof famRefresh === 'function' ? famRefresh : null)};
   if(window.__GENESIS_TEST__){ window.__genesis = {Store: Store, state: state, aplicarNuvem: aplicarNuvem, loadSynced: loadSynced, saveSynced: saveSynced}; }
+
+
+
+
+
+
 
 
 
