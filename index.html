@@ -5,7 +5,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.0/dist/umd/supabase.js"></script>
-<meta name="app-version" content="20261102-024740">
+<meta name="app-version" content="20261102-162014">
 <script>
 (function(){
   var m = document.querySelector('meta[name="app-version"]'); var cur = m && m.content; if(!cur) return;
@@ -1087,6 +1087,11 @@
   #fxModal .fx-chk input{width:auto; min-width:0;}
   .fx-alerta{display:flex; flex-direction:column; gap:6px;}
   .fx-det2 summary{cursor:pointer; font-size:14px; padding:6px 0; color:var(--ink-2);}
+  .fx-mov{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:10px;}
+  .fx-mov li{display:flex; justify-content:space-between; gap:10px; align-items:flex-start; flex-wrap:wrap; padding:10px 12px; border-radius:12px; border:1px solid var(--line);}
+  .fx-aviso{padding:10px 12px; border-radius:12px; border:1px solid var(--critical); background:var(--warn-bg); font-size:13.5px; line-height:1.4;}
+  .fx-acoes{display:flex; gap:8px; flex-wrap:wrap;}
+  .fx-mov .tag{font-size:11px; padding:1px 8px; border-radius:999px; border:1px solid var(--line); color:var(--ink-2); white-space:nowrap;}
 </style>
 
 <div class="app">
@@ -1557,11 +1562,10 @@
     <label for="fxRec">Repete</label><select id="fxRec"><option value="unica">Só uma vez</option><option value="mensal">Todo mês</option><option value="semanal">Toda semana</option></select>
     <label for="fxPrio">Prioridade</label><select id="fxPrio"><option value="essencial">Essencial</option><option value="cortavel">Cortável</option></select>
     <label for="fxConta">Conta ou cartão <span class="fam-nota">(opcional)</span></label><input id="fxConta" maxlength="80" list="fxContasLista"><datalist id="fxContasLista"></datalist>
-    <label class="fx-chk" id="fxMoverL"><input type="checkbox" id="fxMover"> Posso mudar o vencimento desta conta</label>
-    <div id="fxMoverBox" hidden><label for="fxVencMax">Mudar no máximo até</label><input id="fxVencMax" type="date"></div>
-    <label class="fx-chk" id="fxAntL"><input type="checkbox" id="fxAnt"> Posso antecipar esta entrada</label>
-    <div id="fxJuroBox"><label for="fxJuro">Juros por atraso (% ao mês) <span class="fam-nota">(opcional)</span></label><input id="fxJuro" inputmode="decimal" placeholder="Ex.: 1"></div>
+    <label class="fx-chk" id="fxMoverL"><input type="checkbox" id="fxMover"> Posso mudar a data desta conta, só dentro do mês</label>
+    <div id="fxMoverBox" hidden><label for="fxVencMax">Mudar no máximo até (no mesmo mês)</label><input id="fxVencMax" type="date"></div>
     <div id="fxEscBox"><label for="fxEscSel">Quem vê</label><select id="fxEscSel"><option value="meu">Só eu</option><option value="familia">Família</option></select></div>
+    <p class="fx-nota">Contas marcadas como cortáveis também podem ser reorganizadas pelo Fluxo de caixa.</p>
     <p class="fx-nota">Não repita aqui o que já está nos seus lançamentos: eles já entram no calendário.</p>
     <div class="modal-acoes"><button type="button" class="btn btn-ghost" id="fxCancelar">Cancelar</button><button type="button" class="btn btn-primary" id="fxSalvar">Salvar</button></div>
   </div>
@@ -2534,25 +2538,28 @@
     if(t.closest("#trfCancelar")){ document.getElementById("trfModal").hidden = true; return; }
   });
 // Motor do fluxo de caixa: funções puras, sem DOM e sem rede. Datas em texto ISO (AAAA-MM-DD).
-// Evento: {key, desc, valor (>0), tipo:'entrada'|'saida', data, prioridade:'essencial'|'cortavel',
-//          mover, vencMax, antecipar, juro (% ao mês informado ou null), fonte}
+// Evento: {key, desc, valor (>0), tipo:'entrada'|'saida', data, prioridade, movivel, vencMax, fonte, occ, id, recorrencia}
 var FLX = (function(){
-  var DIA = 864e5;
+  var DIA = 864e5, JURO_NEG = 8; // média de juros do saldo negativo, % ao mês
   function p2(n){ return (n < 10 ? "0" : "") + n; }
   function parse(s){ var a = s.split("-"); return Date.UTC(+a[0], +a[1] - 1, +a[2]); }
   function iso(ms){ var d = new Date(ms); return d.getUTCFullYear() + "-" + p2(d.getUTCMonth() + 1) + "-" + p2(d.getUTCDate()); }
   function addDias(s, n){ return iso(parse(s) + n * DIA); }
   function ultimoDia(y, m){ return new Date(Date.UTC(y, m, 0)).getUTCDate(); } // m = 1..12
   function cmp(a, b){ return a < b ? -1 : a > b ? 1 : 0; }
-  function dmax(a, b){ return a > b ? a : b; }
   function cent(v){ return Math.round(v * 100) / 100; }
   function diasEntre(a, b){ return Math.round((parse(b) - parse(a)) / DIA); }
+  var ISO_RE = /^\d{4}-\d{2}-\d{2}$/;
 
   // Ocorrências de uma conta prevista dentro de [de, ate]. Mensal usa o dia original, limitado ao fim do mês
   // (dia 31 vira 30 ou 28/29 nos meses curtos, e volta a 31 quando o mês tem).
+  // c.excecoes = {"data da ocorrência": "nova data"}: mudança só daquela ocorrência, sem mexer na regra.
   function expandir(c, de, ate){
-    var out = [], r = c.recorrencia || "unica";
-    function poe(d){ if(d >= de && d <= ate && d >= c.data) out.push(Object.assign({}, c, {data: d})); }
+    var out = [], r = c.recorrencia || "unica", exc = c.excecoes || {};
+    function poe(d){
+      var dest = (exc[d] && ISO_RE.test(exc[d])) ? exc[d] : d;
+      if(dest >= de && dest <= ate && d >= c.data) out.push(Object.assign({}, c, {data: dest, occ: d, movida: dest !== d}));
+    }
     if(r === "unica"){ poe(c.data); return out; }
     if(r === "semanal"){
       var d = c.data;
@@ -2591,159 +2598,111 @@ var FLX = (function(){
     }
     return {dias: dias, primeiroNeg: primeiroNeg, menor: menor, buraco: menor && menor.saldo < 0 ? cent(-menor.saldo) : 0, diasNeg: diasNeg, saldoFinal: saldo};
   }
-  function resumo(s){ return {primeiroNeg: s.primeiroNeg, buraco: s.buraco, diasNeg: s.diasNeg, pior: s.menor ? s.menor.data : null, saldoFinal: s.saldoFinal}; }
+  function resumo(s){ return {primeiroNeg: s.primeiroNeg, buraco: s.buraco, diasNeg: s.diasNeg, pior: s.menor ? s.menor.data : null, saldoMin: s.menor ? s.menor.saldo : 0, saldoFinal: s.saldoFinal}; }
   function copia(evs){ return evs.map(function(e){ return Object.assign({}, e); }); }
-  function proximaEntrada(evs, apartirDe, hoje){
-    var c = evs.filter(function(e){ return e.tipo === "entrada" && dmax(e.data, hoje) >= apartirDe; }).map(function(e){ return dmax(e.data, hoje); });
-    c.sort(cmp); return c[0] || null;
-  }
-  function melhora(a, b){ return b.buraco < a.buraco || (b.buraco === a.buraco && b.diasNeg < a.diasNeg); }
-
-  // ---- soluções (cada uma devolve novos eventos; nenhuma cria dinheiro, só muda datas ou resgata a reserva) ----
-  function solMover(ev, ctx){
-    var cur = copia(ev), s = simular(ctx.saldoIni, ctx.hoje, ctx.fim, cur), mud = [];
-    var cand = cur.filter(function(e){ return e.tipo === "saida" && e.mover; }).sort(function(a, b){ return cmp(a.data, b.data); });
-    for(var i = 0; i < cand.length && s.buraco > 0; i++){
-      var e = cand[i], de = e.data < ctx.hoje ? ctx.hoje : e.data;
-      var alvo = proximaEntrada(cur.filter(function(x){ return x !== e; }), de, ctx.hoje);
-      if(!alvo || alvo <= de) continue;
-      if(e.vencMax && alvo > e.vencMax) alvo = e.vencMax;
-      if(alvo <= de) continue;
-      var antes = e.data; e.data = alvo;
-      var s2 = simular(ctx.saldoIni, ctx.hoje, ctx.fim, cur);
-      if(melhora(resumo(s), resumo(s2))){ s = s2; mud.push({desc: e.desc, valor: e.valor, de: antes, para: alvo}); } else e.data = antes;
-    }
-    return {eventos: cur, mudancas: mud};
-  }
-  function solAdiar(ev, ctx){
-    var cur = copia(ev), s = simular(ctx.saldoIni, ctx.hoje, ctx.fim, cur), mud = [], depois = addDias(ctx.fim, 1);
-    var cand = cur.filter(function(e){ return e.tipo === "saida" && e.prioridade === "cortavel" && e.fonte !== "fatura" && dmax(e.data, ctx.hoje) <= (s.menor ? s.menor.data : ctx.fim); })
-      .sort(function(a, b){ return b.valor - a.valor; });
-    for(var i = 0; i < cand.length && s.buraco > 0; i++){
-      var e = cand[i], de = e.data < ctx.hoje ? ctx.hoje : e.data;
-      var alvo = proximaEntrada(cur.filter(function(x){ return x !== e; }), addDias(de, 1), ctx.hoje) || depois;
-      if(alvo <= de) continue;
-      var antes = e.data; e.data = alvo;
-      var s2 = simular(ctx.saldoIni, ctx.hoje, ctx.fim, cur);
-      if(melhora(resumo(s), resumo(s2))){ s = s2; mud.push({desc: e.desc, valor: e.valor, de: antes, para: alvo, foraDoPeriodo: alvo > ctx.fim}); } else e.data = antes;
-    }
-    return {eventos: cur, mudancas: mud};
-  }
-  function solAntecipar(ev, ctx){
-    var cur = copia(ev), s = simular(ctx.saldoIni, ctx.hoje, ctx.fim, cur), mud = [];
-    if(!s.primeiroNeg) return {eventos: cur, mudancas: mud};
-    var alvo = s.primeiroNeg;
-    cur.filter(function(e){ return e.tipo === "entrada" && e.antecipar && e.data > alvo; }).sort(function(a, b){ return cmp(a.data, b.data); }).forEach(function(e){
-      if(s.buraco <= 0) return;
-      var antes = e.data; e.data = alvo;
-      var s2 = simular(ctx.saldoIni, ctx.hoje, ctx.fim, cur);
-      if(melhora(resumo(s), resumo(s2))){ s = s2; mud.push({desc: e.desc, valor: e.valor, de: antes, para: alvo}); } else e.data = antes;
-    });
-    return {eventos: cur, mudancas: mud};
-  }
-  function solReserva(ev, ctx){
-    var cur = copia(ev), s = simular(ctx.saldoIni, ctx.hoje, ctx.fim, cur), mud = [];
-    var disp = Math.max(0, ctx.reserva || 0);
-    if(s.buraco > 0 && disp > 0 && s.primeiroNeg){
-      var usar = cent(Math.min(disp, s.buraco));
-      cur.push({key: "reserva", desc: "Resgate da reserva", valor: usar, tipo: "entrada", data: s.primeiroNeg, prioridade: "essencial", fonte: "reserva"});
-      mud.push({desc: "Resgate da reserva", valor: usar, de: null, para: s.primeiroNeg, reserva: true});
-    }
-    return {eventos: cur, mudancas: mud};
-  }
-  var DEFS = [
-    {id: "mover", titulo: "Mover vencimento para depois da entrada", fn: solMover,
-      vazio: "Nenhuma conta marcada como \"pode mudar o vencimento\" ajuda nesse período."},
-    {id: "antecipar", titulo: "Antecipar uma entrada prevista", fn: solAntecipar,
-      vazio: "Nenhuma entrada marcada como \"pode antecipar\" ajuda nesse período."},
-    {id: "adiar", titulo: "Adiar saídas cortáveis", fn: solAdiar,
-      vazio: "Não há saída cortável que, adiada, melhore o saldo."},
-    {id: "reserva", titulo: "Usar a reserva", fn: solReserva,
-      vazio: "Não há reserva disponível para cobrir o buraco."}
-  ];
-
-  // Custo de ficar devedor por um tempo: multa de 2% + juros do mês (informado ou 1% padrão).
-  var JURO_NEG = 8; // média de juros do saldo negativo / atraso, % ao mês
-  function custoAtraso(e){ return cent(e.valor * (0.02 + ((e.juro != null ? e.juro : JURO_NEG) / 100))); }
   // juros estimados de ficar no vermelho: saldo negativo de cada dia x taxa mensal / 30
   function custoNegativo(s, pct){ return cent(s.dias.reduce(function(a, d){ return a + (d.saldo < 0 ? -d.saldo : 0); }, 0) * (pct == null ? JURO_NEG : pct) / 100 / 30); }
+  function comDatas(ev, atrib){ var c = copia(ev); Object.keys(atrib).forEach(function(i){ c[i].data = atrib[i]; }); return c; }
+
+  // Reorganização dentro do mês. Só mexe em saídas "movíveis", só para depois e só até o último dia do mês
+  // (ou o limite informado na conta). Nada vai para o mês seguinte.
+  // Mover uma saída para mais tarde nunca piora nenhum dia antes da nova data, então a melhor data de cada conta é a mais tarde
+  // permitida: se mesmo assim sobra dia negativo, não existe solução. Havendo solução, procura-se o menor número de contas e,
+  // depois, as datas mais próximas das originais que ainda resolvem.
+  function reorganizar(o){
+    var hoje = o.hoje, fim = o.fim, ev = o.eventos, ini = o.saldoIni;
+    var base = simular(ini, hoje, fim, ev);
+    if(base.buraco <= 0) return null;
+    var mov = [];
+    ev.forEach(function(e, i){
+      if(e.tipo !== "saida" || !e.movivel || e.data < hoje || e.data >= fim) return;
+      var lim = e.vencMax && e.vencMax < fim ? e.vencMax : fim;
+      if(lim > e.data) mov.push({i: i, lim: lim, valor: e.valor, data: e.data});
+    });
+    var tudo = {}; mov.forEach(function(m){ tudo[m.i] = m.lim; });
+    var sTudo = simular(ini, hoje, fim, comDatas(ev, tudo));
+    if(sTudo.buraco > 0) return {resolvido: false, semMoveis: mov.length === 0, movidas: mov.length, falta: sTudo.buraco, pior: sTudo.menor.data, primeiroNeg: sTudo.primeiroNeg, eventosMelhor: comDatas(ev, tudo)};
+    var ordem = mov.slice().sort(function(a, b){ return b.valor - a.valor; });
+    var cand = ordem.slice(0, 16), n = cand.length, escolhido = null, porTamanho = [];
+    for(var m = 1; m < (1 << n); m++){ var c = 0, x = m; while(x){ c += x & 1; x >>= 1; } (porTamanho[c] = porTamanho[c] || []).push(m); }
+    function atribDe(mask){ var at = {}; for(var k = 0; k < n; k++) if(mask & (1 << k)) at[cand[k].i] = cand[k].lim; return at; }
+    var minimos = [];
+    for(var t = 1; t <= n && !minimos.length; t++){
+      (porTamanho[t] || []).forEach(function(mask){ if(simular(ini, hoje, fim, comDatas(ev, atribDe(mask))).buraco <= 0) minimos.push(mask); });
+    }
+    if(!minimos.length){ // as 16 maiores não bastam: acrescenta as demais por valor até resolver
+      var at = atribDe((1 << n) - 1);
+      ordem.slice(16).forEach(function(mm){ if(simular(ini, hoje, fim, comDatas(ev, at)).buraco > 0) at[mm.i] = mm.lim; });
+      escolhido = refinar(at, ev, ini, hoje, fim);
+    } else {
+      var melhor = null;
+      minimos.slice(0, 400).forEach(function(mask){
+        var at2 = refinar(atribDe(mask), ev, ini, hoje, fim), custo = 0;
+        Object.keys(at2).forEach(function(i){ custo += diasEntre(ev[i].data, at2[i]); });
+        var s = simular(ini, hoje, fim, comDatas(ev, at2));
+        if(!melhor || custo < melhor.custo || (custo === melhor.custo && s.menor.saldo > melhor.min)) melhor = {at: at2, custo: custo, min: s.menor.saldo};
+      });
+      escolhido = melhor.at;
+    }
+    var idxs = Object.keys(escolhido).map(Number).sort(function(a, b){ return cmp(ev[a].data, ev[b].data) || a - b; });
+    var acum = {}, movimentos = [], atual = base;
+    idxs.forEach(function(i){
+      acum[i] = escolhido[i];
+      var s2 = simular(ini, hoje, fim, comDatas(ev, acum)), e = ev[i];
+      movimentos.push({idx: i, key: e.key, id: e.id || null, desc: e.desc, valor: e.valor, de: e.data, para: escolhido[i], occ: e.occ || e.data, recorrente: (e.recorrencia || "unica") !== "unica",
+        piorAntes: atual.menor.saldo, piorDiaAntes: atual.menor.data, piorDepois: s2.menor.saldo, piorDiaDepois: s2.menor.data});
+      atual = s2;
+    });
+    var eventosDepois = comDatas(ev, escolhido), sDepois = simular(ini, hoje, fim, eventosDepois);
+    // o mês seguinte: mudar datas dentro do mês não pode piorar o começo do próximo
+    var ini2 = addDias(fim, 1), fim2 = addDias(ini2, 9);
+    var s0 = simular(ini, hoje, fim2, ev), s1 = simular(ini, hoje, fim2, eventosDepois);
+    function minDe(s){ var mm = null; s.dias.forEach(function(d){ if(d.data >= ini2 && d.data <= fim2 && (mm === null || d.saldo < mm.saldo)) mm = {data: d.data, saldo: d.saldo}; }); return mm; }
+    function doDia(s, dia){ return s.dias.filter(function(d){ return d.data === dia; })[0].saldo; }
+    var pa = minDe(s0), pd = minDe(s1);
+    return {resolvido: true, movimentos: movimentos, antes: resumo(base), depois: resumo(sDepois), simDepois: sDepois, eventosDepois: eventosDepois,
+      proxMes: {de: ini2, ate: fim2, minAntes: pa, minDepois: pd, piora: !!(pa && pd && pd.saldo < pa.saldo), negativoDepois: !!(pd && pd.saldo < 0), fimMesAntes: doDia(s0, fim), fimMesDepois: doDia(s1, fim)}};
+  }
+  // aproxima cada data da original (uma conta por vez, da mais cedo para a mais tarde), mantendo o mês sem dia negativo
+  function refinar(at, ev, ini, hoje, fim){
+    var cur = Object.assign({}, at), ids = Object.keys(cur).map(Number).sort(function(a, b){ return cmp(ev[a].data, ev[b].data); });
+    for(var passo = 0; passo < 2; passo++){
+      ids.forEach(function(i){
+        var lim = cur[i];
+        for(var t = addDias(ev[i].data, 1); t <= lim; t = addDias(t, 1)){
+          var tent = Object.assign({}, cur); tent[i] = t;
+          if(simular(ini, hoje, fim, comDatas(ev, tent)).buraco <= 0){ cur[i] = t; break; }
+        }
+      });
+    }
+    return cur;
+  }
 
   function analisar(o){
-    var hoje = o.hoje, fim = o.fim, ctx = {saldoIni: o.saldoIni, hoje: hoje, fim: fim, reserva: o.reserva};
-    var ev = o.eventos, base = simular(o.saldoIni, hoje, fim, ev), r0 = resumo(base);
-    var solucoes = DEFS.map(function(d){
-      var x = d.fn(ev, ctx), s2 = simular(o.saldoIni, hoje, fim, x.eventos);
-      return {id: d.id, titulo: d.titulo, vazio: d.vazio, mudancas: x.mudancas, eventos: x.eventos, aplicavel: x.mudancas.length > 0,
-              antes: r0, depois: resumo(s2), sim: s2};
-    });
-    // sugestão (não aplicada): dividir em 3 vezes a maior saída parcelável que cause o buraco
-    var parc = ev.filter(function(e){ return e.tipo === "saida" && e.fonte !== "reserva" && e.valor >= 90; })
-      .filter(function(e){ return base.primeiroNeg && dmax(e.data, hoje) <= (base.menor ? base.menor.data : fim); })
-      .sort(function(a, b){ return b.valor - a.valor; })[0];
-    var sug = null;
-    if(parc && base.buraco > 0){
-      var c = copia(ev), e2 = c.filter(function(x){ return x.key === parc.key && x.data === parc.data; })[0];
-      if(e2){
-        e2.valor = cent(parc.valor / 3);
-        [1, 2].forEach(function(k){ c.push(Object.assign({}, e2, {key: parc.key + "#p" + k, data: addDias(parc.data, 30 * k)})); });
-        var s3 = simular(o.saldoIni, hoje, fim, c);
-        sug = {id: "parcelar", titulo: "Parcelar ou renegociar", sugestao: true, alvo: parc, estimativa: true, antes: r0, depois: resumo(s3), sim: s3};
-      }
-    }
-    // plano combinado: aplica em ordem, só enquanto ainda houver buraco
-    var cur = ev, passos = [], sPlano = base;
-    DEFS.forEach(function(d){
-      if(sPlano.buraco <= 0) return;
-      var x = d.fn(cur, ctx);
-      if(x.mudancas.length){ cur = x.eventos; passos.push(d.id); sPlano = simular(o.saldoIni, hoje, fim, cur); }
-    });
-    var plano = {passos: passos, eventos: cur, sim: sPlano, depois: resumo(sPlano), resolvido: base.buraco > 0 && sPlano.buraco === 0};
-
-    var semSaida = null;
-    if(base.buraco > 0 && sPlano.buraco > 0) semSaida = analisarSemSaida(o, ctx, cur, sPlano);
-    r0.jurosNeg = custoNegativo(base); plano.depois.jurosNeg = custoNegativo(sPlano);
-    return {base: base, antes: r0, jurosPct: JURO_NEG, solucoes: solucoes, sugestao: sug, plano: plano, semSaida: semSaida};
+    var base = simular(o.saldoIni, o.hoje, o.fim, o.eventos), r0 = resumo(base);
+    r0.jurosNeg = custoNegativo(base);
+    var reorg = base.buraco > 0 ? reorganizar(o) : null, semSaida = null;
+    if(reorg && reorg.resolvido) reorg.depois.jurosNeg = custoNegativo(reorg.simDepois);
+    if(reorg && !reorg.resolvido) semSaida = analisarSemSaida(o, reorg);
+    return {base: base, antes: r0, jurosPct: JURO_NEG, reorg: reorg && reorg.resolvido ? reorg : null, semSaida: semSaida};
   }
-
-  // Nenhuma solução fecha o buraco: separa essencial de cortável, escolhe o atraso mais barato e dá a data de volta ao positivo.
-  function analisarSemSaida(o, ctx, evPlano, sPlano){
-    var ext = addDias(ctx.hoje, 90); if(ext < ctx.fim) ext = ctx.fim;
-    var eventosExt = (o.eventosExt || evPlano);
-    var sExt = simular(o.saldoIni, ctx.hoje, ext, eventosExt);
-    var falta = sPlano.buraco, pior = sPlano.menor.data;
-    var somaV = function(l){ return cent(l.reduce(function(x, e){ return x + e.valor; }, 0)); };
-    var noPeriodo = function(e){ return e.tipo === "saida" && e.fonte !== "reserva" && dmax(e.data, ctx.hoje) <= pior; };
-    var orig = o.eventos.filter(noPeriodo);
-    var essencial = somaV(orig.filter(function(e){ return e.prioridade === "essencial"; }));
-    var cortavel = somaV(orig.filter(function(e){ return e.prioridade !== "essencial"; }));
-    // o que ainda pesa depois do plano: escolhe quem fica para depois com o menor custo (menos essenciais primeiro, depois menor multa/juros)
-    var cand = evPlano.filter(noPeriodo).sort(function(a, b){ return (custoAtraso(a) / a.valor) - (custoAtraso(b) / b.valor); }).slice(0, 14);
-    var melhor = null;
-    for(var m = 1; m < (1 << cand.length); m++){
-      var sub = [], v = 0, ess = 0, cu = 0;
-      for(var k = 0; k < cand.length; k++) if(m & (1 << k)){ sub.push(cand[k]); v += cand[k].valor; if(cand[k].prioridade === "essencial") ess++; cu += custoAtraso(cand[k]); }
-      if(cent(v) < falta) continue;
-      if(!melhor || ess < melhor.ess || (ess === melhor.ess && (cu < melhor.cu || (cu === melhor.cu && sub.length < melhor.sub.length)))) melhor = {sub: sub, ess: ess, cu: cu};
-    }
-    var escolha = melhor ? melhor.sub : cand;
-    var custo = cent(escolha.reduce(function(a, e){ return a + custoAtraso(e); }, 0));
-    // volta ao positivo: primeiro dia a partir do qual o saldo do plano não fica mais negativo
-    var recupera = null;
-    for(var j = sExt.dias.length - 1; j >= 0; j--){ if(sExt.dias[j].neg){ recupera = j + 1 < sExt.dias.length ? sExt.dias[j + 1].data : null; break; } if(j === 0) recupera = sExt.dias[0].data; }
+  // Nenhuma reorganização dentro do mês resolve: diz quanto falta no pior dia e quando o saldo volta ao positivo (só informação).
+  function analisarSemSaida(o, r){
+    var ext = addDias(o.hoje, 90); if(ext < o.fim) ext = o.fim;
+    var sExt = simular(o.saldoIni, o.hoje, ext, r.eventosMelhor), recupera = null;
+    for(var j = sExt.dias.length - 1; j >= 0; j--){ if(sExt.dias[j].neg){ recupera = j + 1 < sExt.dias.length ? sExt.dias[j + 1].data : null; break; } }
     if(sExt.diasNeg === 0) recupera = null;
-    return {falta: falta, pior: pior, primeiroNeg: sPlano.primeiroNeg, essencial: essencial, cortavel: cortavel,
-            escolha: escolha.map(function(e){ return {desc: e.desc, valor: e.valor, essencial: e.prioridade === "essencial", custo: custoAtraso(e)}; }),
-            custo: custo, recuperaEm: recupera, horizonteAte: ext, voltaNoHorizonte: !!recupera};
+    return {falta: r.falta, pior: r.pior, primeiroNeg: r.primeiroNeg, semMoveis: r.semMoveis, movidas: r.movidas, recuperaEm: recupera, horizonteAte: ext, voltaNoHorizonte: !!recupera};
   }
 
-  return {parse: parse, iso: iso, addDias: addDias, ultimoDia: ultimoDia, expandir: expandir, simular: simular, analisar: analisar,
-          resumo: resumo, custoNegativo: custoNegativo, custoAtraso: custoAtraso, cent: cent};
+  return {parse: parse, iso: iso, addDias: addDias, ultimoDia: ultimoDia, expandir: expandir, simular: simular, analisar: analisar, reorganizar: reorganizar,
+          resumo: resumo, custoNegativo: custoNegativo, cent: cent};
 })();
 
   // ===== Fluxo de caixa (tela) =====
   var FLUXO_SCHEMA = "public";
   var DBF = sb ? (FLUXO_SCHEMA === "public" ? sb : sb.schema(FLUXO_SCHEMA)) : null;
-  var FLXD = {uid: null, itens: [], fam: [], carregado: false, carregando: false, erro: null, esc: "meu", sel: null, ver: null, grupo: null, editId: null};
+  var FLXD = {uid: null, itens: [], fam: [], carregado: false, carregando: false, erro: null, esc: "meu", sel: null, ver: null, grupo: null, editId: null, atual: null};
   var FLX_PRIO_KEY = "genesis-fluxo-prio-v1";
   var FLX_ESSENCIAL = /(moradia|alugu|condom|financiament|\bluz\b|energia|[aá]gua|\bg[aá]s\b|sa[uú]de|plano de sa|farm[aá]cia|medic|escola|faculdade|mensalidade|educa|transporte|combust|mercado|aliment|supermerc|seguro|iptu|ipva|imposto|empr[eé]stimo|internet|telefone)/i;
   var FLX_DOW = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"];
@@ -2807,9 +2766,9 @@ var FLX = (function(){
     var prev = state.mode !== "db" || FLXD.uid !== state.uid ? [] : (esc === "familia" ? FLXD.fam : FLXD.itens);
     prev.forEach(function(c){
       var base = {key: "cp:" + c.id, id: c.id, desc: c.descricao + (c.de_nome && !c.meu ? " · " + c.de_nome : ""), valor: Number(c.valor), tipo: c.tipo, data: c.data, recorrencia: c.recorrencia,
-        prioridade: c.prioridade, conta: c.conta || null, mover: !!c.pode_mover_venc, vencMax: c.venc_max || null, antecipar: !!c.pode_antecipar,
-        juro: c.juro_atraso_pct == null ? null : Number(c.juro_atraso_pct), fonte: "prevista", propria: c.meu !== false};
-      FLX.expandir(base, hoje, ate).forEach(function(o){ o.key = base.key + "@" + o.data; ev.push(o); });
+        prioridade: c.prioridade, conta: c.conta || null, vencMax: c.venc_max || null, fonte: "prevista", propria: c.meu !== false, excecoes: c.excecoes || {},
+        movivel: c.tipo === "saida" && c.meu !== false && (!!c.pode_mover_venc || c.prioridade === "cortavel")}; // só contas previstas suas, marcadas como móveis ou cortáveis
+      FLX.expandir(base, hoje, ate).forEach(function(o){ o.key = base.key + "@" + o.occ; ev.push(o); });
     });
     return ev;
   }
@@ -2825,20 +2784,8 @@ var FLX = (function(){
     var j = flxJanela(); if(j.passado) return {j: j, passado: true};
     var esc = FLXD.esc, ini = esc === "meu" ? flxSaldoInicial() : {valor: 0, n: 0};
     var eventos = flxEventos(esc, j.hoje, j.ext);
-    var reserva = esc === "meu" ? (state.patrimonio && state.patrimonio.reserva) || 0 : 0;
-    var an = FLX.analisar({saldoIni: ini.valor, hoje: j.hoje, fim: j.fim, eventos: eventos, reserva: reserva});
-    return {j: j, ini: ini, an: an, eventos: eventos, reserva: reserva, esc: esc};
-  }
-
-  function flxMudanca(m){
-    if(m.reserva) return "Resgatar <b>" + fmt(m.valor) + "</b> da reserva em " + flxDia(m.para) + ".";
-    if(m.foraDoPeriodo) return "Adiar «" + flxEsc(m.desc) + "» (" + fmt(m.valor) + ") de " + flxDia(m.de) + " para o mês seguinte.";
-    return "«" + flxEsc(m.desc) + "» (" + fmt(m.valor) + "): de " + flxDia(m.de) + " para " + flxDia(m.para) + ".";
-  }
-  function flxEfeito(a, d){
-    var antes = a.buraco > 0 ? "buraco de " + fmt(a.buraco) + " (a partir de " + flxDia(a.primeiroNeg) + ")" : "sem buraco";
-    var dep = d.buraco > 0 ? "buraco de " + fmt(d.buraco) + " (a partir de " + flxDia(d.primeiroNeg) + ")" : "<span style=\"color:var(--pos)\">sem buraco</span>";
-    return '<div class="fx-efeito">' + antes + " → " + dep + "</div>";
+    var an = FLX.analisar({saldoIni: ini.valor, hoje: j.hoje, fim: j.fim, eventos: eventos});
+    return {j: j, ini: ini, an: an, eventos: eventos, esc: esc};
   }
 
   function flxCalendario(c, view){
@@ -2875,35 +2822,36 @@ var FLX = (function(){
     return h + "</div>";
   }
 
-  function flxSolucoes(c){
-    var an = c.an, h = "";
-    if(an.base.buraco <= 0) return "";
-    an.solucoes.forEach(function(s){
-      h += '<div class="fx-sol"><h4>' + flxEsc(s.titulo) + "</h4>";
-      if(!s.aplicavel) h += '<div class="mut">' + flxEsc(s.vazio) + "</div>";
-      else {
-        h += "<ul>" + s.mudancas.map(function(m){ return "<li>" + flxMudanca(m) + "</li>"; }).join("") + "</ul>" + flxEfeito(s.antes, s.depois);
-        h += '<button type="button" class="btn btn-ghost" data-ver="' + s.id + '">Ver no calendário</button>';
-      }
-      h += "</div>";
-    });
-    if(an.sugestao){
-      var g = an.sugestao;
-      h += '<div class="fx-sol"><h4>Parcelar ou renegociar</h4><div>Sugestão: pedir para dividir «' + flxEsc(g.alvo.desc) + "» (" + fmt(g.alvo.valor) + ") em 3 vezes, ou renegociar o prazo.</div>" + flxEfeito(g.antes, g.depois) +
-        '<div class="fx-nota">Estimativa sem juros. Só vale se o credor aceitar; por isso não entra no plano nem altera o calendário.</div></div>';
-    }
-    return '<details class="fx-det2"><summary>Ver as opções, uma a uma</summary><div class="fx-sols" style="margin-top:10px">' + h + "</div></details>";
+  function flxPior(m){
+    var a = fmt(m.piorAntes) + " em " + flxDia(m.piorDiaAntes), d = m.piorDepois >= 0 ? '<span style="color:var(--pos)">sem dia negativo</span>' : fmt(m.piorDepois) + " em " + flxDia(m.piorDiaDepois);
+    return "pior dia: " + a + " → " + d;
   }
-
+  function flxReorg(c){
+    var r = c.an.reorg; if(!r) return "";
+    var h = '<div class="fx-sol plano" id="fxReorg"><h4>Reorganizar as datas do mês</h4>' +
+      '<div class="mut">Só contas que você deixou mover, só para depois, até o último dia do mês. Nada é aplicado sozinho.</div><ul class="fx-mov">';
+    r.movimentos.forEach(function(m, i){
+      h += "<li><div>«" + flxEsc(m.desc) + "» (" + fmt(m.valor) + "): <b>de " + flxDia(m.de) + " para " + flxDia(m.para) + "</b>" + (m.recorrente ? ' <span class="tag">só neste mês</span>' : "") +
+        '<div class="mut">' + flxPior(m) + '</div></div><button type="button" class="btn btn-ghost" data-aplicar="' + i + '">Aplicar</button></li>';
+    });
+    h += "</ul>" +
+      '<div class="fx-efeito">Saldo mínimo do mês depois de todas as mudanças: ' + fmt(r.depois.saldoMin) + " em " + flxDia(r.depois.pior) + " (antes: " + fmt(r.antes.saldoMin) + ")</div>";
+    var p = r.proxMes, mes = "mês seguinte (dias 1 a 10)";
+    if(p.piora) h += '<div class="fx-aviso">⚠ Esta reorganização piora o começo do ' + mes + ": o saldo mínimo vai de " + fmt(p.minAntes.saldo) + " para " + fmt(p.minDepois.saldo) + ".</div>";
+    else if(p.negativoDepois) h += '<div class="fx-aviso">⚠ Atenção: o ' + mes + " fica negativo de qualquer jeito (mínimo de " + fmt(p.minDepois.saldo) + " em " + flxDia(p.minDepois.data) + "). Reorganizar este mês não resolve isso.</div>";
+    else h += '<div class="fx-nota">O ' + mes + " não piora: saldo mínimo de " + fmt(p.minDepois.saldo) + " em " + flxDia(p.minDepois.data) + ".</div>";
+    h += '<div class="fx-acoes"><button type="button" class="btn btn-ghost" data-ver="reorg">Ver antes e depois no calendário</button>' +
+      (r.movimentos.length > 1 ? '<button type="button" class="btn btn-primary" data-aplicar="todas">Aplicar todas</button>' : "") + "</div></div>";
+    return h;
+  }
   function flxSemSaida(c){
     var s = c.an.semSaida; if(!s) return "";
-    var h = '<div class="fx-sem"><h4>Sem saída pelas suas regras</h4>' +
-      "<div>Mesmo mexendo em tudo o que você liberou (datas, cortáveis e reserva), <b>faltam " + fmt(s.falta) + "</b> no pior dia (" + flxDia(s.pior) + "). O saldo fica negativo a partir de " + flxDia(s.primeiroNeg) + ".</div>" +
-      "<div>Do que vence até lá: <b>essencial " + fmt(s.essencial) + "</b> e <b>cortável " + fmt(s.cortavel) + "</b>.</div>";
-    if(s.escolha.length) h += "<div>O negativo mais barato é deixar para depois: " + s.escolha.map(function(e){ return "«" + flxEsc(e.desc) + "» (" + fmt(e.valor) + (e.essencial ? ", essencial" : "") + ")"; }).join(", ") +
-      ". Custo estimado de atraso: <b>" + fmt(s.custo) + "</b> (multa de 2% mais juros do mês; usa o juro que você informou na conta, ou a média de 8% ao mês).</div>";
-    h += s.recuperaEm ? "<div>Previsão para voltar ao positivo: <b>" + flxDia(s.recuperaEm) + "/" + s.recuperaEm.slice(0, 4) + "</b>, quando as próximas entradas cobrirem o que ficou para trás.</div>"
-      : "<div>Com os dados de hoje o saldo <b>não volta ao positivo</b> até " + flxDia(s.horizonteAte) + "/" + s.horizonteAte.slice(0, 4) + ". Cadastre entradas previstas ou reduza saídas para ver uma data.</div>";
+    var h = '<div class="fx-sem"><h4>Sem saída dentro do mês</h4>';
+    if(s.semMoveis) h += "<div>Nenhuma conta prevista está marcada como móvel (ou cortável), então nenhuma data pode mudar. Faltam <b>" + fmt(s.falta) + "</b> no pior dia (" + flxDia(s.pior) + ").</div>";
+    else h += "<div>Mesmo movendo todas as " + s.movidas + " conta(s) que você liberou até o último dia do mês, o saldo continua negativo: <b>faltam " + fmt(s.falta) + "</b> no pior dia (" + flxDia(s.pior) + ").</div>";
+    h += "<div>O saldo fica negativo a partir de " + flxDia(s.primeiroNeg) + ".</div>";
+    h += s.recuperaEm ? "<div>Previsão para voltar ao positivo: <b>" + flxDia(s.recuperaEm) + "/" + s.recuperaEm.slice(0, 4) + "</b>, quando as próximas entradas cobrirem o buraco.</div>"
+      : "<div>Com os dados de hoje o saldo <b>não volta ao positivo</b> até " + flxDia(s.horizonteAte) + "/" + s.horizonteAte.slice(0, 4) + ".</div>";
     return h + "</div>";
   }
 
@@ -2915,10 +2863,51 @@ var FLX = (function(){
     if(FLXD.erro) h += '<div class="fx-nota fx-neg">' + flxEsc(FLXD.erro) + "</div>";
     if(!itens.length) return h + '<div class="fx-nota">Nenhuma ainda. Cadastre salário, aluguel, assinaturas e o que mais vai entrar ou sair e não está nos lançamentos.</div>';
     return h + '<div class="fx-lista">' + itens.map(function(c){
+      var movida = c.data_original && c.data_original !== c.data ? ' · <b>movida de ' + flxDia(c.data_original) + "</b> " + '<button type="button" class="fx-mini" data-desfaz="' + flxEsc(c.id) + '">Desfazer</button>' : "";
+      var exc = Object.keys(c.excecoes || {}).sort().map(function(o){ return '<div class="mut">Neste mês: ocorrência de ' + flxDia(o) + " movida para " + flxDia(c.excecoes[o]) + ' <button type="button" class="fx-mini" data-desfaz-exc="' + flxEsc(c.id) + "|" + flxEsc(o) + '">Desfazer</button></div>'; }).join("");
       return '<div class="fx-item"><span>' + (c.tipo === "entrada" ? "↑ " : "↓ ") + "<b>" + flxEsc(c.descricao) + "</b> · " + fmt(Number(c.valor)) + " · " + flxDia(c.data) + " · " + rec[c.recorrencia] +
-        " · " + (c.prioridade === "essencial" ? "essencial" : "cortável") + (c.escopo === "familia" ? " · família" : "") + (c.pode_mover_venc ? " · vencimento flexível" : "") + (c.pode_antecipar ? " · pode antecipar" : "") + "</span>" +
+        " · " + (c.prioridade === "essencial" ? "essencial" : "cortável") + (c.escopo === "familia" ? " · família" : "") + (c.pode_mover_venc ? " · pode mudar de data" : "") + movida + exc + "</span>" +
         '<span class="acoes"><button type="button" class="fx-mini" data-edit="' + flxEsc(c.id) + '">Editar</button><button type="button" class="fx-mini" data-del="' + flxEsc(c.id) + '">Excluir</button></span></div>';
     }).join("") + "</div>";
+  }
+
+  // --- aplicar e desfazer: nada é aplicado sozinho ---
+  function flxAplicar(quais){
+    var c = FLXD.atual, r = c && c.an.reorg; if(!r) return;
+    var movs = quais === "todas" ? r.movimentos : [r.movimentos[+quais]].filter(Boolean);
+    var porId = {}, erro = null;
+    movs.forEach(function(m){
+      if(!m.id || m.para <= m.de || m.para > c.j.fim || m.para.slice(0, 7) !== m.de.slice(0, 7)){ erro = "Essa mudança sairia do mês e não foi aplicada."; return; }
+      (porId[m.id] = porId[m.id] || []).push(m);
+    });
+    if(erro){ toast(erro); return; }
+    var jobs = Object.keys(porId).map(function(id){
+      var item = FLXD.itens.filter(function(x){ return x.id === id; })[0], ms = porId[id];
+      if(!item) return Promise.reject(new Error("Conta prevista não encontrada."));
+      var pat, volta;
+      if(ms[0].recorrente){
+        var exc = Object.assign({}, item.excecoes || {}); ms.forEach(function(m){ exc[m.occ] = m.para; });
+        pat = {excecoes: exc}; volta = {excecoes: item.excecoes || {}};
+      } else {
+        pat = {data: ms[0].para, data_original: item.data_original || item.data}; volta = {data: item.data, data_original: item.data_original || null};
+      }
+      return DBF.from("contas_previstas").update(pat).eq("id", id).then(function(x){ if(x.error) throw x.error; return {id: id, volta: volta}; });
+    });
+    Promise.all(jobs).then(function(feitos){
+      FLXD.ver = null; FLXD.carregado = false; FLXD.carregando = false; renderFluxo();
+      toastUndo(movs.length === 1 ? "Data da conta alterada." : movs.length + " datas alteradas.", function(){
+        Promise.all(feitos.map(function(f){ return DBF.from("contas_previstas").update(f.volta).eq("id", f.id).then(function(x){ if(x.error) throw x.error; }); }))
+          .then(function(){ FLXD.carregado = false; FLXD.carregando = false; renderFluxo(); toast("Mudança desfeita."); }).catch(function(e){ toast(famMsg(e)); });
+      });
+    }).catch(function(e){ toast(famMsg(e)); });
+  }
+  function flxDesfazer(id, occ){
+    var item = FLXD.itens.filter(function(x){ return x.id === id; })[0]; if(!item) return;
+    var pat = occ ? {excecoes: (function(){ var e = Object.assign({}, item.excecoes || {}); delete e[occ]; return e; })()} : {data: item.data_original, data_original: null};
+    DBF.from("contas_previstas").update(pat).eq("id", id).then(function(x){
+      if(x.error) throw x.error;
+      FLXD.carregado = false; FLXD.carregando = false; renderFluxo(); toast("Mudança desfeita.");
+    }).catch(function(e){ toast(famMsg(e)); });
   }
 
   function renderFluxo(){
@@ -2935,9 +2924,9 @@ var FLX = (function(){
       return;
     }
     var an = c.an, view = an.base, sim = "";
+    FLXD.atual = c;
     if(FLXD.ver){
-      var sv = FLXD.ver === "plano" ? an.plano : an.solucoes.filter(function(s){ return s.id === FLXD.ver; })[0];
-      if(sv && an.base.buraco > 0){ view = sv.sim; sim = FLXD.ver; } else FLXD.ver = null;
+      if(FLXD.ver === "reorg" && an.reorg){ view = an.reorg.simDepois; sim = "reorg"; } else FLXD.ver = null;
     }
     var viewObj = {sim: view};
     var menor = an.base.menor;
@@ -2948,21 +2937,19 @@ var FLX = (function(){
     if(c.esc === "meu" && c.ini.n === 0) h += '<div class="fx-nota fx-neg">Nenhum saldo informado: o calendário parte de R$ 0,00. Use "Atualizar saldo" na tela inicial para partir do saldo real.</div>';
     if(c.esc === "familia") h += '<div class="fx-nota">Na aba Família não existe saldo compartilhado: o calendário mostra o movimento acumulado só do que foi compartilhado, partindo de R$ 0,00.</div>';
     if(an.base.buraco > 0){
-      var pl = an.plano, nomesP = {mover: "mover vencimentos", antecipar: "antecipar entrada", adiar: "adiar cortáveis", reserva: "usar a reserva"};
+      var r = an.reorg;
       h += '<div class="fx-alerta"><div>⚠ <b>Descasamento no fluxo de caixa:</b> o saldo fica negativo por <b>' + an.base.diasNeg + (an.base.diasNeg === 1 ? " dia" : " dias") + "</b>, a partir de <b>" + flxDia(an.base.primeiroNeg) +
         "</b>. O buraco chega a <b>" + fmt(an.base.buraco) + "</b> em " + flxDia(an.base.menor.data) + ".</div>" +
         "<div>Ficar no negativo custa, em média, <b>" + an.jurosPct + "% ao mês</b> de juros: cerca de <b>" + fmt(an.antes.jurosNeg) + "</b> neste período.</div>" +
-        (pl.passos.length
-          ? "<div>" + (pl.resolvido ? "<b>Solução:</b> " : "<b>Melhor caminho (não fecha tudo):</b> ") + pl.passos.map(function(p){ return nomesP[p]; }).join(" + ") + ". Buraco de " + fmt(an.base.buraco) + " → " + (pl.depois.buraco > 0 ? fmt(pl.depois.buraco) : "sem buraco") + (pl.depois.buraco > 0 ? "" : ", juros evitados") + ". " +
-            '<button type="button" class="fx-mini" data-ver="plano">Ver no calendário</button></div>'
-          : "<div><b>Sem solução</b> dentro das regras que você liberou.</div>") +
+        (r ? "<div><b>Solução dentro do mês:</b> mudar a data de " + r.movimentos.length + (r.movimentos.length === 1 ? " conta" : " contas") + ". Buraco de " + fmt(an.base.buraco) + " → sem buraco, juros evitados. Veja abaixo, em \"Reorganizar as datas do mês\".</div>"
+           : "<div><b>Sem solução dentro do mês.</b> Veja o quadro abaixo.</div>") +
         "</div>";
     } else h += '<div class="fx-ok">Nenhum dia fica negativo até ' + flxDia(c.j.fim) + ".</div>";
     if(sim){
-      h += '<div class="fx-sim"><span>Simulação: <b>' + (sim === "plano" ? "plano sugerido" : an.solucoes.filter(function(s){ return s.id === sim; })[0].titulo) + "</b>. Nada foi salvo nem alterado nos seus lançamentos.</span><button type=\"button\" class=\"btn btn-ghost\" data-ver=\"\">Voltar ao real</button></div>";
+      h += '<div class="fx-sim"><span>Calendário <b>depois</b> da reorganização (simulação). Nada foi salvo nem alterado.</span><button type="button" class="btn btn-ghost" data-ver="">Ver antes</button></div>';
     }
     h += flxCalendario(c, viewObj) + flxDetalhe(c, viewObj);
-    h += flxSolucoes(c) + flxSemSaida(c) + flxLista();
+    h += flxReorg(c) + flxSemSaida(c) + flxLista();
     corpo.innerHTML = h;
   }
 
@@ -2976,7 +2963,6 @@ var FLX = (function(){
     $f("fxValor").value = c ? String(c.valor).replace(".", ",") : ""; $f("fxData").value = c ? c.data : todayISO();
     $f("fxRec").value = c ? c.recorrencia : "unica"; $f("fxPrio").value = c ? c.prioridade : "essencial"; $f("fxConta").value = c && c.conta ? c.conta : "";
     $f("fxMover").checked = !!(c && c.pode_mover_venc); $f("fxVencMax").value = c && c.venc_max ? c.venc_max : "";
-    $f("fxAnt").checked = !!(c && c.pode_antecipar); $f("fxJuro").value = c && c.juro_atraso_pct != null ? String(c.juro_atraso_pct).replace(".", ",") : "";
     $f("fxEscSel").value = c ? c.escopo : "meu"; $f("fxEscBox").hidden = !FAM.grupo;
     var nomes = {}; Object.keys(state.saldos || {}).forEach(function(k){ nomes[rotuloConta(state.saldos[k])] = 1; }); Object.keys(state.cartoes || {}).forEach(function(k){ nomes[cardLabel(k)] = 1; });
     $f("fxContasLista").innerHTML = Object.keys(nomes).filter(Boolean).map(function(n){ return '<option value="' + flxEsc(n) + '">'; }).join("");
@@ -2984,7 +2970,7 @@ var FLX = (function(){
   }
   function flxAjustaForm(){
     var $f = function(i){ return document.getElementById(i); }, saida = $f("fxTipo").value === "saida";
-    $f("fxMoverL").hidden = !saida; $f("fxMoverBox").hidden = !(saida && $f("fxMover").checked); $f("fxAntL").hidden = saida; $f("fxJuroBox").hidden = !saida;
+    $f("fxMoverL").hidden = !saida; $f("fxMoverBox").hidden = !(saida && $f("fxMover").checked);
   }
   function flxSalvar(){
     var $f = function(i){ return document.getElementById(i); };
@@ -2992,15 +2978,14 @@ var FLX = (function(){
     if(!desc){ toast("Dê um nome para a conta."); return; }
     if(valor === null || valor <= 0){ toast("Digite um valor maior que zero (ex.: 1500,00)."); return; }
     if(!data){ toast("Escolha a data."); return; }
-    var juro = $f("fxJuro").value.trim() ? lerValorBR($f("fxJuro").value) : null;
-    if(juro !== null && (juro < 0 || juro > 100)){ toast("Juros entre 0 e 100% ao mês."); return; }
     var venc = tipo === "saida" && $f("fxMover").checked && $f("fxVencMax").value ? $f("fxVencMax").value : null;
     if(tipo === "saida" && $f("fxMover").checked && !venc){ toast("Informe até que dia o vencimento pode mudar."); return; }
     if(venc && venc < data){ toast("O limite do vencimento precisa ser depois da data da conta."); return; }
     var row = {descricao: desc, valor: valor, data: data, tipo: tipo, recorrencia: $f("fxRec").value, prioridade: $f("fxPrio").value,
       conta: $f("fxConta").value.trim() || null, escopo: FAM.grupo ? $f("fxEscSel").value : "meu",
-      pode_mover_venc: tipo === "saida" && $f("fxMover").checked, venc_max: venc, pode_antecipar: tipo === "entrada" && $f("fxAnt").checked,
-      juro_atraso_pct: tipo === "saida" ? juro : null};
+      pode_mover_venc: tipo === "saida" && $f("fxMover").checked, venc_max: venc};
+    var antigo = FLXD.editId ? FLXD.itens.filter(function(x){ return x.id === FLXD.editId; })[0] : null;
+    if(antigo && (antigo.data !== data || antigo.recorrencia !== row.recorrencia)){ row.excecoes = {}; row.data_original = null; } // regra mudou: mudanças só deste mês não valem mais
     var q = FLXD.editId ? DBF.from("contas_previstas").update(row).eq("id", FLXD.editId) : DBF.from("contas_previstas").insert(Object.assign({user_id: state.uid}, row));
     q.then(function(r){
       if(r.error) throw r.error;
@@ -3023,6 +3008,9 @@ var FLX = (function(){
       if((b = t.closest("#fxCal .fx-dia[data-dia]"))){ FLXD.sel = (FLXD.sel === b.dataset.dia ? null : b.dataset.dia); renderFluxo(); return; }
       if((b = t.closest("#fluxoCard [data-ver]"))){ FLXD.ver = b.dataset.ver || null; renderFluxo(); return; }
       if((b = t.closest("#fluxoCard [data-prio]"))){ flxSetPrio(b.dataset.prio.split("@")[0], b.dataset.novo); renderFluxo(); return; }
+      if((b = t.closest("#fluxoCard [data-aplicar]"))){ flxAplicar(b.dataset.aplicar); return; }
+      if((b = t.closest("#fluxoCard [data-desfaz-exc]"))){ var pp = b.dataset.desfazExc.split("|"); flxDesfazer(pp[0], pp[1]); return; }
+      if((b = t.closest("#fluxoCard [data-desfaz]"))){ flxDesfazer(b.dataset.desfaz, null); return; }
       if((b = t.closest("#fluxoCard [data-edit]"))){ flxAbrirForm(b.dataset.edit); return; }
       if((b = t.closest("#fluxoCard [data-del]"))){ flxExcluir(b.dataset.del); return; }
       if(t.closest("#fxNova")){ flxAbrirForm(null); return; }
@@ -8638,6 +8626,8 @@ var IMPF = (function(){
 
   window.__v5api = {renderAll: renderAll, info: v5Info, fmt: fmt, guessCategoria: guessCategoria, famRefresh: (typeof famRefresh === 'function' ? famRefresh : null)};
   if(window.__GENESIS_TEST__){ window.__genesis = {Store: Store, state: state, aplicarNuvem: aplicarNuvem, loadSynced: loadSynced, saveSynced: saveSynced}; }
+
+
 
 
 
