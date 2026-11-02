@@ -1092,6 +1092,22 @@
   .fx-aviso{padding:10px 12px; border-radius:12px; border:1px solid var(--critical); background:var(--warn-bg); font-size:13.5px; line-height:1.4;}
   .fx-acoes{display:flex; gap:8px; flex-wrap:wrap;}
   .fx-mov .tag{font-size:11px; padding:1px 8px; border-radius:999px; border:1px solid var(--line); color:var(--ink-2); white-space:nowrap;}
+  /* ---- Lembretes ---- */
+  #lemBarra{display:flex; flex-direction:column; gap:6px; margin:0 0 14px;}
+  #lemBarra[hidden]{display:none;}
+  .lem-lista{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:6px;}
+  .lem-item{position:relative; display:flex; align-items:stretch; border:1px solid var(--line); border-radius:12px; background:var(--glass); min-width:0;}
+  .lem-item.fixo{border-color:var(--accent);}
+  .lem-ir{flex:1; min-width:0; text-align:left; border:0; background:transparent; color:var(--ink); font:inherit; font-size:14px; line-height:1.4; padding:9px 12px; cursor:pointer; border-radius:12px 0 0 12px; overflow-wrap:anywhere;}
+  .lem-ir:hover{background:var(--soft);}
+  .lem-mais{border:0; border-left:1px solid var(--line); background:transparent; color:var(--muted); font:inherit; font-size:18px; width:42px; cursor:pointer; border-radius:0 12px 12px 0;}
+  .lem-mais:hover{background:var(--soft); color:var(--ink);}
+  .lem-ir:focus-visible,.lem-mais:focus-visible,.lem-menu button:focus-visible,.lem-todos:focus-visible{outline:2px solid var(--accent); outline-offset:-2px;}
+  .lem-pin{color:var(--accent-ink-v5,var(--accent)); font-size:9px; vertical-align:middle;}
+  .lem-menu{position:absolute; right:0; top:calc(100% + 4px); z-index:20; min-width:170px; display:flex; flex-direction:column; padding:4px; border:1px solid var(--line); border-radius:12px; background:var(--sheet); box-shadow:0 8px 24px rgba(0,0,0,.25);}
+  .lem-menu button{border:0; background:transparent; color:var(--ink); font:inherit; font-size:13.5px; text-align:left; padding:8px 10px; border-radius:8px; cursor:pointer;}
+  .lem-menu button:hover{background:var(--soft);}
+  .lem-todos{align-self:flex-start; border:0; background:transparent; color:var(--muted); font:inherit; font-size:13px; padding:4px 6px; cursor:pointer; text-decoration:underline;}
 </style>
 
 <div class="app">
@@ -2723,7 +2739,7 @@ var FLX = (function(){
       if(r[0].error) throw r[0].error;
       FLXD.itens = r[0].data || []; FLXD.fam = (r[1] && r[1].data) || []; FLXD.erro = null; FLXD.carregado = true;
     }).catch(function(e){ FLXD.erro = (e && e.message) || "Não foi possível carregar as contas previstas."; FLXD.carregado = true; })
-      .then(function(){ FLXD.carregando = false; renderFluxo(); });
+      .then(function(){ FLXD.carregando = false; renderFluxo(); try{ lemRender(); }catch(e){} });
   }
 
   // Todos os eventos da janela (hoje até ate), para o escopo escolhido.
@@ -3010,6 +3026,180 @@ var FLX = (function(){
     });
     ["fxTipo", "fxMover"].forEach(function(i){ var e = document.getElementById(i); if(e) e.addEventListener("change", flxAjustaForm); });
   })();
+
+  // ===== Lembretes (barra do topo) =====
+  // Os lembretes de sistema são calculados aqui, a partir do que o painel já sabe. A tabela guarda só o que a pessoa fez com eles
+  // (fixar, adiar, excluir). Excluir nunca apaga lançamento, conta ou plano: só marca o lembrete.
+  var LEM_SCHEMA = "public";
+  var DBL = sb ? (LEM_SCHEMA === "public" ? sb : sb.schema(LEM_SCHEMA)) : null;
+  var LEM_KEY = "genesis-lembretes-v1";
+  var LEM_MAX = 4;
+  var LEM = {uid: null, rows: {}, carregado: false, carregando: false, menu: null, todos: false, hoje: null, pend: {}}; // pend: gravações em andamento (uma leitura atrasada não pode desfazê-las)
+  function lemId(tipo, chave){ return tipo + "\u0001" + chave; }
+  function lemDias(a, b){ return Math.round((Date.parse(b + "T00:00:00Z") - Date.parse(a + "T00:00:00Z")) / 864e5); }
+  function lemLocalLer(){ try{ return JSON.parse(localStorage.getItem(LEM_KEY)) || {}; }catch(e){ return {}; } }
+  function lemLocalGravar(){ try{ localStorage.setItem(LEM_KEY, JSON.stringify(LEM.rows)); }catch(e){} }
+
+  function lemCarregar(){
+    if(state.mode !== "db"){ LEM.rows = lemLocalLer(); LEM.carregado = true; LEM.uid = null; return; }
+    if(!DBL || LEM.carregando) return;
+    LEM.carregando = true; LEM.uid = state.uid;
+    DBL.from("lembretes").select("tipo,chave,estado,adiado_ate,destino").then(function(r){
+      var novas = {};
+      if(!r.error) (r.data || []).forEach(function(x){ novas[lemId(x.tipo, x.chave)] = {estado: x.estado, adiado_ate: x.adiado_ate, destino: x.destino}; });
+      Object.keys(LEM.pend).forEach(function(id){ if(LEM.rows[id]) novas[id] = LEM.rows[id]; });
+      LEM.rows = novas;
+      LEM.carregado = true;
+    }, function(){ LEM.carregado = true; }).then(function(){ LEM.carregando = false; lemRender(); });
+  }
+  function lemGravar(it, patch){
+    var id = lemId(it.tipo, it.chave), antes = LEM.rows[id];
+    var novo = Object.assign({estado: "ativo", adiado_ate: null, destino: it.destino}, antes || {}, patch);
+    LEM.rows[id] = novo; lemRender();
+    if(state.mode !== "db"){ lemLocalGravar(); return; }
+    LEM.pend[id] = (LEM.pend[id] || 0) + 1;
+    DBL.from("lembretes").upsert({user_id: state.uid, tipo: it.tipo, chave: it.chave, estado: novo.estado, adiado_ate: novo.adiado_ate, destino: it.destino, origem: "sistema", atualizado_em: new Date().toISOString()}, {onConflict: "user_id,tipo,chave"}).then(function(r){
+      if(--LEM.pend[id] <= 0) delete LEM.pend[id];
+      if(r.error){ if(antes) LEM.rows[id] = antes; else delete LEM.rows[id]; lemRender(); toast("Não foi possível salvar o lembrete agora."); }
+    });
+  }
+
+  // ---- regras ----
+  function lemFaturaImportada(key){ return state.transactions.some(function(t){ return t.faturaKey === key; }); }
+  function lemRegras(hoje){
+    var out = [], y = +hoje.slice(0, 4), m = +hoje.slice(5, 7);
+    Object.keys(state.cartoes || {}).forEach(function(k){
+      var c = state.cartoes[k]; if(!c || !c.fechamento || !c.vencimento) return;
+      var nome = flxEsc(cardLabel(k) || "cartão"), i, d, key, dias;
+      // fatura fechou (hoje ou nos últimos dias) e ainda não foi importada
+      for(i = 0; i <= 5; i++){
+        d = FLX.addDias(hoje, -i);
+        if(+d.slice(8, 10) !== Math.min(c.fechamento, impLastDay(+d.slice(0, 4), +d.slice(5, 7)))) continue;
+        key = faturaKeyDe(k, faturaVencimentoPara(d, c.fechamento, c.vencimento));
+        if(key && !lemFaturaImportada(key)) out.push({tipo: "fatura_fechou", chave: key, prio: 3, destino: "importar",
+          texto: "A fatura do " + nome + " fechou " + (i === 0 ? "hoje" : "em " + flxDia(d)) + ". Quando puder, importe."});
+        break;
+      }
+      // faltam até 3 dias para o vencimento e a fatura ainda não foi importada
+      [0, 1].forEach(function(add){
+        var mm = m + add, yy = y; if(mm > 12){ mm = 1; yy++; }
+        var v = impIso(yy, mm, Math.min(c.vencimento, impLastDay(yy, mm)));
+        dias = lemDias(hoje, v);
+        if(dias < 0 || dias > 3) return;
+        key = faturaKeyDe(k, v);
+        if(!lemFaturaImportada(key)) out.push({tipo: "fatura_vence", chave: key, prio: 2, destino: "importar",
+          texto: dias === 0 ? "A fatura do " + nome + " vence hoje." : "Falta" + (dias > 1 ? "m " : " ") + dias + " dia" + (dias > 1 ? "s" : "") + " para o vencimento da fatura do " + nome + "."});
+      });
+      // fatura do mês anterior sem importação (só para cartões que já tiveram uma fatura importada de antes)
+      var pm = m - 1, py = y; if(pm < 1){ pm = 12; py--; }
+      var vp = impIso(py, pm, Math.min(c.vencimento, impLastDay(py, pm)));
+      var jaTeve = state.transactions.some(function(t){ return t.faturaKey && t.faturaKey.indexOf(k + "|") === 0 && t.faturaKey.slice(k.length + 1) < vp; });
+      if(jaTeve){
+        key = faturaKeyDe(k, vp);
+        if(vp < hoje && !lemFaturaImportada(key)) out.push({tipo: "fatura_mes", chave: key, prio: 5, destino: "importar",
+          texto: "A fatura do " + nome + " com vencimento em " + flxDia(vp) + " ainda não foi importada."});
+      }
+    });
+    // conta com diferença na conciliação
+    contasConciliaveis().forEach(function(k){
+      var res; try{ res = conciliacaoDe(k); }catch(e){ return; }
+      if(!res || !res.aplicavel || res.ok) return;
+      if(state.saldos[k].concIgnorada === sigConciliacao(k, res)) return; // a pessoa pediu para não avisar dessa diferença
+      out.push({tipo: "conc_dif", chave: k + "|" + res.diff.toFixed(2), prio: 4, destino: "conciliacao:" + k,
+        texto: "A conta " + flxEsc(rotuloConta(state.saldos[k])) + " está com diferença de " + fmt(Math.abs(res.diff)) + " na conciliação."});
+    });
+    // extrato do mês anterior ainda não importado (só para contas que já tiveram extrato importado)
+    var pm2 = m - 1, py2 = y; if(pm2 < 1){ pm2 = 12; py2--; }
+    var fimAnt = impIso(py2, pm2, impLastDay(py2, pm2)), ymAnt = py2 + "-" + impPad(pm2);
+    var ate = {};
+    state.transactions.forEach(function(t){
+      var mt = t.conta && t.faturaKey && /^extrato\|.*\|\d{4}-\d{2}-\d{2}\|(\d{4}-\d{2}-\d{2})$/.exec(t.faturaKey);
+      if(mt && (!ate[t.conta] || mt[1] > ate[t.conta])) ate[t.conta] = mt[1];
+    });
+    Object.keys(ate).forEach(function(k){
+      if(!state.saldos[k] || ate[k] >= fimAnt) return;
+      out.push({tipo: "extrato_mes", chave: k + "|" + ymAnt, prio: 5, destino: "importar",
+        texto: "O extrato de " + MESES_LEM[pm2 - 1] + " da conta " + flxEsc(rotuloConta(state.saldos[k])) + " ainda não foi importado."});
+    });
+    // saldo negativo previsto no Fluxo de caixa (só lê as contas e o saldo que o Fluxo já usa)
+    var neg = lemNegativo(hoje); if(neg) out.push(neg);
+    return out;
+  }
+  var MESES_LEM = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
+  function lemNegativo(hoje){
+    if(typeof flxEventos !== "function" || typeof FLX === "undefined") return null;
+    if(state.mode === "db" && (!FLXD.carregado || FLXD.erro || FLXD.uid !== state.uid)) return null;
+    var ini = flxSaldoInicial(); if(!ini.n) return null; // sem saldo informado a previsão não diz nada
+    var fim = FLX.addDias(hoje, 30), s;
+    try{ s = FLX.simular(ini.valor, hoje, fim, flxEventos("meu", hoje, fim)); }catch(e){ return null; }
+    if(!s || !s.primeiroNeg) return null;
+    var dia = s.dias.filter(function(d){ return d.data === s.primeiroNeg; })[0];
+    return {tipo: "fluxo_neg", chave: s.primeiroNeg, prio: 1, destino: "planejamento",
+      texto: "O Fluxo de caixa prevê saldo negativo a partir de " + flxDia(s.primeiroNeg) + " (" + fmt(dia ? dia.saldo : 0) + ")."};
+  }
+
+  function lemVisiveis(hoje){
+    var vis = [];
+    lemRegras(hoje).forEach(function(it){
+      var st = LEM.rows[lemId(it.tipo, it.chave)] || {};
+      if(st.estado === "excluido") return;
+      if(st.estado === "adiado" && st.adiado_ate && st.adiado_ate > hoje) return;
+      it.fixado = st.estado === "fixado"; vis.push(it);
+    });
+    vis.sort(function(a, b){ return (b.fixado ? 1 : 0) - (a.fixado ? 1 : 0) || a.prio - b.prio; });
+    return vis;
+  }
+
+  // ---- tela ----
+  function lemRender(){
+    var bar = document.querySelector(".v5-title"); if(!bar) return;
+    var el = document.getElementById("lemBarra");
+    if(!el){ el = document.createElement("section"); el.id = "lemBarra"; el.setAttribute("aria-label", "Lembretes"); bar.parentNode.insertBefore(el, bar); }
+    if(state.mode === "loading") return;
+    if(state.mode === "db" && LEM.uid !== state.uid && !LEM.carregando){ LEM.rows = {}; LEM.carregado = false; }
+    if(state.mode !== "db" && LEM.uid !== null){ LEM.uid = null; LEM.carregado = false; }
+    if(!LEM.carregado && !LEM.carregando) lemCarregar();
+    if(!LEM.carregado) return;
+    var hoje = todayISO(); LEM.hoje = hoje;
+    var vis = lemVisiveis(hoje), mostra = LEM.todos ? vis : vis.slice(0, LEM_MAX);
+    el.hidden = !vis.length; if(!vis.length){ el.innerHTML = ""; el._itens = []; return; }
+    el.innerHTML = '<ul class="lem-lista">' + mostra.map(function(it, i){
+      var id = lemId(it.tipo, it.chave), aberto = LEM.menu === id;
+      return '<li class="lem-item' + (it.fixado ? " fixo" : "") + '">' +
+        '<button type="button" class="lem-ir" data-i="' + i + '">' + (it.fixado ? '<span class="lem-pin" title="Fixado" aria-label="Fixado">&#9679;</span> ' : "") + it.texto + "</button>" +
+        '<button type="button" class="lem-mais" data-i="' + i + '" aria-haspopup="true" aria-expanded="' + aberto + '" aria-label="Opções do lembrete">&#8943;</button>' +
+        (aberto ? '<div class="lem-menu" role="menu">' +
+          '<button type="button" role="menuitem" data-a="fixar" data-i="' + i + '">' + (it.fixado ? "Desafixar" : "Fixar") + "</button>" +
+          '<button type="button" role="menuitem" data-a="adiar1" data-i="' + i + '">Adiar 1 dia</button>' +
+          '<button type="button" role="menuitem" data-a="adiar3" data-i="' + i + '">Adiar 3 dias</button>' +
+          '<button type="button" role="menuitem" data-a="adiar7" data-i="' + i + '">Adiar 7 dias</button>' +
+          '<button type="button" role="menuitem" data-a="excluir" data-i="' + i + '">Excluir lembrete</button></div>' : "") + "</li>";
+    }).join("") + "</ul>" + (vis.length > LEM_MAX ? '<button type="button" class="lem-todos" id="lemTodos">' + (LEM.todos ? "Mostrar menos" : "Ver mais " + (vis.length - LEM_MAX)) + "</button>" : "");
+    el._itens = mostra;
+  }
+  function lemIr(it){
+    LEM.menu = null;
+    if(it.destino && it.destino.indexOf("conciliacao:") === 0){ if(typeof abrirConciliacao === "function") abrirConciliacao(it.destino.slice(12)); lemRender(); return; }
+    if(location.hash.replace("#", "") === it.destino) window.dispatchEvent(new Event("hashchange")); else location.hash = "#" + it.destino;
+    lemRender();
+  }
+  document.addEventListener("click", function(ev){
+    var el = document.getElementById("lemBarra"), t = ev.target;
+    if(!el || !el.contains(t)){ if(LEM.menu){ LEM.menu = null; lemRender(); } return; }
+    var b = t.closest("button"); if(!b) return;
+    var it = el._itens && el._itens[+b.dataset.i];
+    if(b.id === "lemTodos"){ LEM.todos = !LEM.todos; lemRender(); return; }
+    if(!it) return;
+    var id = lemId(it.tipo, it.chave);
+    if(b.classList.contains("lem-ir")){ lemIr(it); return; }
+    if(b.classList.contains("lem-mais")){ LEM.menu = LEM.menu === id ? null : id; lemRender(); return; }
+    var a = b.dataset.a; LEM.menu = null;
+    if(a === "fixar") lemGravar(it, {estado: it.fixado ? "ativo" : "fixado", adiado_ate: null});
+    else if(a === "excluir") lemGravar(it, {estado: "excluido", adiado_ate: null});
+    else if(a && a.indexOf("adiar") === 0){ var n = +a.slice(5); lemGravar(it, {estado: "adiado", adiado_ate: FLX.addDias(LEM.hoje || todayISO(), n)}); }
+  });
+  document.addEventListener("keydown", function(ev){ if(ev.key === "Escape" && LEM.menu){ LEM.menu = null; lemRender(); } });
+  document.addEventListener("visibilitychange", function(){ if(!document.hidden) try{ lemRender(); }catch(e){} });
 
   function famRpc(fn, args){ return DB.rpc(fn, args || {}).then(function(r){ if(r.error) throw r.error; return r.data; }); }
   function famMsg(e){
@@ -4767,6 +4957,7 @@ var FLX = (function(){
     renderLedger(ref);
     renderTrash();
     try{ renderFluxo(); }catch(e){ if(window.console) console.error(e); }
+    try{ lemRender(); }catch(e){ if(window.console) console.error(e); }
     if(window.__v5ui){ try{ window.__v5ui.after(ref); }catch(e){} }
   }
 
