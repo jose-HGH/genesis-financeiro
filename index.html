@@ -5,7 +5,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.0/dist/umd/supabase.js"></script>
-<meta name="app-version" content="20261102-162014">
+<meta name="app-version" content="20261102-162833">
 <script>
 (function(){
   var m = document.querySelector('meta[name="app-version"]'); var cur = m && m.content; if(!cur) return;
@@ -2703,17 +2703,8 @@ var FLX = (function(){
   var FLUXO_SCHEMA = "public";
   var DBF = sb ? (FLUXO_SCHEMA === "public" ? sb : sb.schema(FLUXO_SCHEMA)) : null;
   var FLXD = {uid: null, itens: [], fam: [], carregado: false, carregando: false, erro: null, esc: "meu", sel: null, ver: null, grupo: null, editId: null, atual: null};
-  var FLX_PRIO_KEY = "genesis-fluxo-prio-v1";
-  var FLX_ESSENCIAL = /(moradia|alugu|condom|financiament|\bluz\b|energia|[aá]gua|\bg[aá]s\b|sa[uú]de|plano de sa|farm[aá]cia|medic|escola|faculdade|mensalidade|educa|transporte|combust|mercado|aliment|supermerc|seguro|iptu|ipva|imposto|empr[eé]stimo|internet|telefone)/i;
   var FLX_DOW = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"];
   function flxEsc(s){ return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;"); }
-  function flxPrioMap(){ try{ return JSON.parse(localStorage.getItem(FLX_PRIO_KEY)) || {}; }catch(e){ return {}; } }
-  function flxSetPrio(key, p){ var m = flxPrioMap(); m[key] = p; try{ localStorage.setItem(FLX_PRIO_KEY, JSON.stringify(m)); }catch(e){} }
-  function flxPrioDe(key, classif, texto){
-    var m = flxPrioMap(); if(m[key]) return m[key];
-    if(classif === "Fixa" || classif === "Parcelada") return "essencial";
-    return FLX_ESSENCIAL.test(texto || "") ? "essencial" : "cortavel";
-  }
   function flxN(v){ return window.__v5hide ? "••" : Math.round(v).toLocaleString("pt-BR"); }
   function flxDia(iso){ return iso ? iso.slice(8, 10) + "/" + iso.slice(5, 7) : ""; }
   function flxSaldoInicial(){
@@ -2743,7 +2734,7 @@ var FLX = (function(){
         if(isNeutro(tx)) return;
         if(!(isPrevista(tx) || !isRealized(tx, hoje))) return;
         if(tx.dataEfet > ate) return;
-        var entra = tipoEntra(tx.tipo), txt = (tx.categoria || "") + " " + (tx.descricao || "");
+        var entra = tipoEntra(tx.tipo);
         if(isFaturaTx(tx)){
           var k = "ft:" + (tx.cartao || tx.banco || "cartão") + "|" + tx.dataEfet;
           var f = ft[k] = ft[k] || {key: k, desc: "Fatura " + (cardLabel(tx.cartao) || tx.banco || "do cartão"), valor: 0, tipo: "saida", data: tx.dataEfet, prioridade: "essencial", fonte: "fatura", itens: 0};
@@ -2751,16 +2742,16 @@ var FLX = (function(){
           return;
         }
         ev.push({key: "tx:" + tx.id, desc: tx.descricao || "(sem descrição)", valor: tx.valor, tipo: entra ? "entrada" : "saida", data: tx.dataEfet,
-          prioridade: flxPrioDe("tx:" + tx.id, tx.classificacao, txt), fonte: "lancamento", editavel: true});
+          prioridade: "essencial", fonte: "lancamento"});
       });
-      Object.keys(ft).forEach(function(k){ var f = ft[k]; f.valor = FLX.cent(f.valor); if(f.valor > 0){ f.prioridade = flxPrioDe(k, "Fixa", ""); ev.push(f); } });
+      Object.keys(ft).forEach(function(k){ var f = ft[k]; f.valor = FLX.cent(f.valor); if(f.valor > 0) ev.push(f); });
     } else {
       (FAM.lanc || []).forEach(function(l){
         if(l.tipo === "pagamento_fatura" || l.tipo === "transferencia_interna") return;
         if(!l.data_efet || l.data_efet <= hoje || l.data_efet > ate) return;
-        var entra = tipoEntra(l.tipo), txt = (l.categoria || "") + " " + (l.descricao || "");
+        var entra = tipoEntra(l.tipo);
         ev.push({key: "fam:" + l.id, desc: (l.descricao || "(sem descrição)") + (l.trouxe_nome ? " · " + l.trouxe_nome : ""), valor: Number(l.valor), tipo: entra ? "entrada" : "saida",
-          data: l.data_efet, prioridade: flxPrioDe("fam:" + l.id, l.classificacao, txt), fonte: "lancamento"});
+          data: l.data_efet, prioridade: "essencial", fonte: "lancamento"});
       });
     }
     var prev = state.mode !== "db" || FLXD.uid !== state.uid ? [] : (esc === "familia" ? FLXD.fam : FLXD.itens);
@@ -2813,11 +2804,9 @@ var FLX = (function(){
     var h = '<div class="fx-det"><div class="fx-ev"><b>' + flxDia(d.data) + "</b><span>Saldo no fim do dia: <b class=\"" + (d.neg ? "fx-neg" : "") + '">' + fmt(d.saldo) + "</b></span></div>";
     if(!d.eventos.length) h += '<span class="fx-nota">Nada previsto neste dia.</span>';
     d.eventos.forEach(function(e){
-      var tag = e.fonte === "fatura" ? "fatura" : e.fonte === "prevista" ? "prevista" : e.fonte === "reserva" ? "reserva" : "lançamento";
-      var prio = e.tipo === "saida" && e.fonte !== "reserva" ? (e.editavel || e.fonte === "fatura"
-        ? '<button type="button" class="tag" data-prio="' + flxEsc(e.key) + '" data-novo="' + (e.prioridade === "essencial" ? "cortavel" : "essencial") + '" title="Trocar">' + (e.prioridade === "essencial" ? "essencial" : "cortável") + " ⇄</button>"
-        : '<span class="tag">' + (e.prioridade === "essencial" ? "essencial" : "cortável") + "</span>") : "";
-      h += '<div class="fx-ev"><span>' + (e.tipo === "entrada" ? "↑ " : "↓ ") + flxEsc(e.desc) + '<span class="tag">' + tag + "</span>" + prio + "</span><b class=\"" + (e.tipo === "saida" ? "fx-neg" : "") + '">' + (e.tipo === "saida" ? "−" : "+") + fmt(e.valor) + "</b></div>";
+      var tag = e.fonte === "fatura" ? "fatura · data fixa" : e.fonte === "prevista" ? "prevista" : "lançamento · data fixa";
+      var mv = e.fonte === "prevista" && e.tipo === "saida" ? '<span class="tag">' + (e.movivel ? "pode mudar de data" : "data fixa") + "</span>" : "";
+      h += '<div class="fx-ev"><span>' + (e.tipo === "entrada" ? "↑ " : "↓ ") + flxEsc(e.desc) + '<span class="tag">' + tag + "</span>" + mv + "</span><b class=\"" + (e.tipo === "saida" ? "fx-neg" : "") + '">' + (e.tipo === "saida" ? "−" : "+") + fmt(e.valor) + "</b></div>";
     });
     return h + "</div>";
   }
@@ -2847,7 +2836,9 @@ var FLX = (function(){
   function flxSemSaida(c){
     var s = c.an.semSaida; if(!s) return "";
     var h = '<div class="fx-sem"><h4>Sem saída dentro do mês</h4>';
-    if(s.semMoveis) h += "<div>Nenhuma conta prevista está marcada como móvel (ou cortável), então nenhuma data pode mudar. Faltam <b>" + fmt(s.falta) + "</b> no pior dia (" + flxDia(s.pior) + ").</div>";
+    if(s.semMoveis) h += "<div>Nenhuma das suas contas pode mudar de data. Faltam <b>" + fmt(s.falta) + "</b> no pior dia (" + flxDia(s.pior) + ").</div>" +
+      '<div class="mut">Os lançamentos (do extrato ou lançados por você) têm data fixa. Para o Fluxo sugerir uma nova data, cadastre a conta em <b>Nova conta prevista</b> e marque <b>Posso mudar a data desta conta</b> (ou deixe como <b>Cortável</b>).</div>' +
+      (state.mode === "db" ? '<div><button type="button" class="btn btn-primary" data-nova="1">Nova conta prevista</button></div>' : "");
     else h += "<div>Mesmo movendo todas as " + s.movidas + " conta(s) que você liberou até o último dia do mês, o saldo continua negativo: <b>faltam " + fmt(s.falta) + "</b> no pior dia (" + flxDia(s.pior) + ").</div>";
     h += "<div>O saldo fica negativo a partir de " + flxDia(s.primeiroNeg) + ".</div>";
     h += s.recuperaEm ? "<div>Previsão para voltar ao positivo: <b>" + flxDia(s.recuperaEm) + "/" + s.recuperaEm.slice(0, 4) + "</b>, quando as próximas entradas cobrirem o buraco.</div>"
@@ -3007,7 +2998,7 @@ var FLX = (function(){
       if((b = t.closest("#fxEsc button"))){ FLXD.esc = b.dataset.esc; FLXD.ver = null; FLXD.sel = null; renderFluxo(); return; }
       if((b = t.closest("#fxCal .fx-dia[data-dia]"))){ FLXD.sel = (FLXD.sel === b.dataset.dia ? null : b.dataset.dia); renderFluxo(); return; }
       if((b = t.closest("#fluxoCard [data-ver]"))){ FLXD.ver = b.dataset.ver || null; renderFluxo(); return; }
-      if((b = t.closest("#fluxoCard [data-prio]"))){ flxSetPrio(b.dataset.prio.split("@")[0], b.dataset.novo); renderFluxo(); return; }
+      if((b = t.closest("#fluxoCard [data-nova]"))){ flxAbrirForm(null); return; }
       if((b = t.closest("#fluxoCard [data-aplicar]"))){ flxAplicar(b.dataset.aplicar); return; }
       if((b = t.closest("#fluxoCard [data-desfaz-exc]"))){ var pp = b.dataset.desfazExc.split("|"); flxDesfazer(pp[0], pp[1]); return; }
       if((b = t.closest("#fluxoCard [data-desfaz]"))){ flxDesfazer(b.dataset.desfaz, null); return; }
@@ -8626,6 +8617,8 @@ var IMPF = (function(){
 
   window.__v5api = {renderAll: renderAll, info: v5Info, fmt: fmt, guessCategoria: guessCategoria, famRefresh: (typeof famRefresh === 'function' ? famRefresh : null)};
   if(window.__GENESIS_TEST__){ window.__genesis = {Store: Store, state: state, aplicarNuvem: aplicarNuvem, loadSynced: loadSynced, saveSynced: saveSynced}; }
+
+
 
 
 
