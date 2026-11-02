@@ -5,7 +5,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.0/dist/umd/supabase.js"></script>
-<meta name="app-version" content="20261031-222344">
+<meta name="app-version" content="20261102-024740">
 <script>
 (function(){
   var m = document.querySelector('meta[name="app-version"]'); var cur = m && m.content; if(!cur) return;
@@ -1014,6 +1014,79 @@
     --good-wash:rgba(11,107,80,.10);
     --cat-1:#2563EB; --cat-2:#60A5FA; --cat-3:#0B1F3B; --cat-4:#0EA5A5; --cat-5:#7C6AE6; --cat-6:#E58A3C; --cat-7:#5B7DB1; --cat-8:#94A3B8; --cat-fallback:#94A3B8;
   }
+  /* ---- Importação OFX / CSV / Excel ---- */
+  .imp-erro{padding:12px 14px; border-radius:14px; border:1px solid var(--critical); background:var(--warn-bg); color:var(--ink); font-size:14px; line-height:1.45; margin-bottom:12px;}
+  .imp-mapa{display:flex; flex-direction:column; gap:12px; padding:16px; border-radius:16px; border:1px solid var(--line); margin-bottom:14px;}
+  .imp-mapa h3{margin:0; font-size:16px;}
+  .imp-nota{font-size:12.5px; color:var(--ink-2); margin:0; line-height:1.45;}
+  .imp-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); gap:10px;}
+  .imp-campo{display:flex; flex-direction:column; gap:4px; font-size:12.5px; font-weight:600; color:var(--ink-2); min-width:0;}
+  .imp-campo select,.imp-campo input{font:inherit; font-size:14px; padding:9px 10px; border-radius:10px; border:1px solid var(--line); background:transparent; color:var(--ink); min-width:0; max-width:100%;}
+  .imp-prev{border-collapse:collapse; font-size:12.5px; width:100%;}
+  .imp-prev th,.imp-prev td{border:1px solid var(--line); padding:5px 8px; text-align:left; white-space:nowrap; max-width:220px; overflow:hidden; text-overflow:ellipsis;}
+  .imp-chk{font-size:13px; display:flex; gap:6px; align-items:center;}
+  .imp-erros{padding:12px 14px; border-radius:12px; border:1px solid var(--critical); font-size:13.5px; display:flex; flex-direction:column; gap:8px;}
+  .imp-erros ul{margin:0; padding-left:18px;}
+  .imp-erro-titulo{font-weight:600;}
+  .imp-acoes{display:flex; gap:8px; flex-wrap:wrap;}
+  .imp-totais{display:flex; flex-wrap:wrap; gap:6px 18px; justify-content:space-between; font-size:13px; padding:8px 0 10px; font-variant-numeric:tabular-nums;}
+  /* ---- Contas separadas ---- */
+  .conc-fora{border-top:1px dashed var(--border); padding-top:8px;}
+  .fora-item{display:flex; gap:8px; align-items:flex-start; padding:6px 0; font-size:13.5px; line-height:1.4;}
+  #foraCorpo{display:flex; flex-direction:column; gap:4px; max-height:55vh; overflow:auto;}
+  #trfModal .modal-caixa{width:min(400px,100%);}
+  /* ---- Fluxo de caixa ---- */
+  #fluxoCard{display:flex; flex-direction:column; gap:14px; min-width:0;}
+  .fx-bar{display:flex; flex-wrap:wrap; gap:10px; align-items:center; justify-content:space-between;}
+  .fx-seg{display:inline-flex; gap:4px; padding:3px; border-radius:999px; border:1px solid var(--line);}
+  .fx-seg button{border:0; background:transparent; color:var(--ink); padding:7px 14px; border-radius:999px; font:inherit; font-size:13px; cursor:pointer;}
+  .fx-seg button[aria-pressed="true"]{background:var(--accent); color:var(--on-accent); font-weight:600;}
+  .fx-kpis{display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:10px;}
+  .fx-kpi{padding:10px 12px; border-radius:14px; background:var(--soft,var(--glass)); border:1px solid var(--line); min-width:0;}
+  .fx-kpi small{display:block; font-size:11.5px; color:var(--ink-2);}
+  .fx-kpi b{font-family:var(--font-num); font-size:18px; font-variant-numeric:tabular-nums;}
+  .fx-neg{color:var(--critical);}
+  .fx-alerta{padding:12px 14px; border-radius:14px; border:1px solid var(--critical); background:var(--warn-bg); font-size:14px; line-height:1.45;}
+  .fx-alerta b{color:var(--critical);}
+  .fx-ok{padding:12px 14px; border-radius:14px; border:1px solid var(--line); background:var(--good-wash,var(--glass)); font-size:14px;}
+  .fx-sim{padding:10px 14px; border-radius:14px; border:1px dashed var(--accent); font-size:13.5px; display:flex; gap:10px; align-items:center; justify-content:space-between; flex-wrap:wrap;}
+  .fx-cal{display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); gap:4px;}
+  .fx-dow{font-size:11px; text-align:center; color:var(--ink-2); padding:2px 0;}
+  .fx-dia{min-height:74px; padding:5px 5px 4px; border-radius:10px; border:1px solid var(--line); background:transparent; color:var(--ink); text-align:left; font:inherit; display:flex; flex-direction:column; gap:1px; cursor:pointer; min-width:0; overflow:hidden;}
+  .fx-dia:focus-visible{outline:2px solid var(--accent); outline-offset:1px;}
+  .fx-dia[aria-pressed="true"]{border-color:var(--accent); box-shadow:0 0 0 1px var(--accent);}
+  .fx-dia.neg{background:var(--warn-bg); border-color:var(--critical);}
+  .fx-dia.vazio{border-color:transparent; cursor:default;}
+  .fx-dia.passado{opacity:.45;}
+  .fx-dia.hoje .fx-n{background:var(--accent); color:var(--on-accent); border-radius:6px; padding:0 5px;}
+  .fx-n{font-size:12px; font-weight:600; align-self:flex-start;}
+  .fx-e,.fx-s,.fx-sd{font-size:10.5px; font-variant-numeric:tabular-nums; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .fx-e{color:var(--pos);} .fx-s{color:var(--critical);}
+  .fx-sd{font-weight:700; font-size:11.5px; margin-top:auto;}
+  @media (max-width:560px){ .fx-dia{min-height:54px; padding:3px;} .fx-e,.fx-s{display:none;} .fx-sd{font-size:10px;} }
+  .fx-det{padding:12px 14px; border-radius:14px; border:1px solid var(--line); display:flex; flex-direction:column; gap:8px;}
+  .fx-ev{display:flex; justify-content:space-between; gap:10px; align-items:flex-start; font-size:13.5px; flex-wrap:wrap;}
+  .fx-ev .tag{font-size:11px; padding:1px 8px; border-radius:999px; border:1px solid var(--line); color:var(--ink-2); margin-left:6px; white-space:nowrap;}
+  .fx-ev button.tag{cursor:pointer; background:transparent; font:inherit; font-size:11px;}
+  .fx-sols{display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:10px;}
+  .fx-sol{padding:14px; border-radius:16px; border:1px solid var(--line); display:flex; flex-direction:column; gap:8px; min-width:0; font-size:13.5px; line-height:1.45;}
+  .fx-sol h4{margin:0; font-size:14.5px;}
+  .fx-sol.plano{border-color:var(--accent);}
+  .fx-sol .mut{color:var(--ink-2);}
+  .fx-sol ul{margin:0; padding-left:18px;}
+  .fx-efeito{font-variant-numeric:tabular-nums; font-weight:600;}
+  .fx-sem{padding:16px; border-radius:16px; border:1px solid var(--critical); display:flex; flex-direction:column; gap:8px; font-size:14px; line-height:1.5;}
+  .fx-sem h4{margin:0; color:var(--critical); font-size:15.5px;}
+  .fx-lista{display:flex; flex-direction:column; gap:6px;}
+  .fx-item{display:flex; flex-wrap:wrap; justify-content:space-between; gap:8px; padding:9px 12px; border-radius:12px; border:1px solid var(--line); font-size:13.5px; align-items:center;}
+  .fx-item .acoes{display:flex; gap:6px;}
+  .fx-mini{font:inherit; font-size:12px; padding:5px 10px; border-radius:999px; border:1px solid var(--line); background:transparent; color:var(--ink); cursor:pointer;}
+  .fx-nota{font-size:12px; color:var(--ink-2); line-height:1.4;}
+  #fxModal .modal-caixa{max-height:92vh; overflow:auto; width:min(420px,100%);}
+  #fxModal .fx-chk{display:flex; gap:8px; align-items:center; font-weight:400; font-size:13.5px; margin-top:6px;}
+  #fxModal .fx-chk input{width:auto; min-width:0;}
+  .fx-alerta{display:flex; flex-direction:column; gap:6px;}
+  .fx-det2 summary{cursor:pointer; font-size:14px; padding:6px 0; color:var(--ink-2);}
 </style>
 
 <div class="app">
@@ -1090,6 +1163,12 @@
         <button type="button" class="btn btn-ghost" id="btnSignOut">Sair</button>
       </div>
     </div>
+  </section>
+
+  <section class="card" id="fluxoCard" aria-labelledby="fxT">
+    <div class="card-head" style="margin:0"><h2 id="fxT">Fluxo de caixa</h2>
+      <div class="fx-bar"><div class="fx-seg" id="fxEsc" role="group" aria-label="Quais lançamentos entram"><button type="button" data-esc="meu" aria-pressed="true">Meu</button><button type="button" data-esc="familia" aria-pressed="false">Família</button></div></div></div>
+    <div id="fxCorpo"></div>
   </section>
 
   <section class="card" id="famTopo" hidden>
@@ -1365,6 +1444,10 @@
             <option value="Mensal">Mensal (repete todo mês)</option>
           </select>
         </div>
+        <div class="field" id="campoPagoCom">
+          <label for="txPagoCom">Pago com</label>
+          <select id="txPagoCom"><option value="banco">Banco</option><option value="dinheiro">Dinheiro</option><option value="cartao">Cartão</option><option value="outra">Outra conta</option></select>
+        </div>
         <div class="field" id="famCampoEscopo" hidden>
           <label for="txEscopo">Compartilhar <span class="opt">(Família ou só seu)</span></label>
           <select id="txEscopo"><option value="meu">Só meu</option><option value="familia">Família</option></select>
@@ -1387,12 +1470,12 @@
 
   <section class="card" id="importCard">
     <div class="card-head"><h2>Importar extrato bancário</h2></div>
-    <p class="import-intro">Envie o PDF do extrato ou da fatura e eu identifico data, descrição e valor de cada linha automaticamente. O arquivo é lido só no seu navegador — nada é enviado para fora. Você confere e ajusta tudo antes de confirmar o lançamento.</p>
+    <p class="import-intro">Envie o PDF, OFX, CSV ou Excel do extrato ou da fatura e eu identifico data, descrição e valor de cada linha automaticamente. O arquivo é lido só no seu navegador — nada é enviado para fora. Você confere e ajusta tudo antes de confirmar o lançamento.</p>
     <label class="dropzone" id="pdfDropzone" for="pdfFileInput">
-      <span class="dz-icon">PDF</span>
-      <span class="dz-title">Clique para escolher um PDF ou arraste aqui</span>
-      <span class="dz-sub">Extrato, fatura de cartão ou relatório de conta</span>
-      <input type="file" id="pdfFileInput" accept="application/pdf,.pdf">
+      <span class="dz-icon">+</span>
+      <span class="dz-title">Clique para escolher o arquivo ou arraste aqui</span>
+      <span class="dz-sub">PDF, OFX, CSV ou Excel (.xlsx) · extrato, fatura de cartão ou relatório de conta</span>
+      <input type="file" id="pdfFileInput" accept="application/pdf,.pdf,.ofx,.qfx,.csv,.txt,.xlsx,.xls">
     </label>
     <div class="import-or">ou cole o texto do extrato</div>
     <div class="paste-row">
@@ -1408,6 +1491,8 @@
       <input id="importVencimento" type="date">
     </div>
     <p class="import-intro" id="importMetaNote" hidden></p>
+    <div class="imp-erro" id="importErro" role="alert" hidden></div>
+    <div id="importMapa" hidden></div>
     <div class="import-status" id="importStatus" hidden><span class="spinner"></span><span id="importStatusText">Lendo o PDF…</span></div>
     <div class="import-staging" id="importStaging" hidden></div>
   </section>
@@ -1443,6 +1528,44 @@
 </div>
 
 <div id="toast" role="status" aria-live="polite"></div>
+<div id="trfModal" class="modal-fundo" hidden>
+  <div class="modal-caixa" role="dialog" aria-modal="true" aria-labelledby="trfT">
+    <h3 id="trfT">Transferir entre contas</h3>
+    <p class="fam-nota">Saque, depósito ou mover dinheiro entre contas. Não é despesa nem receita.</p>
+    <label for="trfDe">De</label><select id="trfDe"><option value="banco">Banco</option><option value="dinheiro">Dinheiro em mãos</option><option value="outra">Outra conta</option></select>
+    <label for="trfPara">Para</label><select id="trfPara"><option value="dinheiro">Dinheiro em mãos</option><option value="banco">Banco</option><option value="outra">Outra conta</option></select>
+    <label for="trfValor">Valor (R$)</label><input id="trfValor" inputmode="decimal" placeholder="0,00">
+    <label for="trfData">Data</label><input id="trfData" type="date">
+    <label for="trfDesc">Descrição <span class="fam-nota">(opcional)</span></label><input id="trfDesc" maxlength="120">
+    <div class="modal-acoes"><button type="button" class="btn btn-ghost" id="trfCancelar">Cancelar</button><button type="button" class="btn btn-primary" id="trfSalvar">Registrar</button></div>
+  </div>
+</div>
+<div id="foraModal" class="modal-fundo" hidden>
+  <div class="modal-caixa modal-larga" role="dialog" aria-modal="true" aria-labelledby="foraT">
+    <h3 id="foraT">Lançamentos que não estão no extrato</h3>
+    <div id="foraCorpo"></div>
+    <div class="modal-acoes"><button type="button" class="btn btn-ghost" id="foraFechar">Fechar</button><button type="button" class="btn btn-ghost" id="foraNao">Não é dinheiro, deixar assim</button><button type="button" class="btn btn-primary" id="foraDinheiro">Marcar como dinheiro</button></div>
+  </div>
+</div>
+<div id="fxModal" class="modal-fundo" hidden>
+  <div class="modal-caixa" role="dialog" aria-modal="true" aria-labelledby="fxModalT">
+    <h3 id="fxModalT">Conta prevista</h3>
+    <label for="fxDesc">Descrição</label><input id="fxDesc" maxlength="120" placeholder="Ex.: Aluguel, Salário, Fatura do cartão">
+    <label for="fxTipo">Tipo</label><select id="fxTipo"><option value="saida">Saída</option><option value="entrada">Entrada</option></select>
+    <label for="fxValor">Valor (R$)</label><input id="fxValor" inputmode="decimal" placeholder="0,00">
+    <label for="fxData">Data</label><input id="fxData" type="date">
+    <label for="fxRec">Repete</label><select id="fxRec"><option value="unica">Só uma vez</option><option value="mensal">Todo mês</option><option value="semanal">Toda semana</option></select>
+    <label for="fxPrio">Prioridade</label><select id="fxPrio"><option value="essencial">Essencial</option><option value="cortavel">Cortável</option></select>
+    <label for="fxConta">Conta ou cartão <span class="fam-nota">(opcional)</span></label><input id="fxConta" maxlength="80" list="fxContasLista"><datalist id="fxContasLista"></datalist>
+    <label class="fx-chk" id="fxMoverL"><input type="checkbox" id="fxMover"> Posso mudar o vencimento desta conta</label>
+    <div id="fxMoverBox" hidden><label for="fxVencMax">Mudar no máximo até</label><input id="fxVencMax" type="date"></div>
+    <label class="fx-chk" id="fxAntL"><input type="checkbox" id="fxAnt"> Posso antecipar esta entrada</label>
+    <div id="fxJuroBox"><label for="fxJuro">Juros por atraso (% ao mês) <span class="fam-nota">(opcional)</span></label><input id="fxJuro" inputmode="decimal" placeholder="Ex.: 1"></div>
+    <div id="fxEscBox"><label for="fxEscSel">Quem vê</label><select id="fxEscSel"><option value="meu">Só eu</option><option value="familia">Família</option></select></div>
+    <p class="fx-nota">Não repita aqui o que já está nos seus lançamentos: eles já entram no calendário.</p>
+    <div class="modal-acoes"><button type="button" class="btn btn-ghost" id="fxCancelar">Cancelar</button><button type="button" class="btn btn-primary" id="fxSalvar">Salvar</button></div>
+  </div>
+</div>
 <div id="famEditModal" class="modal-fundo" hidden>
   <div class="modal-caixa" role="dialog" aria-modal="true" aria-labelledby="famEditTitulo">
     <h3 id="famEditTitulo">Editar lançamento da família</h3>
@@ -1570,6 +1693,7 @@
   put("analises", row(flex($("monthCompareCard"), "v5-w"), flex(cardOf("categoryChart"), "v5-n")));
   put("analises", row(flex(cardOf("paymentChart"), "v5-n"), flex(cardOf("classStack"), "v5-n")));
   // Planejamento
+  put("planejamento", $("fluxoCard"));
   put("planejamento", row(flex(document.querySelector(".patrimonio-card"), "v5-n"), flex(cardOf("budgetList"), "v5-w")));
   // Conta
   put("conta", row(flex($("authCard"), "v5-n"), flex(cardOf("exportBox"), "v5-n")));
@@ -1654,7 +1778,7 @@
     var form = $("newTxForm"); if(form) form.addEventListener("reset", function(){ setTimeout(sync, 0); });
     sync();
   }
-  ["txTipo", "txModalidade", "txClassificacao", "txRecorrencia", "txEscopo"].forEach(chipify);
+  ["txTipo", "txModalidade", "txClassificacao", "txRecorrencia", "txPagoCom", "txEscopo"].forEach(chipify);
 
   /* ---------- atalho em texto livre ---------- */
   function setField(id, v){ var n = $(id); if(n){ n.value = v; n.dispatchEvent(new Event("input", {bubbles: true})); n.dispatchEvent(new Event("change", {bubbles: true})); } }
@@ -2090,7 +2214,7 @@
     dataLanc:"data_lanc", dataEfet:"data_efet", descricao:"descricao", categoria:"categoria",
     classificacao:"classificacao", recorrencia:"recorrencia", seriesId:"series_id",
     parcela:"parcela", obs:"obs", autoGenerated:"auto_generated", pagoManual:"pago_manual",
-    idCompra:"id_compra", parcelaAtual:"parcela_atual", totalParcelas:"total_parcelas", statusParcela:"status_parcela", cartao:"cartao", cartaoFinal:"cartao_final", importId:"import_id", faturaKey:"fatura_key", deletedAt:"deleted_at", updatedAt:"updated_at", conta:"conta", documento:"documento", escopo:"escopo"
+    idCompra:"id_compra", parcelaAtual:"parcela_atual", totalParcelas:"total_parcelas", statusParcela:"status_parcela", cartao:"cartao", cartaoFinal:"cartao_final", importId:"import_id", faturaKey:"fatura_key", deletedAt:"deleted_at", updatedAt:"updated_at", conta:"conta", documento:"documento", escopo:"escopo", contaOrigem:"conta_origem", contaDestino:"conta_destino", fonte:"fonte", ligaId:"liga_id"
   };
   function txToRow(tx, uid){
     var row = { id: tx.id, user_id: uid };
@@ -2296,6 +2420,618 @@
   var REGRAS = [];
   var FAM = {grupo: null, papel: null, membros: [], convites: [], meusConvites: [], lanc: [], aba: "meu", sel: {}, editId: null, ultimo: 0};
   function famEsc(s){ return escapeAttr(s == null ? "" : s); }
+  // ===== Contas separadas: Banco (bate com o extrato), Dinheiro em mãos e outras =====
+  var CONTAS_NOME = {banco: "Banco", dinheiro: "Dinheiro em mãos", cartao: "Cartão", outra: "Outra conta"};
+  var CONTAS_SALDO = ["dinheiro", "outra"]; // contas que têm saldo calculado; cartão só marca a origem
+  function contaOrigemDe(t){ return t && t.contaOrigem ? t.contaOrigem : "banco"; }
+  // Saldo das contas fora do banco: soma dos lançamentos realizados dessa conta + transferências recebidas − enviadas.
+  function contasExtras(){
+    var hoje = todayISO(), acc = {};
+    CONTAS_SALDO.forEach(function(k){ acc[k] = {chave: k, nome: CONTAS_NOME[k], saldo: 0, n: 0}; });
+    state.transactions.forEach(function(t){
+      if(isPrevistaTx(t, hoje) || !isRealized(t, hoje)) return;
+      var o = t.contaOrigem, d = t.contaDestino, v = Number(t.valor) || 0;
+      if(t.tipo === "transferencia_interna"){
+        if(acc[d]){ acc[d].saldo += v; acc[d].n++; }
+        if(acc[o]){ acc[o].saldo -= v; acc[o].n++; }
+        return;
+      }
+      if(!acc[o]) return;
+      acc[o].saldo += tipoEntra(t.tipo) ? v : -v; acc[o].n++;
+    });
+    return CONTAS_SALDO.map(function(k){ acc[k].saldo = Math.round(acc[k].saldo * 100) / 100; return acc[k]; }).filter(function(c){ return c.n > 0; });
+  }
+  // Transferência do banco que o extrato ainda não mostrou: sai do banco (ou entra nele) no total, sem mexer no saldo do extrato.
+  function ajusteTransfBanco(){
+    var hoje = todayISO(), ultimo = "", s = 0;
+    Object.keys(state.saldos || {}).forEach(function(k){ var c = state.saldos[k]; if(c.extrato && c.extrato.data && c.extrato.data > ultimo) ultimo = c.extrato.data; });
+    state.transactions.forEach(function(t){
+      if(t.tipo !== "transferencia_interna" || t.documento || isPrevistaTx(t, hoje) || !isRealized(t, hoje)) return;
+      if(ultimo && t.dataEfet <= ultimo) return;
+      if(t.contaOrigem === "banco") s -= Math.round(t.valor * 100);
+      if(t.contaDestino === "banco") s += Math.round(t.valor * 100);
+    });
+    return s / 100;
+  }
+  function somaExtras(){ var s = 0; contasExtras().forEach(function(c){ s += Math.round(c.saldo * 100); }); return s / 100 + ajusteTransfBanco(); }
+  function extrasHtml(){
+    var aj = ajusteTransfBanco();
+    return contasExtras().map(function(c){
+      return '<li class="resumo-item"><span>' + escapeAttr(c.nome) + ' <em>(calculado pelos seus lançamentos)</em></span><span></span><span>' + fmt(c.saldo) + '</span></li>';
+    }).join("") + (aj ? '<li class="resumo-item"><span>Transferências do banco ainda fora do extrato</span><span></span><span>' + fmt(aj) + '</span></li>' : "");
+  }
+  function contaBadge(t){
+    return t.contaOrigem && t.contaOrigem !== "banco" && t.tipo !== "transferencia_interna" ? '<span class="badge-fam">' + escapeAttr(CONTAS_NOME[t.contaOrigem] || t.contaOrigem) + '</span>' : "";
+  }
+  function contaPreencher(t){ var s = document.getElementById("txPagoCom"); if(s) s.value = (t && t.contaOrigem) || "banco"; }
+  function contaDoForm(tx){
+    var s = document.getElementById("txPagoCom"); if(!s) return;
+    tx.contaOrigem = s.value === "banco" ? null : s.value;
+    if(!tx.fonte) tx.fonte = "manual";
+  }
+
+  // ---- Transferir entre contas (saque, depósito, mover valor): não é despesa nem receita
+  function abrirTransferencia(){
+    var m = document.getElementById("trfModal"); document.getElementById("trfData").value = todayISO(); document.getElementById("trfValor").value = ""; document.getElementById("trfDesc").value = "";
+    document.getElementById("trfDe").value = "banco"; document.getElementById("trfPara").value = "dinheiro"; m.hidden = false; document.getElementById("trfValor").focus();
+  }
+  function salvarTransferencia(){
+    var de = document.getElementById("trfDe").value, para = document.getElementById("trfPara").value, v = lerValorBR(document.getElementById("trfValor").value), data = document.getElementById("trfData").value;
+    if(de === para){ toast("Escolha contas diferentes para transferir."); return; }
+    if(v === null || v <= 0){ toast("Digite o valor (ex.: 200,00)."); return; }
+    if(!data){ toast("Escolha a data."); return; }
+    var nomeBanco = Object.keys(state.saldos || {}).map(function(k){ return state.saldos[k].banco; }).filter(Boolean)[0] || "Banco";
+    var desc = document.getElementById("trfDesc").value.trim() || ("Transferência: " + CONTAS_NOME[de] + " → " + CONTAS_NOME[para]);
+    Store.add({tipo: "transferencia_interna", banco: nomeBanco, modalidade: "Débito", valor: v, dataLanc: data, dataEfet: data, descricao: desc, categoria: "Transferência interna",
+      classificacao: "Variável", recorrencia: "Única", contaOrigem: de, contaDestino: para, fonte: "manual"});
+    document.getElementById("trfModal").hidden = true;
+    toast("Transferência registrada. Ela não conta como despesa nem como receita.");
+  }
+
+  // ---- Conferência com o extrato: lançamentos seus do período que não estão no extrato (ex.: pagos em dinheiro)
+  function foraDoExtratoSig(res){ return (res.fora || []).map(function(t){ return t.id; }).sort().join(","); }
+  function foraHtml(k, res){
+    var c = state.saldos[k]; if(!res.aplicavel || !(res.fora && res.fora.length) || (c && c.foraIgnorado === foraDoExtratoSig(res))) return "";
+    var tot = res.fora.reduce(function(s, t){ return s + (tipoEntra(t.tipo) ? -t.valor : t.valor); }, 0);
+    return '<div class="conc-linha conc-fora"><span>' + res.fora.length + ' lançamento(s) seu(s) do período não estão no extrato (' + fmt(Math.abs(tot)) + '). ' + (res.ok ? '' : 'O saldo não bate: ') + 'Algum foi pago em dinheiro?</span>' +
+      '<button type="button" class="resumo-link conc-dif" data-fora="' + escapeAttr(k) + '">Revisar</button></div>';
+  }
+  function abrirFora(k){
+    var res = conciliacaoDe(k), box = document.getElementById("foraCorpo"); box.textContent = "";
+    if(!res.aplicavel || !(res.fora && res.fora.length)){ toast("Nada para revisar."); return; }
+    document.getElementById("foraModal").dataset.conta = k;
+    var p = document.createElement("p"); p.className = "conc-resumo";
+    p.textContent = "Estes lançamentos são do período do extrato (" + fmtDate(res.de) + " a " + fmtDate(res.ate) + ") e não aparecem nele. Marque os que foram pagos em dinheiro: eles passam a baixar o Dinheiro em mãos, não o saldo do banco.";
+    box.appendChild(p);
+    res.fora.forEach(function(t){
+      var l = document.createElement("label"); l.className = "imp-chk fora-item";
+      var ck = document.createElement("input"); ck.type = "checkbox"; ck.dataset.id = t.id; ck.checked = true;
+      l.appendChild(ck); l.appendChild(document.createTextNode(" " + fmtDate(t.dataEfet) + " · " + t.descricao + " · " + (tipoEntra(t.tipo) ? "+" : "−") + fmt(t.valor)));
+      box.appendChild(l);
+    });
+    document.getElementById("foraModal").hidden = false;
+  }
+  function foraMarcarDinheiro(){
+    var ids = Array.prototype.filter.call(document.querySelectorAll("#foraCorpo input[type=checkbox]"), function(c){ return c.checked; }).map(function(c){ return c.dataset.id; });
+    if(!ids.length){ toast("Marque pelo menos um lançamento."); return; }
+    ids.forEach(function(id){ Store.update(id, {contaOrigem: "dinheiro", fonte: "manual"}); });
+    document.getElementById("foraModal").hidden = true;
+    toast(ids.length + " lançamento(s) marcado(s) como dinheiro. O saldo do banco não mudou.");
+  }
+  function foraIgnorar(){
+    var k = document.getElementById("foraModal").dataset.conta, res = conciliacaoDe(k);
+    if(state.saldos[k]){ state.saldos[k].foraIgnorado = foraDoExtratoSig(res); saveSaldos(); }
+    document.getElementById("foraModal").hidden = true; renderAll();
+  }
+  document.addEventListener("click", function(e){
+    var t = e.target; if(!t || !t.closest) return;
+    var b;
+    if((b = t.closest("[data-fora]"))){ abrirFora(b.dataset.fora); return; }
+    if(t.closest("#foraDinheiro")){ foraMarcarDinheiro(); return; }
+    if(t.closest("#foraNao")){ foraIgnorar(); return; }
+    if(t.closest("#foraFechar")){ document.getElementById("foraModal").hidden = true; return; }
+    if(t.closest("#trfSalvar")){ salvarTransferencia(); return; }
+    if(t.closest("#trfCancelar")){ document.getElementById("trfModal").hidden = true; return; }
+  });
+// Motor do fluxo de caixa: funções puras, sem DOM e sem rede. Datas em texto ISO (AAAA-MM-DD).
+// Evento: {key, desc, valor (>0), tipo:'entrada'|'saida', data, prioridade:'essencial'|'cortavel',
+//          mover, vencMax, antecipar, juro (% ao mês informado ou null), fonte}
+var FLX = (function(){
+  var DIA = 864e5;
+  function p2(n){ return (n < 10 ? "0" : "") + n; }
+  function parse(s){ var a = s.split("-"); return Date.UTC(+a[0], +a[1] - 1, +a[2]); }
+  function iso(ms){ var d = new Date(ms); return d.getUTCFullYear() + "-" + p2(d.getUTCMonth() + 1) + "-" + p2(d.getUTCDate()); }
+  function addDias(s, n){ return iso(parse(s) + n * DIA); }
+  function ultimoDia(y, m){ return new Date(Date.UTC(y, m, 0)).getUTCDate(); } // m = 1..12
+  function cmp(a, b){ return a < b ? -1 : a > b ? 1 : 0; }
+  function dmax(a, b){ return a > b ? a : b; }
+  function cent(v){ return Math.round(v * 100) / 100; }
+  function diasEntre(a, b){ return Math.round((parse(b) - parse(a)) / DIA); }
+
+  // Ocorrências de uma conta prevista dentro de [de, ate]. Mensal usa o dia original, limitado ao fim do mês
+  // (dia 31 vira 30 ou 28/29 nos meses curtos, e volta a 31 quando o mês tem).
+  function expandir(c, de, ate){
+    var out = [], r = c.recorrencia || "unica";
+    function poe(d){ if(d >= de && d <= ate && d >= c.data) out.push(Object.assign({}, c, {data: d})); }
+    if(r === "unica"){ poe(c.data); return out; }
+    if(r === "semanal"){
+      var d = c.data;
+      while(d <= ate){ poe(d); d = addDias(d, 7); }
+      return out;
+    }
+    var y = +c.data.slice(0, 4), m = +c.data.slice(5, 7), dia = +c.data.slice(8, 10);
+    for(var i = 0; i < 400; i++){
+      var dd = y + "-" + p2(m) + "-" + p2(Math.min(dia, ultimoDia(y, m)));
+      if(dd > ate) break;
+      poe(dd);
+      m++; if(m > 12){ m = 1; y++; }
+    }
+    return out;
+  }
+
+  // Simula dia a dia de hoje até fim. O que venceu antes de hoje e segue em aberto cai em hoje.
+  // No mesmo dia, entradas contam antes das saídas (vale o saldo do fim do dia).
+  function simular(saldoIni, hoje, fim, eventos){
+    var porDia = {}, i;
+    eventos.forEach(function(e){
+      var d = e.data < hoje ? hoje : e.data;
+      if(d > fim) return;
+      (porDia[d] = porDia[d] || []).push(e);
+    });
+    var dias = [], saldo = cent(saldoIni), menor = null, primeiroNeg = null, diasNeg = 0;
+    var n = diasEntre(hoje, fim);
+    for(i = 0; i <= n; i++){
+      var d = addDias(hoje, i), evs = porDia[d] || [], ent = 0, sai = 0;
+      evs.forEach(function(e){ if(e.tipo === "entrada") ent += e.valor; else sai += e.valor; });
+      saldo = cent(saldo + ent - sai);
+      var neg = saldo < 0;
+      if(neg){ diasNeg++; if(!primeiroNeg) primeiroNeg = d; }
+      if(!menor || saldo < menor.saldo) menor = {data: d, saldo: saldo};
+      dias.push({data: d, ent: cent(ent), sai: cent(sai), saldo: saldo, neg: neg, eventos: evs});
+    }
+    return {dias: dias, primeiroNeg: primeiroNeg, menor: menor, buraco: menor && menor.saldo < 0 ? cent(-menor.saldo) : 0, diasNeg: diasNeg, saldoFinal: saldo};
+  }
+  function resumo(s){ return {primeiroNeg: s.primeiroNeg, buraco: s.buraco, diasNeg: s.diasNeg, pior: s.menor ? s.menor.data : null, saldoFinal: s.saldoFinal}; }
+  function copia(evs){ return evs.map(function(e){ return Object.assign({}, e); }); }
+  function proximaEntrada(evs, apartirDe, hoje){
+    var c = evs.filter(function(e){ return e.tipo === "entrada" && dmax(e.data, hoje) >= apartirDe; }).map(function(e){ return dmax(e.data, hoje); });
+    c.sort(cmp); return c[0] || null;
+  }
+  function melhora(a, b){ return b.buraco < a.buraco || (b.buraco === a.buraco && b.diasNeg < a.diasNeg); }
+
+  // ---- soluções (cada uma devolve novos eventos; nenhuma cria dinheiro, só muda datas ou resgata a reserva) ----
+  function solMover(ev, ctx){
+    var cur = copia(ev), s = simular(ctx.saldoIni, ctx.hoje, ctx.fim, cur), mud = [];
+    var cand = cur.filter(function(e){ return e.tipo === "saida" && e.mover; }).sort(function(a, b){ return cmp(a.data, b.data); });
+    for(var i = 0; i < cand.length && s.buraco > 0; i++){
+      var e = cand[i], de = e.data < ctx.hoje ? ctx.hoje : e.data;
+      var alvo = proximaEntrada(cur.filter(function(x){ return x !== e; }), de, ctx.hoje);
+      if(!alvo || alvo <= de) continue;
+      if(e.vencMax && alvo > e.vencMax) alvo = e.vencMax;
+      if(alvo <= de) continue;
+      var antes = e.data; e.data = alvo;
+      var s2 = simular(ctx.saldoIni, ctx.hoje, ctx.fim, cur);
+      if(melhora(resumo(s), resumo(s2))){ s = s2; mud.push({desc: e.desc, valor: e.valor, de: antes, para: alvo}); } else e.data = antes;
+    }
+    return {eventos: cur, mudancas: mud};
+  }
+  function solAdiar(ev, ctx){
+    var cur = copia(ev), s = simular(ctx.saldoIni, ctx.hoje, ctx.fim, cur), mud = [], depois = addDias(ctx.fim, 1);
+    var cand = cur.filter(function(e){ return e.tipo === "saida" && e.prioridade === "cortavel" && e.fonte !== "fatura" && dmax(e.data, ctx.hoje) <= (s.menor ? s.menor.data : ctx.fim); })
+      .sort(function(a, b){ return b.valor - a.valor; });
+    for(var i = 0; i < cand.length && s.buraco > 0; i++){
+      var e = cand[i], de = e.data < ctx.hoje ? ctx.hoje : e.data;
+      var alvo = proximaEntrada(cur.filter(function(x){ return x !== e; }), addDias(de, 1), ctx.hoje) || depois;
+      if(alvo <= de) continue;
+      var antes = e.data; e.data = alvo;
+      var s2 = simular(ctx.saldoIni, ctx.hoje, ctx.fim, cur);
+      if(melhora(resumo(s), resumo(s2))){ s = s2; mud.push({desc: e.desc, valor: e.valor, de: antes, para: alvo, foraDoPeriodo: alvo > ctx.fim}); } else e.data = antes;
+    }
+    return {eventos: cur, mudancas: mud};
+  }
+  function solAntecipar(ev, ctx){
+    var cur = copia(ev), s = simular(ctx.saldoIni, ctx.hoje, ctx.fim, cur), mud = [];
+    if(!s.primeiroNeg) return {eventos: cur, mudancas: mud};
+    var alvo = s.primeiroNeg;
+    cur.filter(function(e){ return e.tipo === "entrada" && e.antecipar && e.data > alvo; }).sort(function(a, b){ return cmp(a.data, b.data); }).forEach(function(e){
+      if(s.buraco <= 0) return;
+      var antes = e.data; e.data = alvo;
+      var s2 = simular(ctx.saldoIni, ctx.hoje, ctx.fim, cur);
+      if(melhora(resumo(s), resumo(s2))){ s = s2; mud.push({desc: e.desc, valor: e.valor, de: antes, para: alvo}); } else e.data = antes;
+    });
+    return {eventos: cur, mudancas: mud};
+  }
+  function solReserva(ev, ctx){
+    var cur = copia(ev), s = simular(ctx.saldoIni, ctx.hoje, ctx.fim, cur), mud = [];
+    var disp = Math.max(0, ctx.reserva || 0);
+    if(s.buraco > 0 && disp > 0 && s.primeiroNeg){
+      var usar = cent(Math.min(disp, s.buraco));
+      cur.push({key: "reserva", desc: "Resgate da reserva", valor: usar, tipo: "entrada", data: s.primeiroNeg, prioridade: "essencial", fonte: "reserva"});
+      mud.push({desc: "Resgate da reserva", valor: usar, de: null, para: s.primeiroNeg, reserva: true});
+    }
+    return {eventos: cur, mudancas: mud};
+  }
+  var DEFS = [
+    {id: "mover", titulo: "Mover vencimento para depois da entrada", fn: solMover,
+      vazio: "Nenhuma conta marcada como \"pode mudar o vencimento\" ajuda nesse período."},
+    {id: "antecipar", titulo: "Antecipar uma entrada prevista", fn: solAntecipar,
+      vazio: "Nenhuma entrada marcada como \"pode antecipar\" ajuda nesse período."},
+    {id: "adiar", titulo: "Adiar saídas cortáveis", fn: solAdiar,
+      vazio: "Não há saída cortável que, adiada, melhore o saldo."},
+    {id: "reserva", titulo: "Usar a reserva", fn: solReserva,
+      vazio: "Não há reserva disponível para cobrir o buraco."}
+  ];
+
+  // Custo de ficar devedor por um tempo: multa de 2% + juros do mês (informado ou 1% padrão).
+  var JURO_NEG = 8; // média de juros do saldo negativo / atraso, % ao mês
+  function custoAtraso(e){ return cent(e.valor * (0.02 + ((e.juro != null ? e.juro : JURO_NEG) / 100))); }
+  // juros estimados de ficar no vermelho: saldo negativo de cada dia x taxa mensal / 30
+  function custoNegativo(s, pct){ return cent(s.dias.reduce(function(a, d){ return a + (d.saldo < 0 ? -d.saldo : 0); }, 0) * (pct == null ? JURO_NEG : pct) / 100 / 30); }
+
+  function analisar(o){
+    var hoje = o.hoje, fim = o.fim, ctx = {saldoIni: o.saldoIni, hoje: hoje, fim: fim, reserva: o.reserva};
+    var ev = o.eventos, base = simular(o.saldoIni, hoje, fim, ev), r0 = resumo(base);
+    var solucoes = DEFS.map(function(d){
+      var x = d.fn(ev, ctx), s2 = simular(o.saldoIni, hoje, fim, x.eventos);
+      return {id: d.id, titulo: d.titulo, vazio: d.vazio, mudancas: x.mudancas, eventos: x.eventos, aplicavel: x.mudancas.length > 0,
+              antes: r0, depois: resumo(s2), sim: s2};
+    });
+    // sugestão (não aplicada): dividir em 3 vezes a maior saída parcelável que cause o buraco
+    var parc = ev.filter(function(e){ return e.tipo === "saida" && e.fonte !== "reserva" && e.valor >= 90; })
+      .filter(function(e){ return base.primeiroNeg && dmax(e.data, hoje) <= (base.menor ? base.menor.data : fim); })
+      .sort(function(a, b){ return b.valor - a.valor; })[0];
+    var sug = null;
+    if(parc && base.buraco > 0){
+      var c = copia(ev), e2 = c.filter(function(x){ return x.key === parc.key && x.data === parc.data; })[0];
+      if(e2){
+        e2.valor = cent(parc.valor / 3);
+        [1, 2].forEach(function(k){ c.push(Object.assign({}, e2, {key: parc.key + "#p" + k, data: addDias(parc.data, 30 * k)})); });
+        var s3 = simular(o.saldoIni, hoje, fim, c);
+        sug = {id: "parcelar", titulo: "Parcelar ou renegociar", sugestao: true, alvo: parc, estimativa: true, antes: r0, depois: resumo(s3), sim: s3};
+      }
+    }
+    // plano combinado: aplica em ordem, só enquanto ainda houver buraco
+    var cur = ev, passos = [], sPlano = base;
+    DEFS.forEach(function(d){
+      if(sPlano.buraco <= 0) return;
+      var x = d.fn(cur, ctx);
+      if(x.mudancas.length){ cur = x.eventos; passos.push(d.id); sPlano = simular(o.saldoIni, hoje, fim, cur); }
+    });
+    var plano = {passos: passos, eventos: cur, sim: sPlano, depois: resumo(sPlano), resolvido: base.buraco > 0 && sPlano.buraco === 0};
+
+    var semSaida = null;
+    if(base.buraco > 0 && sPlano.buraco > 0) semSaida = analisarSemSaida(o, ctx, cur, sPlano);
+    r0.jurosNeg = custoNegativo(base); plano.depois.jurosNeg = custoNegativo(sPlano);
+    return {base: base, antes: r0, jurosPct: JURO_NEG, solucoes: solucoes, sugestao: sug, plano: plano, semSaida: semSaida};
+  }
+
+  // Nenhuma solução fecha o buraco: separa essencial de cortável, escolhe o atraso mais barato e dá a data de volta ao positivo.
+  function analisarSemSaida(o, ctx, evPlano, sPlano){
+    var ext = addDias(ctx.hoje, 90); if(ext < ctx.fim) ext = ctx.fim;
+    var eventosExt = (o.eventosExt || evPlano);
+    var sExt = simular(o.saldoIni, ctx.hoje, ext, eventosExt);
+    var falta = sPlano.buraco, pior = sPlano.menor.data;
+    var somaV = function(l){ return cent(l.reduce(function(x, e){ return x + e.valor; }, 0)); };
+    var noPeriodo = function(e){ return e.tipo === "saida" && e.fonte !== "reserva" && dmax(e.data, ctx.hoje) <= pior; };
+    var orig = o.eventos.filter(noPeriodo);
+    var essencial = somaV(orig.filter(function(e){ return e.prioridade === "essencial"; }));
+    var cortavel = somaV(orig.filter(function(e){ return e.prioridade !== "essencial"; }));
+    // o que ainda pesa depois do plano: escolhe quem fica para depois com o menor custo (menos essenciais primeiro, depois menor multa/juros)
+    var cand = evPlano.filter(noPeriodo).sort(function(a, b){ return (custoAtraso(a) / a.valor) - (custoAtraso(b) / b.valor); }).slice(0, 14);
+    var melhor = null;
+    for(var m = 1; m < (1 << cand.length); m++){
+      var sub = [], v = 0, ess = 0, cu = 0;
+      for(var k = 0; k < cand.length; k++) if(m & (1 << k)){ sub.push(cand[k]); v += cand[k].valor; if(cand[k].prioridade === "essencial") ess++; cu += custoAtraso(cand[k]); }
+      if(cent(v) < falta) continue;
+      if(!melhor || ess < melhor.ess || (ess === melhor.ess && (cu < melhor.cu || (cu === melhor.cu && sub.length < melhor.sub.length)))) melhor = {sub: sub, ess: ess, cu: cu};
+    }
+    var escolha = melhor ? melhor.sub : cand;
+    var custo = cent(escolha.reduce(function(a, e){ return a + custoAtraso(e); }, 0));
+    // volta ao positivo: primeiro dia a partir do qual o saldo do plano não fica mais negativo
+    var recupera = null;
+    for(var j = sExt.dias.length - 1; j >= 0; j--){ if(sExt.dias[j].neg){ recupera = j + 1 < sExt.dias.length ? sExt.dias[j + 1].data : null; break; } if(j === 0) recupera = sExt.dias[0].data; }
+    if(sExt.diasNeg === 0) recupera = null;
+    return {falta: falta, pior: pior, primeiroNeg: sPlano.primeiroNeg, essencial: essencial, cortavel: cortavel,
+            escolha: escolha.map(function(e){ return {desc: e.desc, valor: e.valor, essencial: e.prioridade === "essencial", custo: custoAtraso(e)}; }),
+            custo: custo, recuperaEm: recupera, horizonteAte: ext, voltaNoHorizonte: !!recupera};
+  }
+
+  return {parse: parse, iso: iso, addDias: addDias, ultimoDia: ultimoDia, expandir: expandir, simular: simular, analisar: analisar,
+          resumo: resumo, custoNegativo: custoNegativo, custoAtraso: custoAtraso, cent: cent};
+})();
+
+  // ===== Fluxo de caixa (tela) =====
+  var FLUXO_SCHEMA = "public";
+  var DBF = sb ? (FLUXO_SCHEMA === "public" ? sb : sb.schema(FLUXO_SCHEMA)) : null;
+  var FLXD = {uid: null, itens: [], fam: [], carregado: false, carregando: false, erro: null, esc: "meu", sel: null, ver: null, grupo: null, editId: null};
+  var FLX_PRIO_KEY = "genesis-fluxo-prio-v1";
+  var FLX_ESSENCIAL = /(moradia|alugu|condom|financiament|\bluz\b|energia|[aá]gua|\bg[aá]s\b|sa[uú]de|plano de sa|farm[aá]cia|medic|escola|faculdade|mensalidade|educa|transporte|combust|mercado|aliment|supermerc|seguro|iptu|ipva|imposto|empr[eé]stimo|internet|telefone)/i;
+  var FLX_DOW = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"];
+  function flxEsc(s){ return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;"); }
+  function flxPrioMap(){ try{ return JSON.parse(localStorage.getItem(FLX_PRIO_KEY)) || {}; }catch(e){ return {}; } }
+  function flxSetPrio(key, p){ var m = flxPrioMap(); m[key] = p; try{ localStorage.setItem(FLX_PRIO_KEY, JSON.stringify(m)); }catch(e){} }
+  function flxPrioDe(key, classif, texto){
+    var m = flxPrioMap(); if(m[key]) return m[key];
+    if(classif === "Fixa" || classif === "Parcelada") return "essencial";
+    return FLX_ESSENCIAL.test(texto || "") ? "essencial" : "cortavel";
+  }
+  function flxN(v){ return window.__v5hide ? "••" : Math.round(v).toLocaleString("pt-BR"); }
+  function flxDia(iso){ return iso ? iso.slice(8, 10) + "/" + iso.slice(5, 7) : ""; }
+  function flxSaldoInicial(){
+    var tot = 0, n = 0;
+    Object.keys(state.saldos || {}).forEach(function(k){ var v = state.saldos[k] && state.saldos[k].saldo; if(typeof v === "number" && isFinite(v)){ tot += v; n++; } });
+    if(typeof somaExtras === "function"){ var ex = somaExtras(); if(ex){ tot += ex; n++; } } // dinheiro em mãos e transferências ainda fora do extrato
+    return {valor: FLX.cent(tot), n: n};
+  }
+
+  function flxCarregar(){
+    if(!DBF || state.mode !== "db" || FLXD.carregando) return;
+    FLXD.carregando = true; FLXD.uid = state.uid; FLXD.grupo = FAM.grupo ? FAM.grupo.id : null;
+    var a = DBF.from("contas_previstas").select("*").eq("ativo", true).order("data");
+    var b = FAM.grupo ? DBF.rpc("fluxo_familia") : Promise.resolve({data: []});
+    Promise.all([a, b]).then(function(r){
+      if(r[0].error) throw r[0].error;
+      FLXD.itens = r[0].data || []; FLXD.fam = (r[1] && r[1].data) || []; FLXD.erro = null; FLXD.carregado = true;
+    }).catch(function(e){ FLXD.erro = (e && e.message) || "Não foi possível carregar as contas previstas."; FLXD.carregado = true; })
+      .then(function(){ FLXD.carregando = false; renderFluxo(); });
+  }
+
+  // Todos os eventos da janela (hoje até ate), para o escopo escolhido.
+  function flxEventos(esc, hoje, ate){
+    var ev = [], ft = {};
+    if(esc === "meu"){
+      state.transactions.forEach(function(tx){
+        if(isNeutro(tx)) return;
+        if(!(isPrevista(tx) || !isRealized(tx, hoje))) return;
+        if(tx.dataEfet > ate) return;
+        var entra = tipoEntra(tx.tipo), txt = (tx.categoria || "") + " " + (tx.descricao || "");
+        if(isFaturaTx(tx)){
+          var k = "ft:" + (tx.cartao || tx.banco || "cartão") + "|" + tx.dataEfet;
+          var f = ft[k] = ft[k] || {key: k, desc: "Fatura " + (cardLabel(tx.cartao) || tx.banco || "do cartão"), valor: 0, tipo: "saida", data: tx.dataEfet, prioridade: "essencial", fonte: "fatura", itens: 0};
+          f.valor += entra ? -tx.valor : despVal(tx); f.itens++;
+          return;
+        }
+        ev.push({key: "tx:" + tx.id, desc: tx.descricao || "(sem descrição)", valor: tx.valor, tipo: entra ? "entrada" : "saida", data: tx.dataEfet,
+          prioridade: flxPrioDe("tx:" + tx.id, tx.classificacao, txt), fonte: "lancamento", editavel: true});
+      });
+      Object.keys(ft).forEach(function(k){ var f = ft[k]; f.valor = FLX.cent(f.valor); if(f.valor > 0){ f.prioridade = flxPrioDe(k, "Fixa", ""); ev.push(f); } });
+    } else {
+      (FAM.lanc || []).forEach(function(l){
+        if(l.tipo === "pagamento_fatura" || l.tipo === "transferencia_interna") return;
+        if(!l.data_efet || l.data_efet <= hoje || l.data_efet > ate) return;
+        var entra = tipoEntra(l.tipo), txt = (l.categoria || "") + " " + (l.descricao || "");
+        ev.push({key: "fam:" + l.id, desc: (l.descricao || "(sem descrição)") + (l.trouxe_nome ? " · " + l.trouxe_nome : ""), valor: Number(l.valor), tipo: entra ? "entrada" : "saida",
+          data: l.data_efet, prioridade: flxPrioDe("fam:" + l.id, l.classificacao, txt), fonte: "lancamento"});
+      });
+    }
+    var prev = state.mode !== "db" || FLXD.uid !== state.uid ? [] : (esc === "familia" ? FLXD.fam : FLXD.itens);
+    prev.forEach(function(c){
+      var base = {key: "cp:" + c.id, id: c.id, desc: c.descricao + (c.de_nome && !c.meu ? " · " + c.de_nome : ""), valor: Number(c.valor), tipo: c.tipo, data: c.data, recorrencia: c.recorrencia,
+        prioridade: c.prioridade, conta: c.conta || null, mover: !!c.pode_mover_venc, vencMax: c.venc_max || null, antecipar: !!c.pode_antecipar,
+        juro: c.juro_atraso_pct == null ? null : Number(c.juro_atraso_pct), fonte: "prevista", propria: c.meu !== false};
+      FLX.expandir(base, hoje, ate).forEach(function(o){ o.key = base.key + "@" + o.data; ev.push(o); });
+    });
+    return ev;
+  }
+
+  function flxJanela(){
+    var ref = refISO(), ym = monthKey(ref), y = +ym.slice(0, 4), m = +ym.slice(5, 7);
+    var hoje = todayISO(), fim = ym + "-" + pad2(FLX.ultimoDia(y, m));
+    var ext = FLX.addDias(hoje, 90); if(ext < fim) ext = fim;
+    return {ym: ym, y: y, m: m, hoje: hoje, fim: fim, ext: ext, passado: fim < hoje};
+  }
+
+  function flxCalcular(){
+    var j = flxJanela(); if(j.passado) return {j: j, passado: true};
+    var esc = FLXD.esc, ini = esc === "meu" ? flxSaldoInicial() : {valor: 0, n: 0};
+    var eventos = flxEventos(esc, j.hoje, j.ext);
+    var reserva = esc === "meu" ? (state.patrimonio && state.patrimonio.reserva) || 0 : 0;
+    var an = FLX.analisar({saldoIni: ini.valor, hoje: j.hoje, fim: j.fim, eventos: eventos, reserva: reserva});
+    return {j: j, ini: ini, an: an, eventos: eventos, reserva: reserva, esc: esc};
+  }
+
+  function flxMudanca(m){
+    if(m.reserva) return "Resgatar <b>" + fmt(m.valor) + "</b> da reserva em " + flxDia(m.para) + ".";
+    if(m.foraDoPeriodo) return "Adiar «" + flxEsc(m.desc) + "» (" + fmt(m.valor) + ") de " + flxDia(m.de) + " para o mês seguinte.";
+    return "«" + flxEsc(m.desc) + "» (" + fmt(m.valor) + "): de " + flxDia(m.de) + " para " + flxDia(m.para) + ".";
+  }
+  function flxEfeito(a, d){
+    var antes = a.buraco > 0 ? "buraco de " + fmt(a.buraco) + " (a partir de " + flxDia(a.primeiroNeg) + ")" : "sem buraco";
+    var dep = d.buraco > 0 ? "buraco de " + fmt(d.buraco) + " (a partir de " + flxDia(d.primeiroNeg) + ")" : "<span style=\"color:var(--pos)\">sem buraco</span>";
+    return '<div class="fx-efeito">' + antes + " → " + dep + "</div>";
+  }
+
+  function flxCalendario(c, view){
+    var j = c.j, sim = view.sim, porData = {};
+    sim.dias.forEach(function(d){ porData[d.data] = d; });
+    var primeiro = new Date(j.y, j.m - 1, 1).getDay(), n = FLX.ultimoDia(j.y, j.m), h = "";
+    FLX_DOW.forEach(function(d){ h += '<div class="fx-dow">' + d + "</div>"; });
+    for(var i = 0; i < primeiro; i++) h += '<div class="fx-dia vazio" aria-hidden="true"></div>';
+    for(var d = 1; d <= n; d++){
+      var iso = j.ym + "-" + pad2(d), dd = porData[iso], passado = iso < j.hoje;
+      var cls = "fx-dia" + (dd && dd.neg ? " neg" : "") + (passado ? " passado" : "") + (iso === j.hoje ? " hoje" : "");
+      if(!dd){ h += '<button type="button" class="' + cls + '" data-dia="' + iso + '" aria-pressed="' + (FLXD.sel === iso) + '"><span class="fx-n">' + d + "</span></button>"; continue; }
+      h += '<button type="button" class="' + cls + '" data-dia="' + iso + '" aria-pressed="' + (FLXD.sel === iso) + '" aria-label="Dia ' + d + ", saldo " + (window.__v5hide ? "oculto" : FLX.cent(dd.saldo)) + (dd.neg ? ", negativo" : "") + '">' +
+        '<span class="fx-n">' + d + "</span>" +
+        (dd.ent ? '<span class="fx-e">+' + flxN(dd.ent) + "</span>" : "") + (dd.sai ? '<span class="fx-s">−' + flxN(dd.sai) + "</span>" : "") +
+        '<span class="fx-sd' + (dd.neg ? " fx-neg" : "") + '">' + (window.__v5hide ? "••" : Math.round(dd.saldo).toLocaleString("pt-BR")) + "</span></button>";
+    }
+    return '<div class="fx-cal" id="fxCal">' + h + "</div>";
+  }
+
+  function flxDetalhe(c, view){
+    if(!FLXD.sel) return "";
+    var d = view.sim.dias.filter(function(x){ return x.data === FLXD.sel; })[0];
+    if(!d) return '<div class="fx-det"><b>' + flxDia(FLXD.sel) + '</b><span class="fx-nota">Este dia já passou: o calendário projeta só de hoje em diante.</span></div>';
+    var h = '<div class="fx-det"><div class="fx-ev"><b>' + flxDia(d.data) + "</b><span>Saldo no fim do dia: <b class=\"" + (d.neg ? "fx-neg" : "") + '">' + fmt(d.saldo) + "</b></span></div>";
+    if(!d.eventos.length) h += '<span class="fx-nota">Nada previsto neste dia.</span>';
+    d.eventos.forEach(function(e){
+      var tag = e.fonte === "fatura" ? "fatura" : e.fonte === "prevista" ? "prevista" : e.fonte === "reserva" ? "reserva" : "lançamento";
+      var prio = e.tipo === "saida" && e.fonte !== "reserva" ? (e.editavel || e.fonte === "fatura"
+        ? '<button type="button" class="tag" data-prio="' + flxEsc(e.key) + '" data-novo="' + (e.prioridade === "essencial" ? "cortavel" : "essencial") + '" title="Trocar">' + (e.prioridade === "essencial" ? "essencial" : "cortável") + " ⇄</button>"
+        : '<span class="tag">' + (e.prioridade === "essencial" ? "essencial" : "cortável") + "</span>") : "";
+      h += '<div class="fx-ev"><span>' + (e.tipo === "entrada" ? "↑ " : "↓ ") + flxEsc(e.desc) + '<span class="tag">' + tag + "</span>" + prio + "</span><b class=\"" + (e.tipo === "saida" ? "fx-neg" : "") + '">' + (e.tipo === "saida" ? "−" : "+") + fmt(e.valor) + "</b></div>";
+    });
+    return h + "</div>";
+  }
+
+  function flxSolucoes(c){
+    var an = c.an, h = "";
+    if(an.base.buraco <= 0) return "";
+    an.solucoes.forEach(function(s){
+      h += '<div class="fx-sol"><h4>' + flxEsc(s.titulo) + "</h4>";
+      if(!s.aplicavel) h += '<div class="mut">' + flxEsc(s.vazio) + "</div>";
+      else {
+        h += "<ul>" + s.mudancas.map(function(m){ return "<li>" + flxMudanca(m) + "</li>"; }).join("") + "</ul>" + flxEfeito(s.antes, s.depois);
+        h += '<button type="button" class="btn btn-ghost" data-ver="' + s.id + '">Ver no calendário</button>';
+      }
+      h += "</div>";
+    });
+    if(an.sugestao){
+      var g = an.sugestao;
+      h += '<div class="fx-sol"><h4>Parcelar ou renegociar</h4><div>Sugestão: pedir para dividir «' + flxEsc(g.alvo.desc) + "» (" + fmt(g.alvo.valor) + ") em 3 vezes, ou renegociar o prazo.</div>" + flxEfeito(g.antes, g.depois) +
+        '<div class="fx-nota">Estimativa sem juros. Só vale se o credor aceitar; por isso não entra no plano nem altera o calendário.</div></div>';
+    }
+    return '<details class="fx-det2"><summary>Ver as opções, uma a uma</summary><div class="fx-sols" style="margin-top:10px">' + h + "</div></details>";
+  }
+
+  function flxSemSaida(c){
+    var s = c.an.semSaida; if(!s) return "";
+    var h = '<div class="fx-sem"><h4>Sem saída pelas suas regras</h4>' +
+      "<div>Mesmo mexendo em tudo o que você liberou (datas, cortáveis e reserva), <b>faltam " + fmt(s.falta) + "</b> no pior dia (" + flxDia(s.pior) + "). O saldo fica negativo a partir de " + flxDia(s.primeiroNeg) + ".</div>" +
+      "<div>Do que vence até lá: <b>essencial " + fmt(s.essencial) + "</b> e <b>cortável " + fmt(s.cortavel) + "</b>.</div>";
+    if(s.escolha.length) h += "<div>O negativo mais barato é deixar para depois: " + s.escolha.map(function(e){ return "«" + flxEsc(e.desc) + "» (" + fmt(e.valor) + (e.essencial ? ", essencial" : "") + ")"; }).join(", ") +
+      ". Custo estimado de atraso: <b>" + fmt(s.custo) + "</b> (multa de 2% mais juros do mês; usa o juro que você informou na conta, ou a média de 8% ao mês).</div>";
+    h += s.recuperaEm ? "<div>Previsão para voltar ao positivo: <b>" + flxDia(s.recuperaEm) + "/" + s.recuperaEm.slice(0, 4) + "</b>, quando as próximas entradas cobrirem o que ficou para trás.</div>"
+      : "<div>Com os dados de hoje o saldo <b>não volta ao positivo</b> até " + flxDia(s.horizonteAte) + "/" + s.horizonteAte.slice(0, 4) + ". Cadastre entradas previstas ou reduza saídas para ver uma data.</div>";
+    return h + "</div>";
+  }
+
+  function flxLista(){
+    var rec = {unica: "uma vez", mensal: "todo mês", semanal: "toda semana"};
+    var itens = FLXD.itens.slice().sort(function(a, b){ return a.data < b.data ? -1 : 1; });
+    var h = '<div class="fx-bar"><h3 style="margin:0; font-size:15px">Contas previstas</h3><button type="button" class="btn btn-primary" id="fxNova"' + (state.mode === "db" ? "" : " disabled") + ">Nova conta prevista</button></div>";
+    if(state.mode !== "db") return h + '<div class="fx-nota">Entre na sua conta para cadastrar contas previstas.</div>';
+    if(FLXD.erro) h += '<div class="fx-nota fx-neg">' + flxEsc(FLXD.erro) + "</div>";
+    if(!itens.length) return h + '<div class="fx-nota">Nenhuma ainda. Cadastre salário, aluguel, assinaturas e o que mais vai entrar ou sair e não está nos lançamentos.</div>';
+    return h + '<div class="fx-lista">' + itens.map(function(c){
+      return '<div class="fx-item"><span>' + (c.tipo === "entrada" ? "↑ " : "↓ ") + "<b>" + flxEsc(c.descricao) + "</b> · " + fmt(Number(c.valor)) + " · " + flxDia(c.data) + " · " + rec[c.recorrencia] +
+        " · " + (c.prioridade === "essencial" ? "essencial" : "cortável") + (c.escopo === "familia" ? " · família" : "") + (c.pode_mover_venc ? " · vencimento flexível" : "") + (c.pode_antecipar ? " · pode antecipar" : "") + "</span>" +
+        '<span class="acoes"><button type="button" class="fx-mini" data-edit="' + flxEsc(c.id) + '">Editar</button><button type="button" class="fx-mini" data-del="' + flxEsc(c.id) + '">Excluir</button></span></div>';
+    }).join("") + "</div>";
+  }
+
+  function renderFluxo(){
+    var corpo = document.getElementById("fxCorpo"); if(!corpo) return;
+    if(FLXD.uid !== state.uid && state.mode === "db"){ FLXD.itens = []; FLXD.fam = []; FLXD.carregado = false; FLXD.uid = null; FLXD.sel = null; FLXD.ver = null; }
+    if(state.mode === "db" && !FLXD.carregado && !FLXD.carregando) flxCarregar();
+    if(state.mode === "db" && FLXD.carregado && (FAM.grupo ? FAM.grupo.id : null) !== FLXD.grupo && !FLXD.carregando){ FLXD.carregado = false; flxCarregar(); }
+    var semGrupo = !FAM.grupo;
+    if(semGrupo && FLXD.esc === "familia") FLXD.esc = "meu";
+    Array.prototype.forEach.call(document.querySelectorAll("#fxEsc button"), function(b){ b.setAttribute("aria-pressed", String(b.dataset.esc === FLXD.esc)); b.hidden = b.dataset.esc === "familia" && semGrupo; });
+    var c = flxCalcular(), h = "";
+    if(c.passado){
+      corpo.innerHTML = '<div class="fx-ok">Este mês já passou. O fluxo de caixa projeta de hoje em diante: escolha o mês atual ou um próximo no seletor de período.</div>' + flxLista();
+      return;
+    }
+    var an = c.an, view = an.base, sim = "";
+    if(FLXD.ver){
+      var sv = FLXD.ver === "plano" ? an.plano : an.solucoes.filter(function(s){ return s.id === FLXD.ver; })[0];
+      if(sv && an.base.buraco > 0){ view = sv.sim; sim = FLXD.ver; } else FLXD.ver = null;
+    }
+    var viewObj = {sim: view};
+    var menor = an.base.menor;
+    h += '<div class="fx-kpis">' +
+      '<div class="fx-kpi"><small>' + (c.esc === "meu" ? "Saldo de hoje" : "Ponto de partida") + "</small><b>" + fmt(c.ini.valor) + "</b></div>" +
+      '<div class="fx-kpi"><small>Menor saldo no período</small><b class="' + (menor && menor.saldo < 0 ? "fx-neg" : "") + '">' + fmt(menor ? menor.saldo : 0) + '</b><small>' + (menor ? flxDia(menor.data) : "") + "</small></div>" +
+      '<div class="fx-kpi"><small>Saldo no fim de ' + flxDia(c.j.fim) + "</small><b class=\"" + (an.base.saldoFinal < 0 ? "fx-neg" : "") + '">' + fmt(an.base.saldoFinal) + "</b></div></div>";
+    if(c.esc === "meu" && c.ini.n === 0) h += '<div class="fx-nota fx-neg">Nenhum saldo informado: o calendário parte de R$ 0,00. Use "Atualizar saldo" na tela inicial para partir do saldo real.</div>';
+    if(c.esc === "familia") h += '<div class="fx-nota">Na aba Família não existe saldo compartilhado: o calendário mostra o movimento acumulado só do que foi compartilhado, partindo de R$ 0,00.</div>';
+    if(an.base.buraco > 0){
+      var pl = an.plano, nomesP = {mover: "mover vencimentos", antecipar: "antecipar entrada", adiar: "adiar cortáveis", reserva: "usar a reserva"};
+      h += '<div class="fx-alerta"><div>⚠ <b>Descasamento no fluxo de caixa:</b> o saldo fica negativo por <b>' + an.base.diasNeg + (an.base.diasNeg === 1 ? " dia" : " dias") + "</b>, a partir de <b>" + flxDia(an.base.primeiroNeg) +
+        "</b>. O buraco chega a <b>" + fmt(an.base.buraco) + "</b> em " + flxDia(an.base.menor.data) + ".</div>" +
+        "<div>Ficar no negativo custa, em média, <b>" + an.jurosPct + "% ao mês</b> de juros: cerca de <b>" + fmt(an.antes.jurosNeg) + "</b> neste período.</div>" +
+        (pl.passos.length
+          ? "<div>" + (pl.resolvido ? "<b>Solução:</b> " : "<b>Melhor caminho (não fecha tudo):</b> ") + pl.passos.map(function(p){ return nomesP[p]; }).join(" + ") + ". Buraco de " + fmt(an.base.buraco) + " → " + (pl.depois.buraco > 0 ? fmt(pl.depois.buraco) : "sem buraco") + (pl.depois.buraco > 0 ? "" : ", juros evitados") + ". " +
+            '<button type="button" class="fx-mini" data-ver="plano">Ver no calendário</button></div>'
+          : "<div><b>Sem solução</b> dentro das regras que você liberou.</div>") +
+        "</div>";
+    } else h += '<div class="fx-ok">Nenhum dia fica negativo até ' + flxDia(c.j.fim) + ".</div>";
+    if(sim){
+      h += '<div class="fx-sim"><span>Simulação: <b>' + (sim === "plano" ? "plano sugerido" : an.solucoes.filter(function(s){ return s.id === sim; })[0].titulo) + "</b>. Nada foi salvo nem alterado nos seus lançamentos.</span><button type=\"button\" class=\"btn btn-ghost\" data-ver=\"\">Voltar ao real</button></div>";
+    }
+    h += flxCalendario(c, viewObj) + flxDetalhe(c, viewObj);
+    h += flxSolucoes(c) + flxSemSaida(c) + flxLista();
+    corpo.innerHTML = h;
+  }
+
+  // --- formulário ---
+  function flxAbrirForm(id){
+    if(state.mode !== "db"){ toast("Entre na sua conta para cadastrar contas previstas."); return; }
+    var c = id ? FLXD.itens.filter(function(x){ return x.id === id; })[0] : null; FLXD.editId = c ? c.id : null;
+    var $f = function(i){ return document.getElementById(i); };
+    $f("fxModalT").textContent = c ? "Editar conta prevista" : "Nova conta prevista";
+    $f("fxDesc").value = c ? c.descricao : ""; $f("fxTipo").value = c ? c.tipo : "saida";
+    $f("fxValor").value = c ? String(c.valor).replace(".", ",") : ""; $f("fxData").value = c ? c.data : todayISO();
+    $f("fxRec").value = c ? c.recorrencia : "unica"; $f("fxPrio").value = c ? c.prioridade : "essencial"; $f("fxConta").value = c && c.conta ? c.conta : "";
+    $f("fxMover").checked = !!(c && c.pode_mover_venc); $f("fxVencMax").value = c && c.venc_max ? c.venc_max : "";
+    $f("fxAnt").checked = !!(c && c.pode_antecipar); $f("fxJuro").value = c && c.juro_atraso_pct != null ? String(c.juro_atraso_pct).replace(".", ",") : "";
+    $f("fxEscSel").value = c ? c.escopo : "meu"; $f("fxEscBox").hidden = !FAM.grupo;
+    var nomes = {}; Object.keys(state.saldos || {}).forEach(function(k){ nomes[rotuloConta(state.saldos[k])] = 1; }); Object.keys(state.cartoes || {}).forEach(function(k){ nomes[cardLabel(k)] = 1; });
+    $f("fxContasLista").innerHTML = Object.keys(nomes).filter(Boolean).map(function(n){ return '<option value="' + flxEsc(n) + '">'; }).join("");
+    flxAjustaForm(); $f("fxModal").hidden = false; $f("fxDesc").focus();
+  }
+  function flxAjustaForm(){
+    var $f = function(i){ return document.getElementById(i); }, saida = $f("fxTipo").value === "saida";
+    $f("fxMoverL").hidden = !saida; $f("fxMoverBox").hidden = !(saida && $f("fxMover").checked); $f("fxAntL").hidden = saida; $f("fxJuroBox").hidden = !saida;
+  }
+  function flxSalvar(){
+    var $f = function(i){ return document.getElementById(i); };
+    var desc = $f("fxDesc").value.trim(), valor = lerValorBR($f("fxValor").value), data = $f("fxData").value, tipo = $f("fxTipo").value;
+    if(!desc){ toast("Dê um nome para a conta."); return; }
+    if(valor === null || valor <= 0){ toast("Digite um valor maior que zero (ex.: 1500,00)."); return; }
+    if(!data){ toast("Escolha a data."); return; }
+    var juro = $f("fxJuro").value.trim() ? lerValorBR($f("fxJuro").value) : null;
+    if(juro !== null && (juro < 0 || juro > 100)){ toast("Juros entre 0 e 100% ao mês."); return; }
+    var venc = tipo === "saida" && $f("fxMover").checked && $f("fxVencMax").value ? $f("fxVencMax").value : null;
+    if(tipo === "saida" && $f("fxMover").checked && !venc){ toast("Informe até que dia o vencimento pode mudar."); return; }
+    if(venc && venc < data){ toast("O limite do vencimento precisa ser depois da data da conta."); return; }
+    var row = {descricao: desc, valor: valor, data: data, tipo: tipo, recorrencia: $f("fxRec").value, prioridade: $f("fxPrio").value,
+      conta: $f("fxConta").value.trim() || null, escopo: FAM.grupo ? $f("fxEscSel").value : "meu",
+      pode_mover_venc: tipo === "saida" && $f("fxMover").checked, venc_max: venc, pode_antecipar: tipo === "entrada" && $f("fxAnt").checked,
+      juro_atraso_pct: tipo === "saida" ? juro : null};
+    var q = FLXD.editId ? DBF.from("contas_previstas").update(row).eq("id", FLXD.editId) : DBF.from("contas_previstas").insert(Object.assign({user_id: state.uid}, row));
+    q.then(function(r){
+      if(r.error) throw r.error;
+      $f("fxModal").hidden = true; FLXD.carregado = false; FLXD.carregando = false; renderFluxo(); toast("Conta prevista salva.");
+    }).catch(function(e){ toast(famMsg(e)); });
+  }
+  function flxExcluir(id){
+    var c = FLXD.itens.filter(function(x){ return x.id === id; })[0]; if(!c) return;
+    if(!window.confirm("Excluir a conta prevista \"" + c.descricao + "\"? Os seus lançamentos não mudam.")) return;
+    DBF.from("contas_previstas").delete().eq("id", id).then(function(r){
+      if(r.error) throw r.error;
+      FLXD.carregado = false; FLXD.carregando = false; renderFluxo(); toast("Conta prevista excluída.");
+    }).catch(function(e){ toast(famMsg(e)); });
+  }
+  (function flxLigar(){
+    document.addEventListener("click", function(ev){
+      var t = ev.target.closest ? ev.target : null; if(!t) return;
+      var b;
+      if((b = t.closest("#fxEsc button"))){ FLXD.esc = b.dataset.esc; FLXD.ver = null; FLXD.sel = null; renderFluxo(); return; }
+      if((b = t.closest("#fxCal .fx-dia[data-dia]"))){ FLXD.sel = (FLXD.sel === b.dataset.dia ? null : b.dataset.dia); renderFluxo(); return; }
+      if((b = t.closest("#fluxoCard [data-ver]"))){ FLXD.ver = b.dataset.ver || null; renderFluxo(); return; }
+      if((b = t.closest("#fluxoCard [data-prio]"))){ flxSetPrio(b.dataset.prio.split("@")[0], b.dataset.novo); renderFluxo(); return; }
+      if((b = t.closest("#fluxoCard [data-edit]"))){ flxAbrirForm(b.dataset.edit); return; }
+      if((b = t.closest("#fluxoCard [data-del]"))){ flxExcluir(b.dataset.del); return; }
+      if(t.closest("#fxNova")){ flxAbrirForm(null); return; }
+      if(t.closest("#fxCancelar")){ document.getElementById("fxModal").hidden = true; return; }
+      if(t.closest("#fxSalvar")){ flxSalvar(); return; }
+    });
+    ["fxTipo", "fxMover"].forEach(function(i){ var e = document.getElementById(i); if(e) e.addEventListener("change", flxAjustaForm); });
+  })();
+
   function famRpc(fn, args){ return DB.rpc(fn, args || {}).then(function(r){ if(r.error) throw r.error; return r.data; }); }
   function famMsg(e){
     if(e && e.code === "42501") return "A sua sessão mudou (outra conta entrou neste navegador?). Recarregue a página e entre de novo.";
@@ -2582,6 +3318,7 @@
     sec.classList.toggle("fam-on", on);
     document.getElementById("famTopo").hidden = !on; document.getElementById("famListaCard").hidden = !on;
     document.getElementById("famCampoEscopo").hidden = !on;
+    try{ renderFluxo(); }catch(e){}
     document.getElementById("famListaCard").dataset.total = on ? FAM.lanc.length : 0;
     if(window.__v5ui && window.__v5ui.famLabel) window.__v5ui.famLabel(on ? "Família (" + FAM.lanc.length + ")" : "Família");
     renderLedger(refISO());
@@ -2895,7 +3632,7 @@
             tipo: latestReal.tipo, banco: latestReal.banco, modalidade: latestReal.modalidade, valor: latestReal.valor,
             dataLanc: nextLanc, dataEfet: nextEfet, descricao: latestReal.descricao, categoria: latestReal.categoria,
             classificacao: latestReal.classificacao, parcela: parc ? (nextN+"/"+parc.total) : null,
-            recorrencia: "Mensal", seriesId: sid, autoGenerated: true, escopo: latestReal.escopo,
+            recorrencia: "Mensal", seriesId: sid, autoGenerated: true, escopo: latestReal.escopo, contaOrigem: latestReal.contaOrigem || null,
             obs: "Gerado automaticamente — confira o valor"
           });
         }
@@ -3165,9 +3902,9 @@
     return '<div class="conc-bloco" id="concBloco">' + chaves.map(function(k){
       var res = conciliacaoDe(k), nome = escapeAttr(rotuloConta(state.saldos[k]));
       if(!res.aplicavel) return '<div class="conc-linha"><span>'+nome+'</span><span class="conc-nd">Não conciliada · envie o PDF do extrato de novo</span></div>';
-      if(res.ok) return '<div class="conc-linha"><span>'+nome+'</span><button type="button" class="resumo-link conc-ok" data-conc="'+escapeAttr(k)+'">✓ Conciliada</button></div>';
+      if(res.ok) return '<div class="conc-linha"><span>'+nome+'</span><button type="button" class="resumo-link conc-ok" data-conc="'+escapeAttr(k)+'">✓ Banco conferido até '+fmtDate(res.ate)+'</button></div>';
       return '<div class="conc-linha"><span>'+nome+'</span><button type="button" class="resumo-link conc-dif" data-conc="'+escapeAttr(k)+'">Diferença de '+fmt(Math.abs(res.diff))+' · ver detalhes</button></div>';
-    }).join("") + '</div>';
+    }).join("") + chaves.map(function(k){ return foraHtml(k, conciliacaoDe(k)); }).join("") + '</div>';
   }
   var concAberta = null;
   function abrirConciliacao(chave){ concAberta = chave; renderConciliacao(); document.getElementById("concModal").hidden = false; }
@@ -3326,6 +4063,7 @@
   var resumoAberto = false, resumoLista = null; // "Ver detalhes" fechado por padrão
   function acaoResumo(a){
     if(a === "atualizar-saldo"){ abrirModalSaldo(); return; }
+    if(a === "transferir"){ abrirTransferencia(); return; }
     if(a === "detalhes"){ resumoAberto = !resumoAberto; if(!resumoAberto) resumoLista = null; }
     else if(a === "saldos" || a === "receber" || a === "pagar"){ resumoLista = (resumoLista === a ? null : a); }
     renderHero(refISO());
@@ -3368,7 +4106,7 @@
     card.className = "resumo-card fade-in";
     var rodape = function(){
       return '<div class="resumo-rodape"><button type="button" class="resumo-link" data-resumo="detalhes" aria-expanded="'+(resumoAberto ? "true" : "false")+'">'+(resumoAberto ? "Ocultar detalhes" : "Ver detalhes")+'</button>'+
-        '<button type="button" class="resumo-link" data-resumo="atualizar-saldo">Atualizar saldo</button></div>';
+        '<button type="button" class="resumo-link" data-resumo="atualizar-saldo">Atualizar saldo</button><button type="button" class="resumo-link" data-resumo="transferir">Transferir entre contas</button></div>';
     };
     // Sem saldo informado nem extrato importado: nada de números zerados.
     if(mesAtual && !chaves.length){
@@ -3379,7 +4117,7 @@
       return r;
     }
     var usaSaldo = mesAtual && chaves.length > 0;
-    var base = somaSaldos(state.saldos);
+    var base = Math.round((somaSaldos(state.saldos) + somaExtras()) * 100) / 100;
     var valor = usaSaldo ? valorComSaldo(base, r.recPend, r.despPend, r.prevDesp) : r.saldoProjetado;
     var renda = r.recTotal || (state.patrimonio && state.patrimonio.rendaMensal) || 0;
     var sit = situacaoPrevisao(valor, renda);
@@ -3401,9 +4139,9 @@
         var comp = compoePrevisao(ref), aPagar = Math.round((r.despPend + r.prevDesp) * 100) / 100;
         var nPagar = comp.pagar.length + " " + (comp.pagar.length === 1 ? "conta" : "contas");
         html += '<div class="resumo-det">'+
-          '<div class="resumo-linha">'+(chaves.length > 1 ? '<button type="button" data-resumo="saldos">Saldo hoje</button>' : '<span>Saldo hoje</span>')+'<span>'+fmt(base)+'</span></div>'+
+          '<div class="resumo-linha">'+((chaves.length > 1 || contasExtras().length) ? '<button type="button" data-resumo="saldos">Saldo hoje</button>' : '<span>Saldo hoje</span>')+'<span>'+fmt(base)+'</span></div>'+
           (resumoLista === "saldos" ? '<ul class="resumo-itens">'+chaves.map(function(k){ var c = state.saldos[k];
-            return '<li class="resumo-item"><span>'+escapeAttr(rotuloConta(c))+' <em>('+(c.origem === "manual" ? "informado" : "extrato")+')</em></span><span>'+(c.data ? fmtDate(c.data) : "")+'</span><span>'+fmt(c.saldo)+'</span></li>'; }).join("")+'</ul>' : '')+
+            return '<li class="resumo-item"><span>'+escapeAttr(rotuloConta(c))+' <em>('+(c.origem === "manual" ? "informado" : "extrato")+')</em></span><span>'+(c.data ? fmtDate(c.data) : "")+'</span><span>'+fmt(c.saldo)+'</span></li>'; }).join("")+extrasHtml()+'</ul>' : '')+
           '<div class="resumo-linha"><button type="button" data-resumo="receber">+ A receber até '+fmtDate(fimMes)+'</button><span>'+fmt(r.recPend)+'</span></div>'+
           (resumoLista === "receber" ? itens(comp.receber, "Nada a receber até "+fmtDate(fimMes)+".") : '')+
           '<div class="resumo-linha"><button type="button" data-resumo="pagar">− A pagar até '+fmtDate(fimMes)+' ('+nPagar+')</button><span>'+fmt(aPagar)+'</span></div>'+
@@ -3457,14 +4195,14 @@
       '<div class="card-head"><h2>Para revisar</h2><span class="hint">'+pairs.length+' lançamento'+(pairs.length>1?'s':'')+'</span></div>'+
       '<div class="review-list">'+pairs.map(function(p, i){
         return '<div class="review-row">'+
-          '<span class="avatar" style="'+avatarStyle(p.b.banco)+'">'+initial(p.b.banco)+'</span>'+
+          '<span class="avatar" style="'+avatarStyle(p.b.banco)+'">'+escapeAttr(initial(p.b.banco))+'</span>'+
           '<div class="review-main">'+
-            '<div class="review-top"><span class="review-title">'+p.b.descricao+'</span><span class="tag-pill tag-amber">Parece repetido</span></div>'+
-            '<div class="review-sub">'+fmtDate(p.b.dataEfet)+' · já existe "'+p.a.descricao+'" de '+fmt(p.a.valor)+' em '+fmtDate(p.a.dataEfet)+'</div>'+
+            '<div class="review-top"><span class="review-title">'+escapeAttr(p.b.descricao)+'</span><span class="tag-pill tag-amber">Parece repetido</span></div>'+
+            '<div class="review-sub">'+fmtDate(p.b.dataEfet)+' · já existe "'+escapeAttr(p.a.descricao)+'" de '+fmt(p.a.valor)+' em '+fmtDate(p.a.dataEfet)+'</div>'+
           '</div>'+
           '<div class="review-right">'+
             '<span class="review-value">-'+fmt(p.b.valor)+'</span>'+
-            '<span class="review-actions"><button type="button" class="ghost dup-ignore" data-idx="'+i+'">São diferentes</button><button type="button" class="solid dup-del" data-idx="'+i+'" data-id="'+p.b.id+'">Juntar os dois</button></span>'+
+            '<span class="review-actions"><button type="button" class="ghost dup-ignore" data-idx="'+i+'">São diferentes</button><button type="button" class="solid dup-del" data-idx="'+i+'" data-id="'+escapeAttr(p.b.id)+'">Juntar os dois</button></span>'+
           '</div></div>';
       }).join("")+'</div></div>';
     document.querySelectorAll(".dup-del").forEach(function(btn){
@@ -3547,7 +4285,7 @@
       '<div class="mc-badge '+(melhorou?"mc-good":"mc-bad")+'">'+(melhorou?"Mês melhorou":"Mês piorou")+'</div>'+
       '</div>'+
       (rows.length ? '<div class="mc-cats">'+rows.slice(0,8).map(function(r){
-        return '<div class="mc-cat-row"><span class="mc-cat-name">'+r.cat+'</span>'+
+        return '<div class="mc-cat-row"><span class="mc-cat-name">'+escapeAttr(r.cat)+'</span>'+
           '<span class="mc-cat-vals">'+fmt(r.anterior)+' &rarr; '+fmt(r.atual)+'</span>'+
           trendArrow(r.delta, true)+
           '<span class="mc-cat-delta '+(r.delta>0?"neg":"pos")+'">'+(r.delta>=0?"+":"")+fmt(r.delta)+'</span></div>';
@@ -3673,7 +4411,7 @@
         ? (over ? fmt(d.value - lim)+" acima da meta" : fmt(d.value)+" de "+fmt(lim))
         : fmt(d.value);
       return '<div class="spend-item">'+
-        '<div class="spend-row-head"><span>'+d.label+'</span><span class="'+(over?"over":"")+'">'+rightText+'</span></div>'+
+        '<div class="spend-row-head"><span>'+escapeAttr(d.label)+'</span><span class="'+(over?"over":"")+'">'+rightText+'</span></div>'+
         '<div class="spend-track"><div class="spend-fill'+(over?" over":"")+'" style="width:'+pct+'%"></div></div></div>';
     }).join("");
     if(parcFat > 0){
@@ -3725,8 +4463,8 @@
     var html = keys.map(function(k){
       var info = byBanco[k];
       return '<div class="account-tile fade-in">'+
-        '<div class="account-tile-head"><span class="avatar" style="'+avatarStyle(k)+'">'+initial(k)+'</span>'+
-        '<div><div class="account-name">'+k+'</div><div class="account-sub">'+info.count+' lançamento'+(info.count>1?'s':'')+' este mês</div></div></div>'+
+        '<div class="account-tile-head"><span class="avatar" style="'+avatarStyle(k)+'">'+escapeAttr(initial(k))+'</span>'+
+        '<div><div class="account-name">'+escapeAttr(k)+'</div><div class="account-sub">'+info.count+' lançamento'+(info.count>1?'s':'')+' este mês</div></div></div>'+
         '<div class="account-value">'+fmt(info.total)+'</div></div>';
     }).join("");
     document.getElementById("accountTiles").innerHTML = html || '<div class="empty-note">Sem gastos neste mês ainda.</div>';
@@ -3747,8 +4485,8 @@
       var badgeCls = tipoEntra(t.tipo) ? "tipo-receita" : "tipo-despesa";
       return '<div class="pay-row">'+
         '<div class="date-badge '+badgeCls+'"><span class="dd">'+pad2(d.getDate())+'</span><span class="mm">'+MESES3[d.getMonth()]+'</span></div>'+
-        '<div class="pay-main"><div class="pay-title">'+t.descricao+'</div>'+
-        '<div class="pay-sub">'+t.banco+(t.modalidade && t.modalidade!=="—" ? " · "+t.modalidade : "")+'</div></div>'+
+        '<div class="pay-main"><div class="pay-title">'+escapeAttr(t.descricao)+'</div>'+
+        '<div class="pay-sub">'+escapeAttr(t.banco)+(t.modalidade && t.modalidade!=="—" ? " · "+t.modalidade : "")+'</div></div>'+
         '<div class="pay-value '+cls+'">'+sign+fmt(t.valor)+'</div></div>';
     }).join("");
     if(doMes.length > items.length) html += '<div class="empty-note">+ '+(doMes.length - items.length)+' lançamento(s) a mais em '+nomeMes+'. Veja todos na tabela de lançamentos.</div>';
@@ -3896,12 +4634,12 @@
 
   function fillDatalists(){
     var cats = uniqueCategories();
-    document.getElementById("categoriaOptions").innerHTML = cats.map(function(c){ return '<option value="'+c+'">'; }).join("");
+    document.getElementById("categoriaOptions").innerHTML = cats.map(function(c){ return '<option value="'+escapeAttr(c)+'">'; }).join("");
     var bancos = uniqueBancos();
-    document.getElementById("bancoOptions").innerHTML = bancos.map(function(b){ return '<option value="'+b+'">'; }).join("");
+    document.getElementById("bancoOptions").innerHTML = bancos.map(function(b){ return '<option value="'+escapeAttr(b)+'">'; }).join("");
     var fCat = document.getElementById("fCategoria");
     var current = fCat.value;
-    fCat.innerHTML = '<option value="">Todas as categorias</option>' + cats.map(function(c){ return '<option value="'+c+'">'+c+'</option>'; }).join("");
+    fCat.innerHTML = '<option value="">Todas as categorias</option>' + cats.map(function(c){ return '<option value="'+escapeAttr(c)+'">'+escapeAttr(c)+'</option>'; }).join("");
     fCat.value = current;
   }
 
@@ -3946,10 +4684,10 @@
       var pagBadge = pagFat ? '<span class="badge-pagfat">'+rotuloNeutro(t)+'</span>'
         : t.tipo === "parcelamento_fatura" ? '<span class="badge-pagfat">Parcelamento de fatura</span>'
         : t.tipo === "estorno" ? '<span class="badge-pagfat">Estorno</span>' : "";
-      var fatBadge = faturaLabel(t) ? '<span class="badge-fatura">'+faturaLabel(t)+'</span>' : "";
-      var sub = t.banco + (t.modalidade && t.modalidade !== "—" ? " · "+t.modalidade : "") + (cardLabel(t.cartao) ? " · "+escapeAttr(cardLabel(t.cartao)) : "");
+      var fatBadge = faturaLabel(t) ? '<span class="badge-fatura">'+escapeAttr(faturaLabel(t))+'</span>' : "";
+      var sub = escapeAttr(t.banco) + (t.modalidade && t.modalidade !== "—" ? " · "+t.modalidade : "") + (cardLabel(t.cartao) ? " · "+escapeAttr(cardLabel(t.cartao)) : "");
       var rowCls = (editingId === t.id) ? ' class="editing-row"' : "";
-      var famBadge = t.escopo === "familia" ? '<span class="badge-fam">Família</span>' : "";
+      var famBadge = (t.escopo === "familia" ? '<span class="badge-fam">Família</span>' : "") + contaBadge(t);
       var manual = t.pagoManual === true || t.pagoManual === false;
       var payVerb = tipoEntra(t.tipo) ? "recebido" : "pago";
       var payLabel = real ? ("Marcar como não "+payVerb) : ("Marcar como "+payVerb);
@@ -3958,8 +4696,8 @@
         '<td><span class="status-pill '+(real?"realizado":"pendente")+(manual?" manual":"")+'"><span class="sp-dot"></span>'+(real?"Realizado":"Pendente")+(manual?' <span class="manual-tag" title="Status definido manualmente, não muda por data">manual</span>':'')+'</span></td>'+
         '<td style="font-family:var(--font-num);">'+fmtDate(t.dataLanc)+'</td>'+
         '<td style="font-family:var(--font-num); color:var(--ink-2);">'+fmtDate(t.dataEfet)+'</td>'+
-        '<td class="desc-cell"><div class="d-main">'+t.descricao+parcelaBadge+autoBadge+pagBadge+famBadge+'</div><div class="d-sub">'+sub+fatBadge+'</div></td>'+
-        '<td><input class="cat-input" data-id="'+t.id+'" data-field="categoria" list="categoriaOptions" value="'+t.categoria+'"></td>'+
+        '<td class="desc-cell"><div class="d-main">'+escapeAttr(t.descricao)+parcelaBadge+autoBadge+pagBadge+famBadge+'</div><div class="d-sub">'+sub+fatBadge+'</div></td>'+
+        '<td><input class="cat-input" data-id="'+t.id+'" data-field="categoria" list="categoriaOptions" value="'+escapeAttr(t.categoria)+'"></td>'+
         '<td><select data-id="'+t.id+'" data-field="classificacao">'+classOptions.map(function(c){ return '<option value="'+c+'" '+(c===t.classificacao?"selected":"")+'>'+c+'</option>'; }).join("")+'</select></td>'+
         '<td><select data-id="'+t.id+'" data-field="recorrencia">'+recOptions.map(function(c){ return '<option value="'+c+'" '+(c===(t.recorrencia||"Única")?"selected":"")+'>'+c+'</option>'; }).join("")+'</select></td>'+
         '<td class="fam-col"><select data-id="'+t.id+'" data-field="escopo" aria-label="Compartilhar"><option value="meu"'+(t.escopo === "familia" ? "" : " selected")+'>Meu</option><option value="familia"'+(t.escopo === "familia" ? " selected" : "")+'>Família</option></select></td>'+
@@ -4048,6 +4786,7 @@
     fillDatalists();
     renderLedger(ref);
     renderTrash();
+    try{ renderFluxo(); }catch(e){ if(window.console) console.error(e); }
     if(window.__v5ui){ try{ window.__v5ui.after(ref); }catch(e){} }
   }
 
@@ -4085,7 +4824,7 @@
       var over = gasto > limite;
       var foot = over ? ("excedido em "+fmt(gasto-limite)) : (Math.round((limite>0?gasto/limite:0)*100)+"% usado");
       return '<div class="budget-row'+(over?" over":"")+'">'+
-        '<div class="budget-head"><span class="bname">'+cat+'</span><span class="bamounts">'+fmt(gasto)+' de '+fmt(limite)+'</span></div>'+
+        '<div class="budget-head"><span class="bname">'+escapeAttr(cat)+'</span><span class="bamounts">'+fmt(gasto)+' de '+fmt(limite)+'</span></div>'+
         '<div class="budget-track"><div class="budget-fill" style="width:'+pct+'%"></div></div>'+
         '<div class="budget-foot"><span class="budget-pct">'+foot+'</span><button type="button" class="budget-remove" data-cat="'+escapeAttr(cat)+'">remover</button></div></div>';
     }).join("");
@@ -4191,7 +4930,7 @@
     document.getElementById("txCategoria").value = t.categoria || "";
     document.getElementById("txClassificacao").value = t.classificacao || "Variável";
     document.getElementById("txRecorrencia").value = t.recorrencia || "Única";
-    famPreencherEscopo(t);
+    famPreencherEscopo(t); contaPreencher(t);
     document.getElementById("txParcela").value = t.parcela || "";
     document.getElementById("txObs").value = t.obs || "";
     document.getElementById("txFormTitle").textContent = "Editar lançamento";
@@ -4240,7 +4979,7 @@
       if(recorrencia === "Mensal"){ tx.seriesId = (existing && existing.seriesId) || editingId; }
       else { tx.seriesId = null; }
       Object.assign(tx, parcelaFields(tx, (existing && existing.statusParcela) || "confirmada"));
-      famEscopoDoForm(tx);
+      famEscopoDoForm(tx); contaDoForm(tx);
       Store.update(editingId, tx);
       tx.id = editingId;
       var seriesMsg = reconcileSeriesAfterEdit(tx) || propagarEdicaoMensal(tx, antes);
@@ -4249,7 +4988,7 @@
     } else {
       if(recorrencia === "Mensal"){ tx.id = newLocalId(); tx.seriesId = tx.id; }
       Object.assign(tx, parcelaFields(tx, "confirmada"));
-      famEscopoDoForm(tx);
+      famEscopoDoForm(tx); contaDoForm(tx);
       Store.add(tx);
       var futureCount = launchFutureInstallments(tx);
       toast(futureCount > 0
@@ -4287,7 +5026,7 @@
         parcela: n+"/"+parc.total, recorrencia: "Mensal", seriesId: tx.seriesId,
         idCompra: tx.seriesId, parcelaAtual: n, totalParcelas: parc.total, statusParcela: "prevista",
         cartao: tx.cartao || null,
-        escopo: tx.escopo, autoGenerated: true, obs: "Parcela prevista — confirmada quando a fatura chegar"
+        escopo: tx.escopo, contaOrigem: tx.contaOrigem || null, autoGenerated: true, obs: "Parcela prevista — confirmada quando a fatura chegar"
       };
       futuros.push(novo);
       cursor = novo;
@@ -4336,7 +5075,7 @@
         parcela: n+"/"+parc.total, recorrencia: "Mensal", seriesId: tx.seriesId,
         idCompra: tx.seriesId, parcelaAtual: n, totalParcelas: parc.total, statusParcela: "prevista",
         cartao: tx.cartao || null,
-        escopo: tx.escopo, autoGenerated: true, obs: "Parcela prevista — confirmada quando a fatura chegar"
+        escopo: tx.escopo, contaOrigem: tx.contaOrigem || null, autoGenerated: true, obs: "Parcela prevista — confirmada quando a fatura chegar"
       };
       rebuilt.push(novo);
       cursor = novo;
@@ -4377,7 +5116,7 @@
 
   // ---------- Bank statement PDF import ----------
   function escapeAttr(s){
-    return String(s).replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;");
+    return String(s).replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/'/g,"&#39;");
   }
 
   function linesFromTextContent(tc){
@@ -5012,8 +5751,9 @@
         // manual já lançado: vira a linha do extrato (conta, documento e data do banco) em vez de criar outro
         var manual = (ctx.txs || []).find(function(t){ return t.id === r.vincularId; });
         if(manual){
-          updates.push({id: manual.id, patch: {conta: ctx.conta, documento: r.documentoChave || null, dataEfet: r.dataEfet,
-            obs: obsVinculo(manual, {data: r.dataEfet})}});
+          var pv = {conta: ctx.conta, documento: r.documentoChave || null, dataEfet: r.dataEfet, obs: obsVinculo(manual, {data: r.dataEfet})};
+          if(Math.abs(manual.valor - r.valor) > 0.004){ pv.valor = r.valor; pv.obs += " · valor ajustado de " + impBRL(manual.valor) + " para " + impBRL(r.valor) + " pelo extrato"; }
+          updates.push({id: manual.id, patch: pv});
           return;
         }
       }
@@ -5037,9 +5777,13 @@
         cartaoFinal: credito ? (r.final || null) : null,
         idCompra: null, parcelaAtual: null, totalParcelas: null, statusParcela: null, seriesId: null,
         importId: origem.importId, faturaKey: origem.faturaKey,
-        obs: "Importado de extrato PDF" + (r.tipo === "parcelamento_fatura" ? jurosObs : "") + (r.obsExtra ? " · " + r.obsExtra : "")
+        obs: (ctx.origemObs || "Importado de extrato PDF") + (r.tipo === "parcelamento_fatura" ? jurosObs : "") + (r.obsExtra ? " · " + r.obsExtra : "")
       };
-      if(ctx.conta){ tx.conta = ctx.conta; tx.documento = r.documentoChave || null; } // extrato de conta
+      if(ctx.conta){ tx.conta = ctx.conta; tx.documento = r.documentoChave || null; tx.fonte = "extrato"; } // extrato de conta
+      if(r.tipo === "transferencia_interna" && r.regra === "Saque no caixa"){ tx.contaOrigem = "banco"; tx.contaDestino = "dinheiro"; }
+      if(r.tipo === "transferencia_interna" && r.regra === "Depósito em dinheiro"){ tx.contaOrigem = "dinheiro"; tx.contaDestino = "banco"; }
+      else if(r.extDoc){ tx.documento = r.extDoc; }
+      if(r.escopo === "meu" || r.escopo === "familia") tx.escopo = r.escopo;
       if(!pagamento && r.parcelaAtual && r.totalParcelas){
         var key = impDescKey(r.descricao);
         var group = null;
@@ -5091,6 +5835,8 @@
   //   acao: interna | fatura | despesa | receita
   //   pessoa: true = Pix/transferência (pode ser entre contas do próprio titular)
   var EXTRATO_REGRAS = [
+    {nome: "Saque no caixa", padrao: /\bSAQUE\b/, acao: "interna", destino: "dinheiro", origem: "banco"},
+    {nome: "Depósito em dinheiro", padrao: /DEPOSITO (EM )?(DINHEIRO|ESPECIE)|DEPOSITO ENVELOPE/, acao: "interna", destino: "banco", origem: "dinheiro"},
     {nome: "Aplicação ou resgate automático", padrao: /RENDE FACIL|APLICACAO AUTOM|RESGATE AUTOM|INVEST\.? (RESGATE|APLIC)|\bRDB\b|\bRESGATE\b|\bAPLICACAO\b|CAIXINHA|\bCDB\b/, acao: "interna"},
     {nome: "Pagamento de fatura de cartão", padrao: /PAGTO\.? CARTAO|PGTO\.? CARTAO|PAGAMENTO (DE |DO |DA )?(CARTAO|FATURA)|PAGTO\.? FATURA|DEBITO FATURA/, acao: "fatura"},
     {nome: "Juros, IOF e tarifas", padrao: /COBRANCA DE (JUROS|I\.?O\.?F)|\bTARIFA\b|\bIOF\b|\bJUROS\b|\bMULTA\b|ANUIDADE/, acao: "despesa", categoria: "Taxas bancárias", modalidade: "Débito automático"},
@@ -6002,6 +6748,7 @@
     });
     var diff = (extCents(ref.saldoFinal) - soma) / 100;
     return {aplicavel: true, ok: Math.abs(diff) < 0.005, diff: diff, calculado: soma / 100, saldoAnterior: ref.saldoAnterior, saldoFinal: ref.saldoFinal,
+      fora: candidatos.filter(function(t){ return !usados[t.id] && !isNeutro(t) && (!t.contaOrigem || t.contaOrigem === "banco") && t.dataEfet >= ref.de && t.dataEfet <= ref.ate; }),
       de: ref.de, ate: ref.ate, casadas: ref.linhas.length - sobra.length, manuais: manuais, lixeira: naLixeira, nunca: nunca, extras: extras, extrasSemSinal: semSinal};
   }
   // Lançamento novo a partir de uma linha guardada do extrato (mesma regra de leitura da importação).
@@ -6287,6 +7034,7 @@
       };
       if(match.level === "confirmed" || match.level === "wrongdate"){ row.selected = false; }
     });
+    impDupCartao(rows);
     return rows;
   }
 
@@ -6339,7 +7087,7 @@
         extCents(t.valor) === extCents(r.valor) && daysDiff(t.dataEfet, r.dataEfet) <= 3 &&
         tipoCompativel(t, r.sinal === "-" ? -1 : 1) && mesmoBanco(t.banco, banco);
     };
-    if(r.vincularId){ var j = state.transactions.find(function(x){ return x.id === r.vincularId; }); if(ok(j)) return j; }
+    if(r.vincularId){ var j = state.transactions.find(function(x){ return x.id === r.vincularId; }); if(ok(j) || impTolOk(j, r, conta, banco)) return j; }
     if(r.dup && !r.dup.extrato && r.dup.txId){ var d = state.transactions.find(function(x){ return x.id === r.dup.txId; }); if(ok(d)) return d; }
     var melhor = null;
     state.transactions.forEach(function(t){
@@ -6347,7 +7095,7 @@
       var dd = daysDiff(t.dataEfet, r.dataEfet);
       if(!melhor || dd < melhor.dd) melhor = {t: t, dd: dd};
     });
-    return melhor ? melhor.t : null;
+    return melhor ? melhor.t : impVinculoParecido(r, conta, banco);
   }
   function stagingHasCredit(){ return staging.some(function(r){ return r.modalidade === "Crédito"; }); }
   function cardKeyFinal(banco, final){ return impNorm(banco).toLowerCase() + "|" + final; }
@@ -6527,7 +7275,8 @@
     var extHtml = "";
     if(stagingMeta && stagingMeta.isExtrato){
       var ext = stagingMeta.ext, sc = stagingCheck && stagingCheck.saldo;
-      if(sc && sc.aplicavel){
+      if(sc && sc.aplicavel && sc.continuidade){ extHtml += impProvaHtml(sc); }
+      if(sc && sc.aplicavel && !sc.continuidade){
         if(sc.ok){
           extHtml += '<div class="conf-ok">Conferido: saldo anterior '+fmt(sc.saldoAnterior)+' + os lançamentos = saldo final '+fmt(sc.saldoFinal)+(sc.formato === "grupos" ? ', e os totais de cada dia batem.' : ', e todos os "Saldo do dia" batem.')+'</div>';
         } else {
@@ -6538,7 +7287,10 @@
             }).join("") : '<li>Nenhum "Saldo do dia" aponta o problema; confira se alguma linha ficou de fora do PDF.</li>')+'</ul></div>';
         }
       }
-      if(sc && !sc.aplicavel){
+      if(sc && !sc.aplicavel && ext.origemTexto){
+        extHtml += '<div class="imp-card-note" style="margin-bottom:10px;">Este tipo de arquivo não traz o saldo inicial, então não dá para provar o saldo: compare os totais abaixo com o seu extrato.' + (ext.saldoFinal ? " Saldo final informado no arquivo: <strong>" + fmt(ext.saldoFinal.valor) + "</strong> em " + fmtDate(ext.saldoFinal.data) + "." : "") + "</div>";
+      }
+      if(sc && !sc.aplicavel && !ext.origemTexto){
         extHtml += '<div class="attn-block conf-warn"><div class="attn-title">Não consegui conferir este extrato</div><ul class="conf-list"><li>Não encontrei o saldo inicial e o final (ou os totais). Os lançamentos foram lidos, mas não há como provar que a soma está certa. Confira linha a linha antes de importar.</li></ul></div>';
       }
       if(referenciaDoExtrato(ext)){
@@ -6559,7 +7311,7 @@
       var rowClass = (r.selected?"":"excluded") + dupClass + (attn ? " attn-row" : "");
       var dupHtml = "";
       if(r.dup){
-        var label = r.dup.level === "confirmed" ? "Aviso: lançamento duplicado"
+        var label = r.dup.level === "confirmed" ? impRotuloDup(r, "Aviso: lançamento duplicado")
           : r.dup.level === "wrongdate" ? "Esta parcela já existe, mas em outro mês" : "Possível duplicado — confira";
         dupHtml = '<span class="dup-warning '+r.dup.level+'">'+label+
           '<span class="dup-detail">já lançado: "'+escapeAttr(r.dup.descricao)+'" · Disponível em '+fmtDate(r.dup.dataEfet)+' · '+fmt(r.dup.valor)+'</span>'+
@@ -6570,8 +7322,8 @@
       }
       var vt = podeVincular(r), vincHtml = "";
       if(vt) vincHtml = r.vincularId
-        ? '<span class="dup-detail">Será vinculada a "'+escapeAttr(vt.descricao)+'" ('+fmtDate(vt.dataEfet)+'): esse lançamento manual vira a linha do banco, sem criar outro. <button type="button" class="linkish" data-act="vinc-undo" data-idx="'+idx+'">desfazer</button></span>'
-        : '<span class="dup-detail">Você já lançou "'+escapeAttr(vt.descricao)+'" ('+fmtDate(vt.dataEfet)+') com o mesmo valor. <button type="button" class="linkish" data-act="vinc-ok" data-idx="'+idx+'">Vincular ao lançamento manual</button></span>';
+        ? '<span class="dup-detail">Será vinculada a "'+escapeAttr(vt.descricao)+'" ('+fmtDate(vt.dataEfet)+'): esse lançamento manual vira a linha do banco, sem criar outro.'+impNotaValor(vt, r)+' <button type="button" class="linkish" data-act="vinc-undo" data-idx="'+idx+'">desfazer</button></span>'
+        : '<span class="dup-detail">Você já lançou "'+escapeAttr(vt.descricao)+'" ('+fmtDate(vt.dataEfet)+') '+impTextoVinc(vt, r)+' <button type="button" class="linkish" data-act="vinc-ok" data-idx="'+idx+'">Vincular ao lançamento manual</button></span>';
       dupHtml += vincHtml;
       var badges = (r.parcelaAtual ? '<span class="badge-parcela">'+r.parcelaAtual+'/'+r.totalParcelas+'</span>' : '')+
         (r.pagamento && r.pagamento.state === "confirmed" ? '<span class="badge-pagfat">Pagamento de fatura</span>' : '')+
@@ -6591,7 +7343,7 @@
         '<td class="num-cell"><input type="number" step="0.01" min="0" data-idx="'+idx+'" data-f="valor" value="'+r.valor.toFixed(2)+'"></td>'+
         '<td><input type="text" class="'+u(un.categoria).trim()+'" list="categoriaOptions" data-idx="'+idx+'" data-f="categoria" value="'+escapeAttr(r.categoria)+'"></td>'+
         '<td><select class="'+u(un.modalidade).trim()+'" data-idx="'+idx+'" data-f="modalidade"><option value="Crédito" '+(r.modalidade==="Crédito"?"selected":"")+'>Crédito</option><option value="Débito" '+(r.modalidade==="Débito"?"selected":"")+'>Débito</option><option value="Pix" '+(r.modalidade==="Pix"?"selected":"")+'>Pix</option><option value="Débito automático" '+(r.modalidade==="Débito automático"?"selected":"")+'>Débito automático</option></select></td>'+
-        '<td><select data-idx="'+idx+'" data-f="classificacao">'+classOpts.map(function(c){ return '<option value="'+c+'" '+(c===r.classificacao?"selected":"")+'>'+c+'</option>'; }).join("")+'</select></td>'+
+        '<td><select data-idx="'+idx+'" data-f="classificacao">'+classOpts.map(function(c){ return '<option value="'+c+'" '+(c===r.classificacao?"selected":"")+'>'+c+'</option>'; }).join("")+'</select></td>'+impTdEscopo(r, idx)+
         '</tr>';
     }).join("");
     el.innerHTML =
@@ -6602,8 +7354,8 @@
         (anyDupPossible ? '<div class="staging-legend-row"><span class="sw maybe"></span>Linhas amarelas podem ser duplicadas — eu não tenho certeza, dá uma olhada.</div>' : '') +
         '</div>' : '') +
       '<div class="staging-summary"><span><strong>'+staging.length+'</strong> linha(s) detectada(s) · <strong>'+selected.length+'</strong> selecionada(s)</span>'+
-      '<span>Impacto no saldo: <strong>'+fmt(selTotal)+'</strong></span></div>'+
-      '<div class="table-scroll"><table class="staging"><thead><tr><th></th><th>Data</th><th>Disponível em</th><th>Descrição</th><th>Tipo</th><th>Valor</th><th>Categoria</th><th>Modalidade</th><th>Classificação</th></tr></thead><tbody>'+rowsHtml+'</tbody></table></div>'+
+      '<span>Impacto no saldo: <strong>'+fmt(selTotal)+'</strong></span></div>'+impTotaisHtml(staging)+
+      '<div class="table-scroll"><table class="staging"><thead><tr><th></th><th>Data</th><th>Disponível em</th><th>Descrição</th><th>Tipo</th><th>Valor</th><th>Categoria</th><th>Modalidade</th><th>Classificação</th>'+impThEscopo()+'</tr></thead><tbody>'+rowsHtml+'</tbody></table></div>'+
       '<div class="staging-actions"><button class="btn btn-ghost" id="btnCancelStaging" type="button">Descartar</button>'+
       '<button class="btn btn-primary" id="btnConfirmStaging" type="button" '+(pendingPag?"disabled":"")+'>'+(pendingPag ? (pendingProp ? "Responda os avisos para importar" : "Responda os avisos de pagamento para importar") : "Importar selecionados")+'</button></div>';
 
@@ -6706,11 +7458,11 @@
       var seq = 0;
       var importIdNovo = novoImportId(Date.now());
       var plan = buildImportPlan(staging, {txs: ledgerParaImportar(), banco: banco, cardKey: credit ? (c.key || null) : null,
-        importId: importIdNovo, faturaKey: (credit || ehExtrato) ? stagingFaturaKey : null, conta: ehExtrato ? stagingMeta.contaKey : undefined,
+        importId: importIdNovo, faturaKey: (credit || ehExtrato) ? stagingFaturaKey : null, conta: ehExtrato ? stagingMeta.contaKey : undefined, origemObs: impOrigemObs(),
         newId: function(){ return newLocalId("c" + (seq++)); }});
       if(ehExtrato){
         var sd = saldoDoExtrato(stagingMeta.ext);
-        if(sd){
+        if(sd && impPodeAtualizarSaldo()){
           atualizarSaldos(state.saldos, stagingMeta.contaKey, sd);
           guardarReferencia(state.saldos, stagingMeta.contaKey, referenciaDoExtrato(stagingMeta.ext));
           saveSaldos();
@@ -6746,6 +7498,7 @@
       if(pagamentos) parts.push(pagamentos + " pagamento(s) de fatura fora das despesas");
       if(estornos) parts.push(estornos + " estorno(s) abatendo o gasto");
       if(plan.juros) parts.push("custo de juros do parcelamento: " + fmt(plan.juros.juros));
+      if(impSaldoBloqueado){ parts.push("saldo da conta NÃO atualizado: não fecha com o arquivo"); impSaldoBloqueado = false; }
       toast(parts.join(" · ") + ".");
       discardStaging();
     };
@@ -6880,6 +7633,7 @@
   // Extrato de conta corrente (Banco do Brasil): leitor próprio. A fatura segue o caminho de sempre.
   function reannotateExtrato(){
     stagingCheck = annotateExtratoRows(staging, {ext: stagingMeta.ext, txs: ledgerParaImportar(), contrapartes: state.contrapartes, hoje: todayISO()});
+    if(stagingMeta.ext.origemTexto) impMarcarDupExtrato(staging, stagingMeta.contaKey, ledgerParaImportar());
   }
   function portaoReimportacaoExtrato(){
     var key = stagingMeta.extratoKey;
@@ -6895,28 +7649,32 @@
   function handleExtrato(lines){
     var ext = lerExtratoGenerico(lines);
     if(!ext.lancamentos.length) return false;
+    return abrirExtrato(ext);
+  }
+  function abrirExtrato(ext){
     ext.banco = ext.banco || document.getElementById("importBanco").value.trim() || "Extrato importado";
     setImportStatus(null);
     stagingMeta = {isExtrato: true, banco: ext.banco, ext: ext, contaKey: contaKeyDe(ext), extratoKey: extratoKeyDe(ext), criarFuturos: false};
     document.getElementById("importBanco").value = ext.banco;
     document.getElementById("importVencimento").value = "";
     staging = extratoParaLinhas(ext);
+    if(ext.origemTexto){ impMelhoraLinhas(staging); ext.prova = impProvaContinuidade(ext); }
     stagingCard = null; stagingStep = "review"; stagingReplace = null; stagingFaturaKey = stagingMeta.extratoKey;
     reannotateExtrato();
     portaoReimportacaoExtrato();
     var noteEl = document.getElementById("importMetaNote");
     noteEl.hidden = false;
-    noteEl.textContent = "Reconheci como extrato de conta corrente do " + ext.banco + (ext.contaFinal ? " · conta final " + ext.contaFinal : "") +
+    noteEl.textContent = (ext.origemTexto || "Reconheci como extrato de conta corrente do") + " " + ext.banco + (ext.contaFinal ? " · conta final " + ext.contaFinal : "") +
       (ext.periodo ? " · de " + fmtDate(ext.periodo.de) + " a " + fmtDate(ext.periodo.ate) : "") + ". " + ext.lancamentos.length + " lançamento(s) lido(s)" +
       (ext.futuros.length ? "; " + ext.futuros.length + " lançamento(s) futuro(s) ficam de fora do período." : ".");
     renderStaging();
     return true;
   }
 
-  function handleParsedLines(lines){
+  function handleParsedLines(lines, extra){
     if(detectTipoDocumento(lines) === "extrato" && handleExtrato(lines)) return;
     var meta = detectStatementMeta(lines);
-    stagingMeta = meta;
+    stagingMeta = meta; if(extra) meta.origem = extra.origem;
     var rows = parseStatementLines(lines, meta);
     setImportStatus(null);
     if(!rows.length){
@@ -6928,7 +7686,7 @@
     var vencInput = document.getElementById("importVencimento");
     vencInput.value = meta.vencimento || "";
 
-    staging = rows;
+    staging = rows; if(extra) impAnexarIds(rows, extra);
     stagingReplace = null; stagingFaturaKey = null;
     setupStagingCard();
     reannotate();
@@ -6965,6 +7723,699 @@
     refreshStaging();
   });
 
+// Leitores de OFX e CSV/Excel. Funções puras: sem DOM e sem rede. O arquivo nunca sai do navegador.
+// Formato interno de cada lançamento: {data:'AAAA-MM-DD', valor:número (negativo = saída), descricao, idExterno|null, linha}
+var IMPF = (function(){
+  var MAX_BYTES = 5 * 1024 * 1024, MAX_LINHAS = 20000;
+  function erro(msg){ var e = new Error(msg); e.amigavel = true; return e; }
+  function p2(n){ return (n < 10 ? "0" : "") + n; }
+  function cent(v){ return Math.round(v * 100) / 100; }
+  function norm(s){ return String(s == null ? "" : s).toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/\s+/g, " ").trim(); }
+  function limpa(s, max){ return String(s == null ? "" : s).replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, " ").replace(/\s+/g, " ").trim().slice(0, max || 200); }
+  function dataValida(y, m, d){ if(m < 1 || m > 12 || d < 1 || y < 1900 || y > 2100) return false; return d <= new Date(Date.UTC(y, m, 0)).getUTCDate(); }
+  function iso(y, m, d){ return dataValida(y, m, d) ? y + "-" + p2(m) + "-" + p2(d) : null; }
+
+  // ---------- codificação e formato ----------
+  function decodificar(u8){
+    var d = function(enc, b, fatal){ return new TextDecoder(enc, {fatal: !!fatal}).decode(b); };
+    if(u8.length > 2 && u8[0] === 0xEF && u8[1] === 0xBB && u8[2] === 0xBF) return {texto: d("utf-8", u8.subarray(3)), charset: "utf-8"};
+    if(u8.length > 1 && u8[0] === 0xFF && u8[1] === 0xFE) return {texto: d("utf-16le", u8.subarray(2)), charset: "utf-16le"};
+    if(u8.length > 1 && u8[0] === 0xFE && u8[1] === 0xFF) return {texto: d("utf-16be", u8.subarray(2)), charset: "utf-16be"};
+    try{ return {texto: d("utf-8", u8, true), charset: "utf-8"}; }catch(e){}
+    return {texto: d("windows-1252", u8), charset: "windows-1252"};
+  }
+  function detectar(u8, nome){
+    var n = norm(nome || ""), ext = (/\.([a-z0-9]+)$/.exec(n) || [])[1] || "";
+    var head = String.fromCharCode.apply(null, u8.subarray(0, 8));
+    if(head.slice(0, 5) === "%PDF-") return "pdf";
+    if(u8[0] === 0x50 && u8[1] === 0x4B && u8[2] === 3 && u8[3] === 4){
+      var h = String.fromCharCode.apply(null, u8.subarray(0, Math.min(u8.length, 65536)));
+      return (ext === "xlsx" || ext === "xlsm" || /xl\//.test(h)) ? "xlsx" : "desconhecido";
+    }
+    if(u8[0] === 0xD0 && u8[1] === 0xCF && u8[2] === 0x11 && u8[3] === 0xE0) return "xls";
+    for(var i = 0; i < Math.min(u8.length, 2048); i++) if(u8[i] === 0) { if(!(u8[0] === 0xFF || u8[0] === 0xFE)) return "desconhecido"; break; }
+    var t = decodificar(u8.subarray(0, Math.min(u8.length, 16384))).texto;
+    if(/OFXHEADER|<OFX[\s>]|<\?OFX/i.test(t)) return "ofx";
+    if(ext === "ofx" || ext === "qfx") return "ofx";
+    if(/^(csv|txt|tsv)$/.test(ext) || /[;,\t|]/.test(t.split(/\r?\n/)[0] || "")) return "csv";
+    return "desconhecido";
+  }
+
+  // ---------- OFX (SGML 1.x e XML 2.x) ----------
+  var BANCOS = {"001": "Banco do Brasil", "033": "Santander", "077": "Inter", "104": "Caixa", "212": "Original", "237": "Bradesco", "260": "Nubank", "290": "PagBank", "323": "Mercado Pago", "336": "C6 Bank", "341": "Itaú", "422": "Safra", "748": "Sicredi", "756": "Sicoob"};
+  function desescapa(s){
+    return String(s).replace(/&(#x[0-9a-f]+|#\d+|amp|lt|gt|quot|apos);/gi, function(m, g){
+      var k = g.toLowerCase();
+      if(k === "amp") return "&"; if(k === "lt") return "<"; if(k === "gt") return ">"; if(k === "quot") return "\""; if(k === "apos") return "'";
+      var n = k[1] === "x" ? parseInt(k.slice(2), 16) : parseInt(k.slice(1), 10);
+      return n > 0 && n < 0x10ffff ? String.fromCodePoint(n) : m;
+    });
+  }
+  function campo(bloco, tag){
+    var m = new RegExp("<" + tag + ">([^<\\r\\n]*)", "i").exec(bloco);
+    return m ? desescapa(m[1]).trim() : null;
+  }
+  // AAAAMMDD[HHMMSS[.XXX]][[±fuso:NOME]]. Meia-noite (ou sem hora) vale a data escrita; com hora e fuso, vale a data em Brasília (UTC-3).
+  function dataOfx(s){
+    var m = /^(\d{4})(\d{2})(\d{2})(?:(\d{2})(\d{2})(\d{2})?(?:\.\d+)?)?(?:\[\s*([+-]?\d+(?:\.\d+)?)(?::[^\]]*)?\])?/.exec(String(s || "").trim());
+    if(!m) return null;
+    var y = +m[1], mo = +m[2], d = +m[3];
+    if(!dataValida(y, mo, d)) return null;
+    var hh = m[4] ? +m[4] : 0, mi = m[5] ? +m[5] : 0, ss = m[6] ? +m[6] : 0;
+    if((hh || mi || ss) && m[7] !== undefined){
+      var utc = Date.UTC(y, mo - 1, d, hh, mi, ss) - parseFloat(m[7]) * 3600000;
+      var br = new Date(utc - 3 * 3600000);
+      return iso(br.getUTCFullYear(), br.getUTCMonth() + 1, br.getUTCDate());
+    }
+    return iso(y, mo, d);
+  }
+  function valorOfx(s){
+    var t = String(s == null ? "" : s).trim().replace(/\s/g, "");
+    if(!t) return null;
+    if(/^[+-]?\d+(\.\d+)?$/.test(t)) return cent(parseFloat(t));
+    if(/^[+-]?\d+,\d+$/.test(t)) return cent(parseFloat(t.replace(",", ".")));
+    if(/^[+-]?\d{1,3}(\.\d{3})+,\d+$/.test(t)) return cent(parseFloat(t.replace(/\./g, "").replace(",", ".")));
+    if(/^[+-]?\d{1,3}(,\d{3})+\.\d+$/.test(t)) return cent(parseFloat(t.replace(/,/g, "")));
+    return null;
+  }
+  function lerOfx(texto){
+    if(!/<OFX[\s>]/i.test(texto)) throw erro("Este arquivo não parece um OFX válido: não encontrei a marca <OFX>.");
+    var banco = campo((/<FI>([\s\S]*?)<\/FI>/i.exec(texto) || [0, ""])[1], "ORG");
+    var blocos = [], re = /<(STMTRS|CCSTMTRS)>([\s\S]*?)<\/\1>/gi, m;
+    while((m = re.exec(texto))) blocos.push({cartao: m[1].toUpperCase() === "CCSTMTRS", txt: m[2]});
+    if(!blocos.length){
+      if(/<INVSTMTRS/i.test(texto)) throw erro("Este OFX é de investimentos. Só extrato de conta e de cartão são lidos.");
+      throw erro("Não encontrei extrato de conta nem de cartão dentro deste OFX.");
+    }
+    var contas = [], erros = [];
+    blocos.forEach(function(b, bi){
+      var de = campo(b.txt, "DTSTART"), ate = campo(b.txt, "DTEND");
+      var acct = campo(b.txt, "ACCTID") || "", dig = acct.replace(/\D/g, "");
+      var bankId = campo(b.txt, "BANKID");
+      var nomeBanco = banco || (bankId && BANCOS[("000" + bankId.replace(/\D/g, "")).slice(-3)]) || "";
+      var led = (/<LEDGERBAL>([\s\S]*?)<\/LEDGERBAL>/i.exec(b.txt) || [0, ""])[1];
+      var saldoFinal = null;
+      if(led){ var sv = valorOfx(campo(led, "BALAMT")), sd = dataOfx(campo(led, "DTASOF")); if(sv !== null && sd) saldoFinal = {data: sd, valor: sv}; }
+      var lancs = [], rt = /<STMTTRN>([\s\S]*?)<\/STMTTRN>/gi, t, n = 0;
+      while((t = rt.exec(b.txt))){
+        n++;
+        var dt = dataOfx(campo(t[1], "DTPOSTED")), vl = valorOfx(campo(t[1], "TRNAMT"));
+        if(!dt){ erros.push("transação " + n + ": data ilegível (" + limpa(campo(t[1], "DTPOSTED") || "vazia", 30) + ")"); continue; }
+        if(vl === null || Math.abs(vl) > 1e9){ erros.push("transação " + n + ": valor ilegível (" + limpa(campo(t[1], "TRNAMT") || "vazio", 30) + ")"); continue; }
+        lancs.push({data: dt, valor: vl, nome: limpa(campo(t[1], "NAME")), memo: limpa(campo(t[1], "MEMO")), tipo: campo(t[1], "TRNTYPE"),
+          fitid: limpa(campo(t[1], "FITID"), 80) || null, cheque: limpa(campo(t[1], "CHECKNUM"), 40) || null, linha: n});
+      }
+      if(lancs.length > MAX_LINHAS) throw erro("O arquivo tem mais de " + MAX_LINHAS + " lançamentos. Importe por períodos menores.");
+      contas.push({tipo: b.cartao ? "cartao" : "conta", banco: nomeBanco, contaId: acct, contaFinal: dig ? dig.slice(-4) : null,
+        periodo: de && ate ? {de: dataOfx(de), ate: dataOfx(ate)} : null, saldoFinal: saldoFinal, lancamentos: lancs, indice: bi});
+    });
+    if(erros.length) throw erro("O OFX tem " + erros.length + " transação(ões) com problema e nada foi importado: " + erros.slice(0, 5).join("; ") + (erros.length > 5 ? "; …" : "") + ".");
+    return {contas: contas};
+  }
+
+  // Conta corrente: no mesmo formato do extrato que o painel já usa.
+  function ofxParaExt(c){
+    var vistos = {};
+    var ext = {formato: "ofx", origemTexto: "Li o arquivo OFX do", banco: c.banco || null, titular: null, titularCpf: null, contaFinal: c.contaFinal,
+      periodo: c.periodo, saldoAnterior: null, saldoFinal: c.saldoFinal, saldosDia: {}, lancamentos: [], futuros: [], grupos: [], resumo: null, avisos: []};
+    c.lancamentos.forEach(function(l){
+      var tipoOp = l.nome || l.memo || "Lançamento do extrato", det = l.nome ? l.memo : "";
+      var e = {data: l.data, lote: null, documento: l.fitid, tipoOp: tipoOp, detalheLinhas: det ? [det] : [], valor: l.valor, hora: null, dataReal: l.data, contraparte: det, cpfCnpj: null, idExterno: l.fitid};
+      var dm = /^(\d{2})\/(\d{2})\s+(\d{2}:\d{2})\s*(.*)$/.exec(det);
+      if(dm){
+        e.hora = dm[3];
+        var ano = +l.data.slice(0, 4), real = iso(ano, +dm[2], +dm[1]);
+        if(real && real > l.data) real = iso(ano - 1, +dm[2], +dm[1]);
+        if(real) e.dataReal = real;
+        var rest = dm[4], dc = /^(\d{6,})\s+(.*)$/.exec(rest);
+        if(dc){ e.cpfCnpj = dc[1]; rest = dc[2]; }
+        e.contraparte = rest;
+      }
+      e.contraparte = e.contraparte.replace(/\s*(\.\.\.|…)$/, "").trim();
+      if(l.fitid){ vistos[l.fitid] = (vistos[l.fitid] || 0) + 1; if(vistos[l.fitid] > 1){ e.chaveExtra = "#" + vistos[l.fitid]; ext.avisos.push("FITID repetido: " + l.fitid); } }
+      else e.chaveExtra = chaveDescricao(tipoOp + " " + e.contraparte);
+      ext.lancamentos.push(e);
+    });
+    return ext;
+  }
+  function chaveDescricao(s){ return String(s || "").toUpperCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^A-Z ]/g, " ").replace(/\s+/g, " ").trim(); }
+
+  // CSV/Excel de conta: lançamentos internos → ext
+  function linhasParaExt(linhas, o){
+    var vistos = {}, datas = linhas.map(function(l){ return l.data; }).sort();
+    var ext = {formato: o.formato || "csv", origemTexto: o.origemTexto || "Li o arquivo " + (o.formato === "xlsx" ? "Excel" : "CSV") + " do", banco: o.banco || null, titular: null, titularCpf: null,
+      contaFinal: o.contaFinal || null, periodo: datas.length ? {de: datas[0], ate: datas[datas.length - 1]} : null, saldoAnterior: null, saldoFinal: null,
+      saldosDia: {}, lancamentos: [], futuros: [], grupos: [], resumo: null, avisos: []};
+    linhas.forEach(function(l){
+      var e = {data: l.data, lote: null, documento: l.idExterno || null, tipoOp: l.descricao, detalheLinhas: [], valor: l.valor, hora: null, dataReal: l.data, contraparte: "", cpfCnpj: null, idExterno: l.idExterno || null};
+      if(l.idExterno){ vistos[l.idExterno] = (vistos[l.idExterno] || 0) + 1; if(vistos[l.idExterno] > 1) e.chaveExtra = "#" + vistos[l.idExterno]; }
+      else e.chaveExtra = chaveDescricao(l.descricao);
+      ext.lancamentos.push(e);
+    });
+    return ext;
+  }
+
+  // Cartão (OFX ou CSV): linhas de texto no formato que o leitor de fatura do painel já entende. D = compra, C = crédito/estorno.
+  function brl(v){ return Math.abs(v).toFixed(2).replace(".", ",").replace(/\B(?=(\d{3})+(?!\d))/g, "."); }
+  function paraLinhasCartao(lancs, o){
+    var out = ["Fatura do cartão de crédito " + limpa(o.banco || "", 60), "Limite de crédito"];
+    if(o.final) out.push("Cartão final " + o.final);
+    var ids = {};
+    lancs.forEach(function(l){
+      var s = l.data.slice(8, 10) + "/" + l.data.slice(5, 7) + "/" + l.data.slice(0, 4);
+      var saida = l.valor < 0; // padrão: negativo = compra
+      out.push(s + " " + brl(l.valor) + " " + (saida ? "D" : "C") + " " + limpa(l.descricao || l.nome || l.memo || "Lançamento do cartão", 120));
+      var k = l.data + "|" + Math.abs(l.valor).toFixed(2);
+      (ids[k] = ids[k] || []).push(l.idExterno || l.fitid || null);
+    });
+    return {lines: out, ids: ids};
+  }
+
+  // ---------- CSV ----------
+  function parseCsv(texto, sep){
+    var rows = [], row = [], cell = "", q = false, i = 0, n = texto.length, ln = 1, ini = 1;
+    if(texto.charCodeAt(0) === 0xFEFF) i = 1;
+    for(; i < n; i++){
+      var ch = texto[i];
+      if(q){
+        if(ch === "\""){ if(texto[i + 1] === "\""){ cell += "\""; i++; } else q = false; }
+        else { if(ch === "\n") ln++; cell += ch; }
+      } else if(ch === "\"" && cell === "") q = true;
+      else if(ch === sep){ row.push(cell); cell = ""; }
+      else if(ch === "\n" || ch === "\r"){ if(ch === "\r" && texto[i + 1] === "\n") i++; row.push(cell); row.ln = ini; rows.push(row); row = []; cell = ""; ln++; ini = ln; if(rows.length > MAX_LINHAS + 50) throw erro("O arquivo tem mais de " + MAX_LINHAS + " linhas. Importe por períodos menores."); }
+      else cell += ch;
+    }
+    if(q) throw erro("O CSV tem aspas sem fechar. Confira o arquivo.");
+    if(cell !== "" || row.length){ row.push(cell); row.ln = ini; rows.push(row); }
+    return rows.filter(function(r){ return r.some(function(c){ return String(c).trim() !== ""; }); });
+  }
+  function detectarSeparador(texto){
+    var melhor = ";", melhorScore = -1;
+    [";", ",", "\t", "|"].forEach(function(s){
+      var amostra = texto.split(/\r?\n/).filter(Boolean).slice(0, 40).join("\n"), rows;
+      try{ rows = parseCsv(amostra, s); }catch(e){ return; }
+      if(!rows.length) return;
+      var cont = {}, maxc = 0;
+      rows.forEach(function(r){ cont[r.length] = (cont[r.length] || 0) + 1; });
+      Object.keys(cont).forEach(function(k){ if(cont[k] > (cont[maxc] || 0)) maxc = +k; });
+      if(maxc < 2) return;
+      var score = (cont[maxc] / rows.length) * 100 + Math.min(maxc, 12);
+      if(score > melhorScore){ melhorScore = score; melhor = s; }
+    });
+    return melhor;
+  }
+
+  // ---------- datas e valores de planilha ----------
+  function dataCelula(v, fmtData){
+    if(v == null || v === "") return null;
+    if(typeof v === "number"){
+      if(v > 20000 && v < 80000){ var d = new Date(Date.UTC(1899, 11, 30) + Math.floor(v) * 86400000); return iso(d.getUTCFullYear(), d.getUTCMonth() + 1, d.getUTCDate()); }
+      return null;
+    }
+    var s = String(v).trim(), m;
+    if((m = /^(\d{4})-(\d{2})-(\d{2})(?:[T\s].*)?$/.exec(s)) || (m = /^(\d{4})\/(\d{2})\/(\d{2})$/.exec(s))) return iso(+m[1], +m[2], +m[3]);
+    if((m = /^(\d{8})$/.exec(s))) return iso(+s.slice(0, 4), +s.slice(4, 6), +s.slice(6, 8)) || iso(+s.slice(4, 8), +s.slice(2, 4), +s.slice(0, 2));
+    if((m = /^(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{2}|\d{4})(?:[\s,T].*)?$/.exec(s))){
+      var a = +m[1], b = +m[2], y = +m[3]; if(m[3].length === 2) y += 2000;
+      return fmtData === "mdy" ? iso(y, a, b) : iso(y, b, a);
+    }
+    return null;
+  }
+  function formatoData(celulas){
+    var primeiro12 = false, segundo12 = false;
+    celulas.forEach(function(v){
+      var m = /^(\d{1,2})[\/.\-](\d{1,2})[\/.\-]\d{2,4}/.exec(String(v == null ? "" : v).trim());
+      if(m){ if(+m[1] > 12) primeiro12 = true; if(+m[2] > 12) segundo12 = true; }
+    });
+    return segundo12 && !primeiro12 ? "mdy" : "dmy";
+  }
+  // Decide se o decimal é vírgula (BR) ou ponto, olhando todas as células de valor.
+  function decimalDe(celulas){
+    var v = 0, p = 0;
+    celulas.forEach(function(c){
+      if(typeof c === "number") return;
+      var s = String(c == null ? "" : c);
+      if(/\d,\d{1,2}(?!\d)/.test(s)) v++;
+      if(/\d\.\d{1,2}(?!\d)/.test(s) && !/,/.test(s)) p++;
+    });
+    return p > v ? "." : ",";
+  }
+  function valorCelula(v, decimal){
+    if(typeof v === "number") return isFinite(v) ? cent(v) : null;
+    var s = String(v == null ? "" : v).trim();
+    if(!s) return null;
+    var neg = false;
+    if(/^\(.*\)$/.test(s)){ neg = true; s = s.slice(1, -1); }
+    if(/\b(D|DB|DEB|DEBITO|DÉBITO)\s*$/i.test(s)){ neg = true; s = s.replace(/\s*(D|DB|DEB|DEBITO|DÉBITO)\s*$/i, ""); }
+    else if(/\b(C|CR|CRED|CREDITO|CRÉDITO)\s*$/i.test(s)){ s = s.replace(/\s*(C|CR|CRED|CREDITO|CRÉDITO)\s*$/i, ""); }
+    s = s.replace(/R\$|\s| /g, "");
+    if(/-$/.test(s)){ neg = !neg; s = s.slice(0, -1); }
+    if(/^\+/.test(s)) s = s.slice(1);
+    if(/^[-−–]/.test(s)){ neg = !neg; s = s.slice(1); }
+    if(!/^\d[\d.,]*$/.test(s)) return null;
+    var t;
+    if(decimal === ","){
+      if(/\.\d{1,2}$/.test(s) && !/,/.test(s) && !/\.\d{3}/.test(s)) t = s; // 12.5 num arquivo de vírgula: ponto é decimal
+      else t = s.replace(/\./g, "").replace(",", ".");
+    } else t = s.replace(/,/g, "");
+    if(!/^\d+(\.\d+)?$/.test(t)) return null;
+    var num = parseFloat(t);
+    if(!isFinite(num) || num > 1e9) return null;
+    return cent(neg ? -num : num);
+  }
+
+  // ---------- mapeamento de colunas ----------
+  function acharCabecalho(m){
+    // primeira linha de dados = primeira com uma data reconhecível e um valor reconhecível; o cabeçalho é a linha acima, se for só texto
+    var dec = decimalDe([].concat.apply([], m.slice(0, 50)));
+    for(var i = 0; i < Math.min(m.length, 60); i++){
+      var temData = m[i].some(function(c){ return dataCelula(c, "dmy") !== null && (typeof c !== "number" || (c > 20000 && c < 80000)); });
+      var temValor = m[i].some(function(c){ return valorCelula(c, dec) !== null && !/^\d{1,2}[\/.\-]\d{1,2}[\/.\-]\d{2,4}/.test(String(c)); });
+      if(temData && temValor){
+        var cab = i > 0 ? m[i - 1] : null;
+        var cabOk = cab && cab.filter(function(c){ return String(c).trim() !== ""; }).length >= 2 && !cab.some(function(c){ return dataCelula(c, "dmy") !== null; });
+        return {inicio: i, cabecalho: cabOk ? cab.map(function(c){ return limpa(c, 60); }) : null};
+      }
+    }
+    return {inicio: 0, cabecalho: m.length ? m[0].map(function(c){ return limpa(c, 60); }) : null, semDados: true};
+  }
+  function sugerirMapeamento(m, info){
+    var ncol = Math.max.apply(null, m.slice(info.inicio, info.inicio + 20).map(function(r){ return r.length; }).concat([0]));
+    var map = {data: -1, descricao: -1, valor: -1, credito: -1, debito: -1, id: -1};
+    var nomes = (info.cabecalho || []).map(norm);
+    function acha(re, usados){ for(var i = 0; i < nomes.length; i++) if(re.test(nomes[i]) && usados.indexOf(i) === -1) return i; return -1; }
+    var usados = [];
+    map.data = acha(/^(data|date|dt\b|dia\b|data (do )?(lancamento|movimento|compra|transacao))/, usados); if(map.data >= 0) usados.push(map.data);
+    map.credito = acha(/(credito|entrada|receita|recebido)/, usados); if(map.credito >= 0) usados.push(map.credito);
+    map.debito = acha(/(debito|saida|despesa|pago\b)/, usados); if(map.debito >= 0) usados.push(map.debito);
+    map.valor = acha(/^(valor|amount|montante|quantia|value|vlr)/, usados); if(map.valor >= 0) usados.push(map.valor);
+    map.id = acha(/^(id\b|identificador|fitid|nsu|autoriz|codigo|documento|doc\b|ref)/, usados); if(map.id >= 0) usados.push(map.id);
+    map.descricao = acha(/(descri|historico|memo|lancamento|estabelecimento|detalhe|title|titulo|nome)/, usados); if(map.descricao >= 0) usados.push(map.descricao);
+    var amostra = m.slice(info.inicio, info.inicio + 30), dec = decimalDe([].concat.apply([], amostra));
+    function frac(j, fn){ var n = 0, t = 0; amostra.forEach(function(r){ if(r[j] !== undefined && String(r[j]).trim() !== ""){ t++; if(fn(r[j])) n++; } }); return t ? n / t : 0; }
+    if(map.data < 0) for(var j = 0; j < ncol; j++) if(usados.indexOf(j) === -1 && frac(j, function(c){ return dataCelula(c, "dmy") !== null; }) > 0.8){ map.data = j; usados.push(j); break; }
+    if(map.valor < 0 && map.credito < 0 && map.debito < 0)
+      for(var k = ncol - 1; k >= 0; k--) if(usados.indexOf(k) === -1 && frac(k, function(c){ return valorCelula(c, dec) !== null; }) > 0.8){ map.valor = k; usados.push(k); break; }
+    if(map.descricao < 0){
+      var melhor = -1, mt = 0;
+      for(var d = 0; d < ncol; d++){ if(usados.indexOf(d) !== -1) continue; var t2 = 0; amostra.forEach(function(r){ t2 += String(r[d] == null ? "" : r[d]).length; }); if(t2 > mt){ mt = t2; melhor = d; } }
+      map.descricao = melhor;
+    }
+    return map;
+  }
+  // m = matriz; opts = {inicio, mapa, decimal, formatoData, sinal:'neg-saida'|'pos-saida'}
+  function aplicarMapeamento(m, o){
+    var mp = o.mapa, erros = [], linhas = [];
+    if(mp.data < 0) throw erro("Escolha a coluna da data.");
+    if(mp.descricao < 0) throw erro("Escolha a coluna da descrição.");
+    if(mp.valor < 0 && mp.credito < 0 && mp.debito < 0) throw erro("Escolha a coluna do valor (ou as colunas de crédito e débito).");
+    var inicio = o.inicio || 0;
+    for(var i = inicio; i < m.length; i++){
+      var r = m[i], n = r.ln || i + 1;
+      var cel = function(j){ return j >= 0 ? r[j] : undefined; };
+      var vazio = function(v){ return v == null || String(v).trim() === ""; };
+      var temAlgo = [mp.data, mp.valor, mp.credito, mp.debito].some(function(j){ return j >= 0 && !vazio(cel(j)); });
+      if(!temAlgo) continue;
+      var data = dataCelula(cel(mp.data), o.formatoData);
+      if(!data){ erros.push({linha: n, msg: "data ilegível (" + limpa(cel(mp.data) == null ? "vazia" : cel(mp.data), 30) + ")"}); continue; }
+      var valor = null;
+      if(mp.valor >= 0){
+        if(vazio(cel(mp.valor)) && (mp.credito >= 0 || mp.debito >= 0)) valor = null;
+        else {
+          valor = valorCelula(cel(mp.valor), o.decimal);
+          if(valor === null){ erros.push({linha: n, msg: "valor ilegível (" + limpa(cel(mp.valor) == null ? "vazio" : cel(mp.valor), 30) + ")"}); continue; }
+          if(o.sinal === "pos-saida") valor = -valor;
+        }
+      }
+      if(valor === null){
+        var cr = mp.credito >= 0 && !vazio(cel(mp.credito)) ? valorCelula(cel(mp.credito), o.decimal) : 0;
+        var db = mp.debito >= 0 && !vazio(cel(mp.debito)) ? valorCelula(cel(mp.debito), o.decimal) : 0;
+        if(cr === null || db === null){ erros.push({linha: n, msg: "valor ilegível em crédito/débito (" + limpa((cel(mp.credito) || "") + " / " + (cel(mp.debito) || ""), 40) + ")"}); continue; }
+        cr = Math.abs(cr); db = Math.abs(db);
+        if(cr && db){ erros.push({linha: n, msg: "crédito e débito preenchidos na mesma linha"}); continue; }
+        if(!cr && !db){ erros.push({linha: n, msg: "sem valor"}); continue; }
+        valor = cr ? cr : -db;
+      }
+      if(valor === 0){ erros.push({linha: n, msg: "valor zero"}); continue; }
+      var desc = limpa(cel(mp.descricao));
+      linhas.push({data: data, valor: valor, descricao: desc || "Lançamento importado", idExterno: mp.id >= 0 && !vazio(cel(mp.id)) ? limpa(cel(mp.id), 80) : null, linha: n});
+    }
+    return {linhas: linhas, erros: erros};
+  }
+  function totais(linhas){
+    var e = 0, s = 0;
+    linhas.forEach(function(l){ if(l.valor > 0) e += l.valor; else s += -l.valor; });
+    return {entradas: cent(e), saidas: cent(s), n: linhas.length};
+  }
+
+  return {MAX_BYTES: MAX_BYTES, MAX_LINHAS: MAX_LINHAS, decodificar: decodificar, detectar: detectar, lerOfx: lerOfx, ofxParaExt: ofxParaExt, linhasParaExt: linhasParaExt,
+    paraLinhasCartao: paraLinhasCartao, parseCsv: parseCsv, detectarSeparador: detectarSeparador, dataCelula: dataCelula, formatoData: formatoData, decimalDe: decimalDe,
+    valorCelula: valorCelula, acharCabecalho: acharCabecalho, sugerirMapeamento: sugerirMapeamento, aplicarMapeamento: aplicarMapeamento, totais: totais,
+    dataOfx: dataOfx, valorOfx: valorOfx, chaveDescricao: chaveDescricao, limpa: limpa, norm: norm};
+})();
+
+  // ===== Importação por OFX e CSV/Excel (o arquivo é lido só no navegador) =====
+  var IMP_MAPAS_KEY = "genesis-import-mapas-v1";
+  var IMP_SHEETJS = {src: "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js", sri: "sha384-vtjasyidUo0kW94K5MXDXntzOJpQgBKXmE7e2Ga4LG0skTTLeBi97eFAXsqewJjw"};
+  var IMPM = null; // mapeamento em andamento
+  function impEl(i){ return document.getElementById(i); }
+  function impMapas(){ try{ return JSON.parse(localStorage.getItem(IMP_MAPAS_KEY)) || {}; }catch(e){ return {}; } }
+  function impSalvaMapa(banco, obj){ var m = impMapas(); m[IMPF.norm(banco)] = obj; try{ localStorage.setItem(IMP_MAPAS_KEY, JSON.stringify(m)); }catch(e){} }
+  function impErro(msg){
+    var e = impEl("importErro"); e.textContent = msg; e.hidden = false;
+    setImportStatus(null);
+    toast(msg.length > 120 ? msg.slice(0, 117) + "…" : msg);
+  }
+  function impLimpar(){ var e = impEl("importErro"); e.hidden = true; e.textContent = ""; impFecharMapa(); }
+  function impFecharMapa(){ var m = impEl("importMapa"); m.hidden = true; m.textContent = ""; IMPM = null; }
+  function impOrigemObs(){
+    var m = stagingMeta || {}, f = (m.ext && m.ext.formato) || m.origem || null;
+    return f === "ofx" || f === "OFX" ? "Importado de OFX" : f === "csv" || f === "CSV" ? "Importado de CSV" : f === "xlsx" ? "Importado de Excel" : null;
+  }
+  function impRotuloDup(r, base){
+    var m = stagingMeta || {};
+    return ((m.ext && m.ext.origemTexto) || m.origem) && r.dup && r.dup.level === "confirmed" ? "Já importado — não vai duplicar" : base;
+  }
+
+  function handleArquivo(file){
+    if(!file) return;
+    impLimpar();
+    var cab = new FileReader();
+    cab.onerror = function(){ impErro("Não consegui abrir o arquivo."); };
+    cab.onload = function(){
+      var u8 = new Uint8Array(cab.result), fmt = IMPF.detectar(u8, file.name);
+      if(fmt === "pdf"){ handlePdfFile(file); return; } // PDF: leitor de sempre, sem mudança
+      if(file.size > IMPF.MAX_BYTES){ impErro("O arquivo tem " + (file.size / 1048576).toFixed(1).replace(".", ",") + " MB e o limite é " + (IMPF.MAX_BYTES / 1048576) + " MB. Exporte um período menor."); return; }
+      if(fmt === "desconhecido"){ impErro("Não reconheci o formato de “" + file.name + "”. Envie PDF, OFX, CSV ou Excel (.xlsx)."); return; }
+      setImportStatus("Lendo o arquivo…");
+      var rd = new FileReader();
+      rd.onerror = function(){ impErro("Não consegui abrir o arquivo."); };
+      rd.onload = function(){ try{ impProcessar(new Uint8Array(rd.result), fmt, file.name); }catch(e){ impErro(e && e.amigavel ? e.message : "Não consegui ler este arquivo. Confira se ele é um extrato válido."); } };
+      rd.readAsArrayBuffer(file);
+    };
+    cab.readAsArrayBuffer(file.slice(0, 65536));
+  }
+  function impProcessar(u8, fmt, nome){
+    if(fmt === "ofx"){
+      var r = IMPF.lerOfx(IMPF.decodificar(u8).texto);
+      var com = r.contas.filter(function(c){ return c.lancamentos.length; });
+      setImportStatus(null);
+      if(!com.length){ impErro("O OFX foi lido, mas não tem nenhum lançamento."); return; }
+      if(com.length === 1){ impIniciarConta(com[0]); return; }
+      impEscolherConta(com); return;
+    }
+    if(fmt === "csv"){
+      var texto = IMPF.decodificar(u8).texto, sep = IMPF.detectarSeparador(texto);
+      var m = IMPF.parseCsv(texto, sep);
+      if(m.length < 2){ impErro("O CSV está vazio ou tem só uma linha."); return; }
+      impAbrirMapa({m: m, nome: nome, origem: "csv", texto: texto, sep: sep}); return;
+    }
+    if(fmt === "xlsx" || fmt === "xls"){
+      impSheetJS().then(function(X){
+        var wb;
+        try{ wb = X.read(u8, {type: "array", cellDates: false}); }catch(e){ impErro("Não consegui abrir a planilha. Ela pode estar protegida por senha ou corrompida."); return; }
+        if(!wb.SheetNames.length){ impErro("A planilha não tem nenhuma aba."); return; }
+        impAbrirMapa({wb: wb, X: X, nome: nome, origem: "xlsx", aba: wb.SheetNames[0]});
+      }).catch(function(e){ impErro(e && e.amigavel ? e.message : "Não consegui carregar o leitor de Excel. Exporte a planilha como CSV e envie de novo."); });
+    }
+  }
+  function impSheetJS(){
+    if(window.XLSX) return Promise.resolve(window.XLSX);
+    return new Promise(function(ok, no){
+      var s = document.createElement("script"); s.src = IMP_SHEETJS.src; s.crossOrigin = "anonymous";
+      if(IMP_SHEETJS.sri.indexOf("sha") === 0) s.integrity = IMP_SHEETJS.sri;
+      s.onload = function(){ window.XLSX ? ok(window.XLSX) : no(new Error("sem leitor")); };
+      s.onerror = function(){ no(new Error("sem leitor")); };
+      document.head.appendChild(s);
+    });
+  }
+  function impMatrizDaAba(){
+    var ws = IMPM.wb.Sheets[IMPM.aba], X = IMPM.X;
+    if(ws && ws["!ref"]){ var rg = X.utils.decode_range(ws["!ref"]); if(rg.e.r - rg.s.r + 1 > IMPF.MAX_LINHAS) throw Object.assign(new Error("A aba tem mais de " + IMPF.MAX_LINHAS + " linhas. Importe por períodos menores."), {amigavel: true}); }
+    return X.utils.sheet_to_json(ws, {header: 1, raw: true, defval: ""}).map(function(r, i){ r.ln = i + 1; return r; });
+  }
+
+  // ---- OFX
+  function impEscolherConta(contas){
+    var box = impEl("importMapa"); box.textContent = ""; box.hidden = false;
+    var h = document.createElement("div"); h.className = "imp-mapa";
+    var t = document.createElement("h3"); t.textContent = "Este OFX tem mais de uma conta. Qual você quer importar agora?"; h.appendChild(t);
+    contas.forEach(function(c){
+      var b = document.createElement("button"); b.type = "button"; b.className = "btn btn-ghost";
+      b.textContent = (c.tipo === "cartao" ? "Cartão" : "Conta") + (c.contaFinal ? " final " + c.contaFinal : "") + (c.banco ? " · " + c.banco : "") + " · " + c.lancamentos.length + " lançamento(s)";
+      b.onclick = function(){ impFecharMapa(); impIniciarConta(c); };
+      h.appendChild(b);
+    });
+    box.appendChild(h);
+  }
+  function impDescOfx(l){ return l.nome && l.memo && l.nome !== l.memo ? l.nome + " " + l.memo : (l.nome || l.memo || ""); }
+  function impIniciarConta(c){
+    var bi = impEl("importBanco"), banco = bi.value.trim() || c.banco || "";
+    if(c.tipo === "cartao"){
+      var pl = IMPF.paraLinhasCartao(c.lancamentos.map(function(l){ return {data: l.data, valor: l.valor, descricao: impDescOfx(l), idExterno: l.fitid}; }), {banco: banco, final: c.contaFinal});
+      if(banco) bi.value = banco;
+      handleParsedLines(pl.lines, {ids: pl.ids, origem: "OFX", final: c.contaFinal});
+      return;
+    }
+    var ext = IMPF.ofxParaExt(c); ext.banco = banco || null;
+    abrirExtrato(ext);
+  }
+  function impAnexarIds(rows, extra){
+    var fila = {};
+    Object.keys(extra.ids || {}).forEach(function(k){ fila[k] = extra.ids[k].slice(); });
+    rows.forEach(function(r){
+      var q = fila[r.data + "|" + r.valor.toFixed(2)], id = q && q.length ? q.shift() : null;
+      if(id) r.extDoc = "ofx:" + (extra.final || "") + ":" + id;
+    });
+  }
+  // cartão importado antes pelo mesmo id externo: já importado
+  function impDupCartao(rows){
+    var docs = {};
+    ledgerParaImportar().forEach(function(t){ if(t.documento) docs[t.documento] = (docs[t.documento] || 0) + 1; });
+    rows.forEach(function(r){
+      if(!r.extDoc || !docs[r.extDoc]) return;
+      docs[r.extDoc]--;
+      if(!r._dupVisto){ r._dupVisto = true; r.selected = false; }
+      r.dup = {level: "confirmed", txId: null, descricao: r.descricao, dataEfet: r.dataEfet || r.data, valor: r.valor, extrato: true};
+    });
+  }
+  // extrato do arquivo contra o que já está na conta (mesma conta, mesmo dia e valor), mesmo que tenha vindo de PDF e sem o mesmo documento
+  function impMarcarDupExtrato(rows, conta, txs){
+    var dir = function(t){ return t.tipo === "receita" || t.tipo === "estorno" ? "+" : t.tipo === "despesa" || t.tipo === "parcelamento_fatura" ? "-" : "*"; };
+    var grav = {};
+    txs.forEach(function(t){
+      if(t.conta !== conta) return;
+      var d = dir(t), k = t.dataEfet + "|" + Number(t.valor).toFixed(2);
+      (d === "*" ? ["+", "-"] : [d]).forEach(function(x){ grav[k + x] = (grav[k + x] || 0) + 1; });
+    });
+    rows.forEach(function(r){
+      if(r.dup && r.dup.extrato && r.dup.level === "confirmed" && !r.dup.porValor){ var k = r.dataEfet + "|" + r.valor.toFixed(2) + r.sinal; if(grav[k]) grav[k]--; }
+    });
+    rows.forEach(function(r){
+      if(r.dup && !r.dup.porValor) return;
+      if(r.conciliaId){ return; }
+      var k = r.dataEfet + "|" + r.valor.toFixed(2) + r.sinal;
+      if(grav[k] > 0){
+        grav[k]--;
+        if(!r._dupVisto){ r._dupVisto = true; r.selected = false; }
+        r.dup = {level: "confirmed", txId: null, descricao: r.descricao, dataEfet: r.dataEfet, valor: r.valor, extrato: true, porValor: true};
+      } else if(r.dup && r.dup.porValor) r.dup = null;
+    });
+  }
+  function impMelhoraLinhas(rows){
+    rows.forEach(function(r){
+      if(r.regra || r.categoria !== "A categorizar") return;
+      var g = guessCategoria(r.descricao || "");
+      if(g && g !== "A categorizar"){ r.categoria = g; if(r.unsure) r.unsure.categoria = false; }
+    });
+  }
+
+  // ---- CSV e Excel: tela de mapeamento
+  function impNomeCol(j){
+    var cab = IMPM.info.cabecalho, letra = ""; var n = j; do{ letra = String.fromCharCode(65 + (n % 26)) + letra; n = Math.floor(n / 26) - 1; }while(n >= 0);
+    return "Coluna " + letra + (cab && cab[j] ? " · " + cab[j] : "");
+  }
+  function impAbrirMapa(base){
+    IMPM = base;
+    if(base.origem === "xlsx") base.m = impMatrizDaAba();
+    impPrepararMapa(true);
+    setImportStatus(null);
+    impDesenharMapa();
+  }
+  function impPrepararMapa(inicial){
+    var o = IMPM, m = o.m;
+    o.info = IMPF.acharCabecalho(m);
+    var amostra = [].concat.apply([], m.slice(o.info.inicio, o.info.inicio + 60));
+    o.mapa = IMPF.sugerirMapeamento(m, o.info);
+    o.decimal = IMPF.decimalDe(amostra);
+    o.fmtData = IMPF.formatoData(m.slice(o.info.inicio, o.info.inicio + 200).map(function(r){ return r[o.mapa.data]; }));
+    o.sinal = "neg-saida"; o.tipoDoc = "conta"; o.salvo = null;
+    if(inicial){
+      var salvos = impMapas(), banco = impEl("importBanco").value.trim(), sig = (o.info.cabecalho || []).map(IMPF.norm).join("|"), achado = null;
+      if(banco && salvos[IMPF.norm(banco)] && salvos[IMPF.norm(banco)].sig === sig) achado = salvos[IMPF.norm(banco)];
+      if(!achado) Object.keys(salvos).forEach(function(k){ if(!achado && salvos[k].sig === sig && sig) achado = salvos[k]; });
+      if(achado){
+        o.mapa = Object.assign({}, o.mapa, achado.mapa); o.sinal = achado.sinal || o.sinal; o.tipoDoc = achado.tipoDoc || o.tipoDoc;
+        o.decimal = achado.decimal || o.decimal; o.fmtData = achado.fmtData || o.fmtData; o.salvo = achado.banco || true;
+        if(achado.banco && !banco) impEl("importBanco").value = achado.banco;
+      }
+    }
+  }
+  function impDesenharMapa(){
+    var o = IMPM, box = impEl("importMapa"); box.textContent = ""; box.hidden = false;
+    var wrap = document.createElement("div"); wrap.className = "imp-mapa"; box.appendChild(wrap);
+    function el(tag, cls, txt){ var e = document.createElement(tag); if(cls) e.className = cls; if(txt != null) e.textContent = txt; return e; }
+    function campo(rotulo, ctl, id){ var l = el("label", "imp-campo"); l.appendChild(el("span", null, rotulo)); ctl.id = id; l.appendChild(ctl); return l; }
+    function sel(id, opcoes, valor){ var s = el("select"); opcoes.forEach(function(p){ var op = el("option", null, p[1]); op.value = p[0]; if(String(p[0]) === String(valor)) op.selected = true; s.appendChild(op); }); s.id = id; return s; }
+    wrap.appendChild(el("h3", null, "Mapear as colunas de “" + o.nome + "”"));
+    wrap.appendChild(el("p", "imp-nota", o.m.length + " linha(s) lida(s)" + (o.origem === "csv" ? " · separador " + (o.sep === "\t" ? "tab" : "“" + o.sep + "”") : "") + ". Confira as colunas, veja a prévia e clique em Ler arquivo." +
+      (o.salvo ? " Usei o mapeamento que você salvou" + (typeof o.salvo === "string" ? " para " + o.salvo : "") + "." : "")));
+    var g = el("div", "imp-grid"); wrap.appendChild(g);
+    var tipo = sel("mapTipo", [["conta", "Conta corrente"], ["cartao", "Cartão de crédito (fatura)"]], o.tipoDoc);
+    g.appendChild(campo("O arquivo é de", tipo, "mapTipo"));
+    var bi = el("input"); bi.setAttribute("list", "bancoOptions"); bi.value = impEl("importBanco").value; bi.placeholder = "ex: Nubank";
+    g.appendChild(campo("Banco", bi, "mapBanco"));
+    var fi = el("input"); fi.maxLength = 4; fi.placeholder = "opcional"; fi.inputMode = "numeric";
+    g.appendChild(campo("Final da conta ou do cartão", fi, "mapFinal"));
+    if(o.origem === "csv"){
+      g.appendChild(campo("Separador", sel("mapSep", [[";", "Ponto e vírgula ( ; )"], [",", "Vírgula ( , )"], ["\t", "Tab"], ["|", "Barra ( | )"]], o.sep), "mapSep"));
+    } else if(o.wb.SheetNames.length > 1){
+      g.appendChild(campo("Aba da planilha", sel("mapAba", o.wb.SheetNames.map(function(n){ return [n, n]; }), o.aba), "mapAba"));
+    }
+    var nc = Math.max.apply(null, o.m.slice(o.info.inicio, o.info.inicio + 30).map(function(r){ return r.length; }).concat([1]));
+    var cols = [[-1, "— nenhuma —"]]; for(var j = 0; j < nc; j++) cols.push([j, impNomeCol(j)]);
+    [["data", "Data", "mapData"], ["descricao", "Descrição", "mapDesc"], ["valor", "Valor (uma coluna só)", "mapValor"], ["credito", "Crédito (se separado)", "mapCred"], ["debito", "Débito (se separado)", "mapDeb"], ["id", "ID externo (opcional)", "mapId"]].forEach(function(c){
+      g.appendChild(campo(c[1], sel(c[2], cols, o.mapa[c[0]]), c[2]));
+    });
+    g.appendChild(campo("Primeira linha de dados", (function(){ var i = el("input"); i.type = "number"; i.min = 1; i.value = o.info.inicio + 1; return i; })(), "mapInicio"));
+    g.appendChild(campo("Sinal do valor", sel("mapSinal", [["neg-saida", "Negativo = saída"], ["pos-saida", "Positivo = saída (comum em fatura de cartão)"]], o.sinal), "mapSinal"));
+    g.appendChild(campo("Decimal", sel("mapDec", [[",", "Vírgula (1.234,56)"], [".", "Ponto (1,234.56)"]], o.decimal), "mapDec"));
+    g.appendChild(campo("Datas", sel("mapFmt", [["dmy", "Dia/mês/ano ou ISO"], ["mdy", "Mês/dia/ano"]], o.fmtData), "mapFmt"));
+    // prévia: só textContent
+    var tb = el("table", "imp-prev"), th = el("thead"), trh = el("tr");
+    for(var c2 = 0; c2 < Math.min(nc, 8); c2++) trh.appendChild(el("th", null, impNomeCol(c2)));
+    th.appendChild(trh); tb.appendChild(th);
+    var bd = el("tbody");
+    o.m.slice(o.info.inicio, o.info.inicio + 6).forEach(function(r){ var tr = el("tr"); for(var c3 = 0; c3 < Math.min(nc, 8); c3++) tr.appendChild(el("td", null, r[c3] == null ? "" : String(r[c3]).slice(0, 60))); bd.appendChild(tr); });
+    tb.appendChild(bd);
+    var sc = el("div", "table-scroll"); sc.appendChild(tb); wrap.appendChild(sc);
+    var salvar = el("label", "imp-chk"); var ck = el("input"); ck.type = "checkbox"; ck.id = "mapSalvar"; ck.checked = true; salvar.appendChild(ck); salvar.appendChild(document.createTextNode(" Lembrar este mapeamento para o banco, para não repetir da próxima vez"));
+    wrap.appendChild(salvar);
+    var er = el("div", "imp-erros"); er.id = "mapErros"; er.hidden = true; wrap.appendChild(er);
+    var ac = el("div", "imp-acoes");
+    var bl = el("button", "btn btn-primary", "Ler arquivo"); bl.type = "button"; bl.id = "mapLer";
+    var bc = el("button", "btn btn-ghost", "Cancelar"); bc.type = "button"; bc.id = "mapCancelar";
+    ac.appendChild(bl); ac.appendChild(bc); wrap.appendChild(ac);
+    tipo.onchange = function(){ if(tipo.value === "cartao") impEl("mapSinal").value = "pos-saida"; else impEl("mapSinal").value = "neg-saida"; };
+    var sepEl = impEl("mapSep"); if(sepEl) sepEl.onchange = function(){ try{ IMPM.sep = sepEl.value; IMPM.m = IMPF.parseCsv(IMPM.texto, IMPM.sep); impPrepararMapa(false); impDesenharMapa(); }catch(e){ impErro(e.amigavel ? e.message : "Não consegui reler o arquivo com esse separador."); } };
+    var abaEl = impEl("mapAba"); if(abaEl) abaEl.onchange = function(){ try{ IMPM.aba = abaEl.value; IMPM.m = impMatrizDaAba(); impPrepararMapa(false); impDesenharMapa(); }catch(e){ impErro(e.amigavel ? e.message : "Não consegui ler essa aba."); } };
+    bc.onclick = impFecharMapa;
+    bl.onclick = function(){ impLerComMapa(false); };
+  }
+  function impLerComMapa(ignorarErros){
+    var o = IMPM, v = function(i){ return impEl(i).value; }, n = function(i){ return parseInt(v(i), 10); };
+    var banco = v("mapBanco").trim(), final = v("mapFinal").trim();
+    if(!banco){ toast("Informe o banco."); impEl("mapBanco").focus(); return; }
+    if(final && !/^\d{4}$/.test(final)){ toast("O final da conta ou do cartão tem 4 números (ou deixe em branco)."); return; }
+    var mapa = {data: n("mapData"), descricao: n("mapDesc"), valor: n("mapValor"), credito: n("mapCred"), debito: n("mapDeb"), id: n("mapId")};
+    var inicio = Math.max(0, (parseInt(v("mapInicio"), 10) || 1) - 1);
+    var res;
+    try{ res = IMPF.aplicarMapeamento(o.m, {inicio: inicio, mapa: mapa, decimal: v("mapDec"), formatoData: v("mapFmt"), sinal: v("mapSinal")}); }
+    catch(e){ var er0 = impEl("mapErros"); er0.hidden = false; er0.textContent = e.amigavel ? e.message : "Não consegui aplicar o mapeamento."; return; }
+    var er = impEl("mapErros"); er.textContent = ""; er.hidden = true;
+    if(res.erros.length && !ignorarErros){
+      er.hidden = false;
+      var t = document.createElement("div"); t.className = "imp-erro-titulo"; t.textContent = res.erros.length + " linha(s) ilegível(is). Nada foi importado ainda:"; er.appendChild(t);
+      var ul = document.createElement("ul"); res.erros.slice(0, 8).forEach(function(x){ var li = document.createElement("li"); li.textContent = "Linha " + x.linha + ": " + x.msg; ul.appendChild(li); });
+      if(res.erros.length > 8){ var li2 = document.createElement("li"); li2.textContent = "… e mais " + (res.erros.length - 8) + "."; ul.appendChild(li2); }
+      er.appendChild(ul);
+      var b = document.createElement("button"); b.type = "button"; b.className = "btn btn-ghost"; b.textContent = "Continuar sem essas " + res.erros.length + " linha(s)";
+      b.onclick = function(){ impLerComMapa(true); }; er.appendChild(b);
+      return;
+    }
+    if(!res.linhas.length){ er.hidden = false; er.textContent = "Nenhuma linha válida foi encontrada com este mapeamento."; return; }
+    if(res.linhas.length > IMPF.MAX_LINHAS){ er.hidden = false; er.textContent = "Mais de " + IMPF.MAX_LINHAS + " lançamentos. Importe por períodos menores."; return; }
+    if(impEl("mapSalvar").checked) impSalvaMapa(banco, {banco: banco, sig: (o.info.cabecalho || []).map(IMPF.norm).join("|"), mapa: mapa, sinal: v("mapSinal"), decimal: v("mapDec"), fmtData: v("mapFmt"), tipoDoc: v("mapTipo")});
+    var tipoDoc = v("mapTipo"), nome = o.nome, formato = o.origem;
+    impEl("importBanco").value = banco;
+    impFecharMapa();
+    if(tipoDoc === "cartao"){
+      var pl = IMPF.paraLinhasCartao(res.linhas, {banco: banco, final: final});
+      handleParsedLines(pl.lines, {ids: pl.ids, origem: formato === "xlsx" ? "xlsx" : "CSV", final: final});
+    } else {
+      var ext = IMPF.linhasParaExt(res.linhas, {banco: banco, contaFinal: final || null, formato: formato});
+      abrirExtrato(ext);
+    }
+    if(res.erros.length) toast(res.erros.length + " linha(s) ilegível(is) ficaram de fora, como você pediu.");
+  }
+
+  // ---- prévia: totais e Compartilhar
+  function impTotaisHtml(rows){
+    var e = 0, s = 0, se = 0, ss = 0;
+    rows.forEach(function(r){
+      var entra = r.sinal ? r.sinal === "+" : (r.tipo === "receita" || r.tipo === "estorno");
+      if(entra){ e += r.valor; if(r.selected) se += r.valor; } else { s += r.valor; if(r.selected) ss += r.valor; }
+    });
+    return '<div class="imp-totais" id="impTotais"><span>No arquivo: <strong>entradas ' + fmt(e) + '</strong> · <strong>saídas ' + fmt(s) + '</strong></span>' +
+      '<span>Selecionadas para importar: entradas ' + fmt(se) + ' · saídas ' + fmt(ss) + '</span></div>';
+  }
+  function impThEscopo(){ return famAtivo() ? "<th>Compartilhar</th>" : ""; }
+  function impTdEscopo(r, idx){
+    if(!famAtivo()) return "";
+    var padrao = famEscopoPorRegras({descricao: r.descricao, categoria: r.categoria, conta: stagingMeta && stagingMeta.contaKey}) || "meu", v = r.escopo || padrao;
+    return '<td><select data-idx="' + idx + '" data-f="escopo"><option value="meu" ' + (v === "meu" ? "selected" : "") + '>Meu</option><option value="familia" ' + (v === "familia" ? "selected" : "") + '>Família</option></select></td>';
+  }
+
+  // ---- conferência de continuidade: saldo do último extrato guardado + lançamentos do arquivo = saldo final do arquivo
+  var impSaldoBloqueado = false;
+  function impProvaContinuidade(ext){
+    if(!ext.saldoFinal || !ext.saldoFinal.data) return null;
+    var sd = state.saldos && state.saldos[contaKeyDe(ext)], ant = sd && sd.extrato;
+    if(!ant || !ant.data || ant.data >= ext.saldoFinal.data) return null;
+    var soma = 0, n = 0;
+    ext.lancamentos.forEach(function(e){ if(e.data > ant.data && e.data <= ext.saldoFinal.data){ soma += extCents(e.valor); n++; } });
+    var obtido = (extCents(ant.valor) + soma) / 100, fim = ext.saldoFinal.valor, diff = (extCents(fim) - extCents(obtido)) / 100;
+    return {aplicavel: true, continuidade: true, ok: diff === 0, diff: diff, saldoAnterior: ant.valor, dataAnterior: ant.data, saldoFinal: fim, dataFinal: ext.saldoFinal.data, obtido: obtido, n: n, dias: [], formato: "continuidade"};
+  }
+  function impProvaHtml(sc){
+    if(sc.ok) return '<div class="conf-ok">Conferido: o último extrato guardado fechou em ' + fmt(sc.saldoAnterior) + ' (' + fmtDate(sc.dataAnterior) + '); somando os ' + sc.n + ' lançamento(s) deste arquivo chega a ' + fmt(sc.saldoFinal) + ', o saldo final do arquivo.</div>';
+    return '<div class="attn-block conf-warn"><div class="attn-title">O saldo não fecha: diferença de ' + fmt(Math.abs(sc.diff)) + '</div>' +
+      '<ul class="conf-list"><li>O último extrato guardado fechou em ' + fmt(sc.saldoAnterior) + ' (' + fmtDate(sc.dataAnterior) + ').</li>' +
+      '<li>Somando os ' + sc.n + ' lançamento(s) deste arquivo, o saldo seria ' + fmt(sc.obtido) + '.</li>' +
+      '<li>O arquivo diz ' + fmt(sc.saldoFinal) + ' em ' + fmtDate(sc.dataFinal) + '.</li>' +
+      '<li>Costuma ser um lançamento anterior guardado com valor diferente do banco, ou um lançamento que faltou. Confira o período anterior.</li></ul>' +
+      '<label class="imp-chk"><input type="checkbox" id="impSaldoForcar"' + (stagingMeta && stagingMeta.saldoMesmoAssim ? " checked" : "") + '> Atualizar o saldo da conta para o do arquivo mesmo assim (sem marcar, os lançamentos entram e o saldo fica como está)</label></div>';
+  }
+  function impPodeAtualizarSaldo(){
+    var p = stagingMeta && stagingMeta.ext && stagingMeta.ext.prova;
+    if(p && p.continuidade && !p.ok && !stagingMeta.saldoMesmoAssim){ impSaldoBloqueado = true; return false; }
+    return true;
+  }
+  document.addEventListener("change", function(e){ if(e.target && e.target.id === "impSaldoForcar" && stagingMeta) stagingMeta.saldoMesmoAssim = e.target.checked; });
+
+  // ---- vínculo com lançamento manual de valor parecido (ex.: boleto pago com multa)
+  function impTolOk(t, r, conta, banco){
+    if(!t || !(stagingMeta && stagingMeta.ext && stagingMeta.ext.origemTexto)) return false;
+    var dif = Math.abs(t.valor - r.valor);
+    return !t.documento && (!t.conta || t.conta === conta) && t.modalidade !== "Crédito" && t.statusParcela !== "prevista" && dif > 0.004 &&
+      dif <= Math.max(1, Math.min(0.05 * r.valor, 500)) && daysDiff(t.dataEfet, r.dataEfet) <= 7 && tipoCompativel(t, r.sinal === "-" ? -1 : 1) && mesmoBanco(t.banco, banco);
+  }
+  function impVinculoParecido(r, conta, banco){
+    var melhor = null;
+    state.transactions.forEach(function(t){
+      if(!impTolOk(t, r, conta, banco)) return;
+      var k = Math.abs(t.valor - r.valor) + daysDiff(t.dataEfet, r.dataEfet);
+      if(!melhor || k < melhor.k) melhor = {t: t, k: k};
+    });
+    return melhor ? melhor.t : null;
+  }
+  function impTextoVinc(vt, r){
+    return Math.abs(vt.valor - r.valor) < 0.005 ? "com o mesmo valor." : "com valor parecido (" + fmt(vt.valor) + " no painel e " + fmt(r.valor) + " no banco, diferença de " + fmt(Math.abs(vt.valor - r.valor)) + ").";
+  }
+  function impNotaValor(vt, r){
+    return Math.abs(vt.valor - r.valor) < 0.005 ? "" : " O valor passa a ser o do banco: " + fmt(r.valor) + " (era " + fmt(vt.valor) + ").";
+  }
+
   function handlePdfFile(file){
     if(!file) return;
     if(typeof pdfjsLib === "undefined"){
@@ -6985,7 +8436,7 @@
   }
 
   document.getElementById("pdfFileInput").addEventListener("change", function(){
-    handlePdfFile(this.files[0]);
+    handleArquivo(this.files[0]);
     this.value = "";
   });
   var dz = document.getElementById("pdfDropzone");
@@ -6994,7 +8445,7 @@
   dz.addEventListener("drop", function(e){
     e.preventDefault(); dz.classList.remove("drag");
     var file = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
-    if(file) handlePdfFile(file);
+    if(file) handleArquivo(file);
   });
   document.getElementById("btnParsePaste").addEventListener("click", function(){
     var text = document.getElementById("pasteStatement").value;
@@ -7187,6 +8638,8 @@
 
   window.__v5api = {renderAll: renderAll, info: v5Info, fmt: fmt, guessCategoria: guessCategoria, famRefresh: (typeof famRefresh === 'function' ? famRefresh : null)};
   if(window.__GENESIS_TEST__){ window.__genesis = {Store: Store, state: state, aplicarNuvem: aplicarNuvem, loadSynced: loadSynced, saveSynced: saveSynced}; }
+
+
 
 
 
