@@ -4723,6 +4723,21 @@ var FLX = (function(){
     });
     var cumul = [0];
     for(var i=1;i<=n;i++){ cumul.push(cumul[i-1] + byDay[i]); }
+    // Mês atual com saldo informado: a curva parte do saldo que a conta tinha no dia 1º (saldo de hoje menos o que já se movimentou),
+    // então hoje ela bate com o saldo real e o fim do mês bate com a Previsão. Sem saldo, ou em outro mês, continua o movimento a partir de zero.
+    var hojeD = new Date(), mesAtualCf = hojeD.getFullYear() === mr.first.getFullYear() && hojeD.getMonth() === mr.first.getMonth();
+    var usaSaldoCf = mesAtualCf && Object.keys(state.saldos || {}).length > 0;
+    if(usaSaldoCf){
+      var baseCf = Math.round((somaSaldos(state.saldos) + somaExtras()) * 100) / 100;
+      var abre = Math.round((baseCf - cumul[hojeD.getDate()]) * 100) / 100;
+      cumul = cumul.map(function(v){ return Math.round((v + abre) * 100) / 100; });
+    }
+    var cfCard = document.getElementById("cashflowSvg").closest(".card");
+    if(cfCard){
+      var cfH2 = cfCard.querySelector("h2"), cfHint = cfCard.querySelector(".hint");
+      if(cfH2) cfH2.textContent = usaSaldoCf ? "Saldo da conta ao longo do mês" : "Fluxo de caixa do mês";
+      if(cfHint) cfHint.textContent = usaSaldoCf ? "Parte do saldo da conta no dia 1º e soma entradas e saídas dia a dia · sólido = já efetivado, tracejado = projetado" : "Entradas menos saídas, acumuladas dia a dia · sólido = já efetivado, tracejado = projetado";
+    }
 
     var todayDay = (new Date(ref+"T00:00:00").getFullYear()===mr.first.getFullYear() && new Date(ref+"T00:00:00").getMonth()===mr.first.getMonth())
       ? new Date(ref+"T00:00:00").getDate() : n;
