@@ -6061,7 +6061,8 @@ var FLX = (function(){
     {nome: "Pix recebido", padrao: /PIX - RECEBIDO|PIX RECEBIDO|TRANSFERENCIA RECEBIDA PELO PIX|RECEBIMENTO (DE )?PIX/, acao: "receita", modalidade: "Pix", pessoa: true},
     {nome: "Transferência recebida", padrao: /TRANSFERENCIA RECEBIDA|TED RECEBID|DOC RECEBID|DEPOSITO RECEBIDO/, acao: "receita", modalidade: "Débito", pessoa: true},
     {nome: "Estorno ou reembolso", padrao: /ESTORNO|REEMBOLSO|DEVOLUCAO/, acao: "receita", modalidade: "Débito"},
-    {nome: "Rendimento", padrao: /RENDIMENTO/, acao: "receita", categoria: "Rendimentos", modalidade: "Débito"}
+    {nome: "Rendimento", padrao: /RENDIMENTO/, acao: "receita", categoria: "Rendimentos", modalidade: "Débito"},
+    {nome: "Transferência da poupança", padrao: /^TRANSFERENCIA (PARA CONTA|DE VALOR)\b/, acao: "despesa", modalidade: "Débito"}
   ];
 
   // Linhas que se repetem no topo de cada página; nunca são lançamento.
@@ -6193,6 +6194,41 @@ var FLX = (function(){
     r.proprio = {state: "auto"}; r.tipo = "transferencia_interna"; r.categoria = "Transferência interna";
     r.unsure = r.unsure || {}; r.unsure.tipo = false; r.unsure.categoria = false;
     return true;
+  }
+
+  // Transferência entre contas suas: acha, nos lançamentos de OUTRA conta com extrato, o lado oposto (mesmo valor, até 3 dias, sentido contrário).
+  // Com indício no texto, ou com o outro lado já interno, vale sozinho; sem indício, pergunta. Nunca decide só pelo texto: quem paga boleto pela poupança continua com despesa.
+  function parearTransferencias(rows, conta, txs, ext){
+    var dir = function(t){ return t.tipo === "receita" || t.tipo === "estorno" ? "+" : t.tipo === "despesa" ? "-" : "*"; };
+    var usados = {};
+    rows.forEach(function(r){
+      if(r.fonte !== "extrato" || r.pagamento || (r.proprio && /^(confirmed|outra|lembrado)$/.test(r.proprio.state))) return;
+      var melhor = null;
+      (txs || []).forEach(function(t){
+        if(!t.conta || t.conta === conta || usados[t.id] || t.modalidade === "Crédito" || t.statusParcela === "prevista") return;
+        if(extCents(t.valor) !== extCents(r.valor)) return;
+        var d = dir(t); if(d !== "*" && d === r.sinal) return;
+        var dd = daysDiff(t.dataEfet, r.dataEfet); if(dd > 3) return;
+        if(!melhor || dd < melhor.dd) melhor = {t: t, dd: dd};
+      });
+      var hint = /TRANSFER|POUPAN|RESGATE|APLICAC/.test(impNorm((r.tipoOp || "") + " " + (r.contraparte || "")));
+      if(melhor){
+        var t = melhor.t; usados[t.id] = true;
+        r.par = {txId: t.id, descricao: t.descricao, dataEfet: t.dataEfet, conta: t.conta, converter: t.tipo !== "transferencia_interna"};
+        if(hint || /TRANSFER|POUPAN|RESGATE|APLICAC/.test(impNorm(t.descricao || "")) || t.tipo === "transferencia_interna"){
+          r.proprio = {state: "auto"}; r.tipo = "transferencia_interna"; r.categoria = "Transferência interna"; r.unsure = r.unsure || {}; r.unsure.tipo = false; r.unsure.categoria = false;
+        } else if(!r.proprio){ r.proprio = {state: "pending"}; }
+      } else {
+        r.par = null;
+        // extrato de poupança: "Transferência para conta/de valor" sem o outro lado ainda importado: pergunta, não supõe
+        if(ext && ext.formato === "poupanca" && /^TRANSFERENCIA/.test(impNorm(r.tipoOp || "")) && !r.proprio) r.proprio = {state: "pending"};
+      }
+    });
+  }
+  function parHtml(r){
+    if(!r.par) return "";
+    return '<span class="dup-detail">Mesma transferência: "' + escapeAttr(r.par.descricao) + '" em ' + fmtDate(r.par.dataEfet) + (r.par.conta && state.saldos[r.par.conta] ? " (" + escapeAttr(rotuloConta(state.saldos[r.par.conta])) + ")" : "") +
+      (r.tipo === "transferencia_interna" && r.par.converter ? ". Ao importar, o lado que já está salvo também passa a transferência interna." : ".") + '</span>';
   }
   function parecePropria(contraparte, titular){
     var a = tokensNome(titular), b = tokensNome(contraparte);
@@ -6410,6 +6446,7 @@ var FLX = (function(){
       }
     });
     // banco "Extrato importado" é só o nome padrão quando o PDF não diz de que banco é: aí não restringe por banco
+    parearTransferencias(rows, conta, ctx.txs || [], ext);
     marcarDuplicadosExtrato(rows, ctx.txs || [], conta, ext.banco === "Extrato importado" ? null : ext.banco);
     rows.forEach(function(r){ if(r.conciliaId){ r.dup = null; r.selected = true; } });
     return {saldo: ext.prova || conferirSaldoExtrato(ext)};
@@ -7444,7 +7481,7 @@ var FLX = (function(){
           '<button type="button" class="ghost" data-act="pag-no" data-idx="'+idx+'">Não, é uma despesa</button></span></div>');
       }
       if(r.proprio && r.proprio.state === "pending"){
-        items.push('<div class="attn-item"><span>'+label+' — "'+escapeAttr(r.contraparte)+'": isso parece uma transferência entre suas contas. Ela não será contada como '+(r.sinal === "+" ? 'receita' : 'despesa')+'.</span>'+
+        items.push('<div class="attn-item"><span>'+label+' — "'+escapeAttr(r.contraparte || r.tipoOp)+'": isso parece uma transferência entre suas contas'+'. Ela não será contada como '+(r.sinal === "+" ? 'receita' : 'despesa')+'.'+(r.par ? ' O mesmo valor está em "'+escapeAttr(r.par.descricao)+'" ('+fmtDate(r.par.dataEfet)+').' : '')+'</span>'+
           '<span class="attn-actions"><button type="button" class="solid" data-act="prop-ok" data-idx="'+idx+'">Confirmar</button>'+
           '<button type="button" class="ghost" data-act="prop-no" data-idx="'+idx+'">Não, é outra pessoa</button></span></div>');
       }
@@ -7557,7 +7594,7 @@ var FLX = (function(){
       if(vt) vincHtml = r.vincularId
         ? '<span class="dup-detail">Será vinculada a "'+escapeAttr(vt.descricao)+'" ('+fmtDate(vt.dataEfet)+'): esse lançamento manual vira a linha do banco, sem criar outro.'+impNotaValor(vt, r)+' <button type="button" class="linkish" data-act="vinc-undo" data-idx="'+idx+'">desfazer</button></span>'
         : '<span class="dup-detail">Você já lançou "'+escapeAttr(vt.descricao)+'" ('+fmtDate(vt.dataEfet)+') '+impTextoVinc(vt, r)+' <button type="button" class="linkish" data-act="vinc-ok" data-idx="'+idx+'">Vincular ao lançamento manual</button></span>';
-      dupHtml += vincHtml;
+      dupHtml += vincHtml + parHtml(r);
       var badges = (r.parcelaAtual ? '<span class="badge-parcela">'+r.parcelaAtual+'/'+r.totalParcelas+'</span>' : '')+
         (r.pagamento && r.pagamento.state === "confirmed" ? '<span class="badge-pagfat">Pagamento de fatura</span>' : '')+
         (r.conciliaId ? '<span class="badge-concilia">confirma parcela prevista</span>' : '')+
@@ -7694,6 +7731,12 @@ var FLX = (function(){
         importId: importIdNovo, faturaKey: (credit || ehExtrato) ? stagingFaturaKey : null, conta: ehExtrato ? stagingMeta.contaKey : undefined, origemObs: impOrigemObs(),
         newId: function(){ return newLocalId("c" + (seq++)); }});
       if(ehExtrato){
+        // o outro lado de uma transferência entre contas suas (já salvo como receita ou despesa) passa a transferência interna
+        staging.forEach(function(r){
+          if(!(r.selected && r.par && r.par.converter && r.tipo === "transferencia_interna")) return;
+          var o = state.transactions.find(function(x){ return x.id === r.par.txId; });
+          if(o && o.tipo !== "transferencia_interna") Store.update(o.id, {tipo: "transferencia_interna", categoria: "Transferência interna"});
+        });
         var sd = saldoDoExtrato(stagingMeta.ext);
         if(sd && impPodeAtualizarSaldo()){
           atualizarSaldos(state.saldos, stagingMeta.contaKey, sd);
@@ -7905,7 +7948,60 @@ var FLX = (function(){
     return true;
   }
 
+
+  // ---- Extrato de POUPANÇA (Banco do Brasil): "Extrato de Poupança", Saldo em dd/mm/aaaa, lançamentos "dd/mm/aaaa R$ valor" + descrição na linha de baixo, Saldo Atual.
+  // Vira uma conta própria (Poupança BB), com saldo e conferência como a conta corrente. Linhas de saldo não são lançamento.
+  function lerExtratoPoupanca(lines){
+    var u = lines.map(function(l){ return impNorm(l).replace(/\s+/g, " ").trim(); });
+    if(!u.some(function(l){ return /^EXTRATO DE POUPANCA$/.test(l); })) return null;
+    var dinheiro = function(s){
+      var m = /(-)?\s*R\$\s*(-)?\s*(\d{1,3}(?:\.\d{3})*,\d{2}|\d+,\d{2})/.exec(s);
+      if(!m) return null;
+      var v = parseFloat(m[3].replace(/\./g, "").replace(",", "."));
+      return (m[1] || m[2]) ? -v : v;
+    };
+    var iso = function(d, m, a){ return a + "-" + m + "-" + d; };
+    var titular = null, conta = null, saldoIni = null, saldoAtual = null, lanc = [];
+    var iDados = u.findIndex(function(l){ return /^DADOS DA CONTA$/.test(l); });
+    if(iDados > 0) titular = lines[iDados - 1].replace(/\s+/g, " ").trim();
+    var inLanc = false, atual = null;
+    u.forEach(function(l, i){
+      var m;
+      if((m = /^CONTA (\d[\d.\-]*)$/.exec(l))) conta = m[1].replace(/\D/g, "");
+      else if((m = /^SALDO EM (\d{2})\/(\d{2})\/(\d{4})\b/.exec(l))){ saldoIni = {data: iso(m[1], m[2], m[3]), valor: dinheiro(l)}; }
+      else if(/^SALDO ATUAL\b/.test(l)) saldoAtual = dinheiro(l);
+      else if(/^LANCAMENTOS$/.test(l)){ inLanc = true; atual = null; }
+      else if(/^SALDOS POR DATA-BASE$/.test(l)){ inLanc = false; atual = null; }
+      else if(inLanc){
+        if((m = /^(\d{2})\/(\d{2})\/(\d{4}) ?(.*)$/.exec(l))){
+          atual = {data: iso(m[1], m[2], m[3]), valor: dinheiro(m[4]), tipoOp: "", ordem: lanc.length};
+          lanc.push(atual);
+        } else if(atual){
+          if(atual.valor === null && dinheiro(lines[i]) !== null) atual.valor = dinheiro(lines[i]);
+          else if(!atual.tipoOp) atual.tipoOp = lines[i].replace(/\s+/g, " ").trim();
+        }
+      }
+    });
+    lanc = lanc.filter(function(x){ return x.valor !== null; });
+    if(!saldoIni || saldoAtual === null || !conta) return null;
+    lanc.sort(function(a, b){ return a.data < b.data ? -1 : a.data > b.data ? 1 : a.ordem - b.ordem; });
+    var fim = lanc.length ? lanc[lanc.length - 1].data : saldoIni.data;
+    var d0 = new Date(saldoIni.data + "T00:00:00"); d0.setDate(d0.getDate() + 1);
+    var de = d0.getFullYear() + "-" + impPad(d0.getMonth() + 1) + "-" + impPad(d0.getDate());
+    var ext = {formato: "poupanca", origemTexto: "Li o extrato de poupança do", banco: "Poupança BB", titular: titular, titularCpf: null, contaFinal: conta.slice(-4),
+      periodo: {de: de, ate: fim}, saldoAnterior: saldoIni, saldoFinal: {data: fim, valor: saldoAtual}, saldosDia: {}, futuros: [], grupos: [], resumo: null, avisos: [],
+      lancamentos: lanc.map(function(x){
+        return {data: x.data, lote: "", documento: "", tipoOp: x.tipoOp || "Lançamento da poupança", valor: x.valor, hora: "", dataReal: x.data, contraparte: "", cpfCnpj: null,
+          chaveExtra: impNorm(x.tipoOp || "").toLowerCase(), detalheLinhas: [], idExterno: x.data + "|" + x.valor.toFixed(2) + "|" + x.ordem};
+      })};
+    var soma = extCents(saldoIni.valor); lanc.forEach(function(x){ soma += extCents(x.valor); });
+    if(soma !== extCents(saldoAtual)) ext.avisos.push("A soma dos lançamentos não bate com o saldo atual do extrato.");
+    return ext;
+  }
+
   function handleParsedLines(lines, extra){
+    var extPoup = lerExtratoPoupanca(lines);
+    if(extPoup){ abrirExtrato(extPoup); return; }
     if(detectTipoDocumento(lines) === "extrato" && handleExtrato(lines)) return;
     var meta = detectStatementMeta(lines);
     stagingMeta = meta; if(extra) meta.origem = extra.origem;
