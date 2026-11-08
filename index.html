@@ -6979,6 +6979,13 @@ var FLX = (function(){
       var t = lista && lista.length ? lista.shift() : null;
       if(t){ usados[t.id] = true; soma += extCents(l.valor); } else sobra.push(l);
     });
+    // o mesmo movimento que veio de outro formato (OFX e PDF numeram o documento de jeitos diferentes): mesma conta, mesmo dia, valor e sentido, um para um
+    var restantes = [];
+    sobra.forEach(function(l){
+      var alvo = doConta.find(function(t){ return !usados[t.id] && t.dataEfet === l.data && extCents(Math.abs(t.valor)) === extCents(Math.abs(l.valor)) && tipoCompativel(t, l.valor); });
+      if(alvo){ usados[alvo.id] = true; soma += extCents(l.valor); } else restantes.push(l);
+    });
+    sobra = restantes;
     // 1) manual parecido sem vínculo: mesmo valor, até 3 dias, ainda sem conta nem documento
     var candidatos = ativos.filter(function(t){
       return !t.documento && (!t.conta || t.conta === chave) && t.modalidade !== "Crédito" && t.statusParcela !== "prevista" &&
