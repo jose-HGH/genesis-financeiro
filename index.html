@@ -4095,8 +4095,8 @@ var FLX = (function(){
       return '<div class="conc-grupo"><h4>'+titulo+' ('+itens.length+')</h4><p>'+texto+'</p>'+itens.map(fn).join("")+
         (itens.length > 1 ? '<div class="conc-acao" style="display:flex;justify-content:flex-end;padding-top:6px;"><button type="button" class="btn btn-ghost" data-conc-todos="'+todos+'">'+(todos === "manual" ? "Vincular todos" : todos === "lixeira" ? "Restaurar todos" : "Importar todas")+'</button></div>' : '')+'</div>';
     };
-    html += grupo("Lançamento manual parecido", "Mesmo valor e data até 3 dias de diferença, ainda sem vínculo com o banco. Vincular passa o lançamento para a data e a conta do extrato.", res.manuais, function(m, i){
-      return '<div class="conc-item"><div>'+linhaDescricao(m.linha)+'<small>Extrato: '+fmtDate(m.linha.data)+' · seu lançamento: "'+escapeAttr(m.tx.descricao)+'" em '+fmtDate(m.tx.dataEfet)+'</small></div><div class="conc-val">'+fmt(m.linha.valor)+'</div>'+
+    html += grupo("Lançamento manual parecido", "Mesmo valor, ainda sem vínculo com o banco. Quando a data é diferente, o texto mostra quantos dias. Vincular passa o lançamento para a data e a conta do extrato.", res.manuais, function(m, i){
+      return '<div class="conc-item"><div>'+linhaDescricao(m.linha)+'<small>Extrato: '+fmtDate(m.linha.data)+' · seu lançamento: "'+escapeAttr(m.tx.descricao)+'" em '+fmtDate(m.tx.dataEfet)+(m.dias > 3 ? ' · <strong>'+Math.round(m.dias)+' dias de diferença</strong>' : '')+'</small></div><div class="conc-val">'+fmt(m.linha.valor)+'</div>'+
         '<div class="conc-acao"><button type="button" class="btn btn-primary" data-conc-acao="vincular" data-i="'+i+'">Vincular ao manual</button></div></div>';
     }, "manual");
     html += grupo("Na lixeira", "Estas linhas do extrato foram lançadas e depois apagadas.", res.lixeira, function(m, i){
@@ -6175,6 +6175,12 @@ var FLX = (function(){
       .filter(function(t){ return t && NOME_LIGACAO.indexOf(t) === -1; });
   }
   function chaveContraparte(s){ return tokensNome(s).join(" "); }
+  // Nome inteiro igual ao do titular (mesmo número de palavras; cada uma igual ou só a inicial). Nome cortado ou parecido continua perguntando.
+  function nomeIgualTitular(contraparte, titular){
+    var a = tokensNome(titular), b = tokensNome(contraparte);
+    if(a.length < 3 || a.length !== b.length) return false;
+    return a.every(function(ta, i){ var tb = b[i]; return ta === tb || (ta.length === 1 && tb[0] === ta) || (tb.length === 1 && ta[0] === tb); });
+  }
   function parecePropria(contraparte, titular){
     var a = tokensNome(titular), b = tokensNome(contraparte);
     if(a.length < 2 || b.length < 2 || a[0] !== b[0]) return false;
@@ -6365,6 +6371,11 @@ var FLX = (function(){
     var faturas = null;
     rows.forEach(function(r){
       r.unsure = r.unsure || {};
+      // Movimento com a própria poupança, ou Pix/transferência com o nome inteiro do titular: é transferência entre contas suas (sem perguntar).
+      if(!r.proprio && !r.pagamento && r.tipo !== "transferencia_interna" &&
+         (/POUPANCA/.test(impNorm(r.tipoOp || "")) || (r.pessoa && r.contraparte && nomeIgualTitular(r.contraparte, ext.titular) && memoria[chaveContraparte(r.contraparte)] !== "outra"))){
+        r.proprio = {state: "auto"}; r.tipo = "transferencia_interna"; r.categoria = "Transferência interna"; r.unsure.tipo = false; r.unsure.categoria = false;
+      }
       // Transferência entre contas do próprio titular: sempre pergunta; depois de respondida, lembra.
       if(r.pessoa){
         var nomeBase = r.contraparte || nomeCandidato(r.tipoOp, ext.titular) || r.tipoOp;
@@ -6922,7 +6933,7 @@ var FLX = (function(){
       candidatos.forEach(function(t){
         if(Math.abs(extCents(t.valor)) !== Math.abs(extCents(l.valor)) || !tipoCompativel(t, l.valor)) return;
         var d = daysDiff(t.dataEfet, l.data);
-        if(d > 3) return;
+        if(d > 45) return; // até 3 dias é o normal; mais longe (data digitada errada, boleto pago depois) também é sugerido, sempre com o botão
         pares.push({i: i, t: t, d: d, sim: descSimilarity(t.descricao, (l.contraparte || "") + " " + l.tipoOp)});
       });
     });
@@ -6931,7 +6942,7 @@ var FLX = (function(){
     pares.forEach(function(p){
       if(linhaFeita[p.i] || usados[p.t.id]) return;
       linhaFeita[p.i] = true; usados[p.t.id] = true;
-      manuais.push({linha: sobra[p.i], tx: p.t});
+      manuais.push({linha: sobra[p.i], tx: p.t, dias: p.d});
     });
     // 2) na lixeira: mesma data, documento e valor, da mesma conta
     var lix = {};
@@ -7291,7 +7302,7 @@ var FLX = (function(){
     var conta = stagingMeta.contaKey, banco = stagingMeta.banco;
     var ok = function(t){
       return t && !t.documento && (!t.conta || t.conta === conta) && t.modalidade !== "Crédito" && t.statusParcela !== "prevista" &&
-        extCents(t.valor) === extCents(r.valor) && daysDiff(t.dataEfet, r.dataEfet) <= 3 &&
+        extCents(t.valor) === extCents(r.valor) && daysDiff(t.dataEfet, r.dataEfet) <= 45 &&
         tipoCompativel(t, r.sinal === "-" ? -1 : 1) && mesmoBanco(t.banco, banco);
     };
     if(r.vincularId){ var j = state.transactions.find(function(x){ return x.id === r.vincularId; }); if(ok(j) || impTolOk(j, r, conta, banco)) return j; }
@@ -7539,7 +7550,7 @@ var FLX = (function(){
         (r.pagamento && r.pagamento.state === "confirmed" ? '<span class="badge-pagfat">Pagamento de fatura</span>' : '')+
         (r.conciliaId ? '<span class="badge-concilia">confirma parcela prevista</span>' : '')+
         (r.entrada ? '<span class="badge-pagfat">Fatura parcelada · fora das despesas</span>' : '')+
-        (r.tipo === "transferencia_interna" && r.fonte === "extrato" ? '<span class="badge-pagfat">Transferência interna · fora de receitas e despesas'+(r.proprio && r.proprio.state === "lembrado" ? ' (lembrado)' : '')+'</span>' : '')+
+        (r.tipo === "transferencia_interna" && r.fonte === "extrato" ? '<span class="badge-pagfat">Transferência interna · fora de receitas e despesas'+(r.proprio && r.proprio.state === "lembrado" ? ' (lembrado)' : r.proprio && r.proprio.state === "auto" ? ' (reconhecida: poupança ou nome do titular)' : '')+'</span>' : '')+
         (r.pagamento && r.pagamento.state === "confirmed" && r.fonte === "extrato" && r.pagamento.fatura ? '<span class="badge-concilia">fatura de '+fmtDate(r.pagamento.fatura.venc)+'</span>' : '')+
         (r.tipo === "parcelamento_fatura" ? '<span class="badge-pagfat">Parcelamento de fatura</span>' : '')+
         (r.tipo === "estorno" ? '<span class="badge-pagfat">Estorno'+(r.estorno && r.estorno.state === "linked" ? ' de “'+escapeAttr(r.estorno.origem)+'”' : '')+'</span>' : '')+
@@ -7843,7 +7854,7 @@ var FLX = (function(){
   // Extrato de conta corrente (Banco do Brasil): leitor próprio. A fatura segue o caminho de sempre.
   function reannotateExtrato(){
     stagingCheck = annotateExtratoRows(staging, {ext: stagingMeta.ext, txs: ledgerParaImportar(), contrapartes: state.contrapartes, hoje: todayISO()});
-    if(stagingMeta.ext.origemTexto) impMarcarDupExtrato(staging, stagingMeta.contaKey, ledgerParaImportar());
+    impMarcarDupExtrato(staging, stagingMeta.contaKey, ledgerParaImportar()); // vale para PDF, OFX, CSV e Excel: o mesmo movimento pode ter vindo em outro formato, com outro documento
   }
   function portaoReimportacaoExtrato(){
     var key = stagingMeta.extratoKey;
@@ -8621,7 +8632,8 @@ var IMPF = (function(){
     return melhor ? melhor.t : null;
   }
   function impTextoVinc(vt, r){
-    return Math.abs(vt.valor - r.valor) < 0.005 ? "com o mesmo valor." : "com valor parecido (" + fmt(vt.valor) + " no painel e " + fmt(r.valor) + " no banco, diferença de " + fmt(Math.abs(vt.valor - r.valor)) + ").";
+    var dd = daysDiff(vt.dataEfet, r.dataEfet), nota = dd > 3 ? " A data é diferente (" + Math.round(dd) + " dias): passa a valer a do banco." : "";
+    return (Math.abs(vt.valor - r.valor) < 0.005 ? "com o mesmo valor." + nota : "com valor parecido (" + fmt(vt.valor) + " no painel e " + fmt(r.valor) + " no banco, diferença de " + fmt(Math.abs(vt.valor - r.valor)) + ")." + nota);
   }
   function impNotaValor(vt, r){
     return Math.abs(vt.valor - r.valor) < 0.005 ? "" : " O valor passa a ser o do banco: " + fmt(r.valor) + " (era " + fmt(vt.valor) + ").";
