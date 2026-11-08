@@ -1110,6 +1110,8 @@
   .lem-menu button{border:0; background:transparent; color:var(--ink); font:inherit; font-size:13.5px; text-align:left; padding:8px 10px; border-radius:8px; cursor:pointer;}
   .lem-menu button:hover{background:var(--soft);}
   .lem-todos{align-self:flex-start; border:0; background:transparent; color:var(--muted); font:inherit; font-size:13px; padding:4px 6px; cursor:pointer; text-decoration:underline;}
+  .resumo-idades{margin:10px 0 0; font-size:12.5px; color:var(--muted); line-height:1.5;}
+  .saldo-idade.velho{color:var(--warn-text); font-weight:600;}
 </style>
 
 <div class="app">
@@ -3102,6 +3104,12 @@ var FLX = (function(){
           texto: "A fatura do " + nome + " com vencimento em " + flxDia(vp) + " ainda não foi importada."});
       }
     });
+    // saldo que não é atualizado há uma semana ou mais (extrato velho ou saldo digitado há tempo)
+    Object.keys(state.saldos || {}).forEach(function(k){
+      var c = state.saldos[k]; if(!c || !c.data || c.data >= hoje) return;
+      var dias = lemDias(c.data, hoje); if(dias < 7) return;
+      out.push({tipo: "saldo_velho", chave: k + "|" + c.data, prio: 5, destino: "saldo:" + k, texto: "O saldo da conta " + flxEsc(rotuloConta(c)) + " está sem atualizar há " + dias + " dias."});
+    });
     // conta com diferença na conciliação
     contasConciliaveis().forEach(function(k){
       var res; try{ res = conciliacaoDe(k); }catch(e){ return; }
@@ -3181,6 +3189,11 @@ var FLX = (function(){
   }
   function lemIr(it){
     LEM.menu = null;
+    if(it.destino && it.destino.indexOf("saldo:") === 0){
+      abrirModalSaldo(); var selS = document.getElementById("saldoConta"), kS = it.destino.slice(6);
+      if(selS && state.saldos[kS]){ selS.value = kS; selS.dispatchEvent(new Event("change")); }
+      lemRender(); return;
+    }
     if(it.destino && it.destino.indexOf("conciliacao:") === 0){ if(typeof abrirConciliacao === "function") abrirConciliacao(it.destino.slice(12)); lemRender(); return; }
     if(location.hash.replace("#", "") === it.destino) window.dispatchEvent(new Event("hashchange")); else location.hash = "#" + it.destino;
     lemRender();
@@ -4237,6 +4250,17 @@ var FLX = (function(){
     return {receber: receber.sort(porData), pagar: pagar.sort(porData)};
   }
   var resumoAberto = false, resumoLista = null; // "Ver detalhes" fechado por padrão
+  var SALDO_VELHO_DIAS = 5;
+  // Uma linha com a data de cada saldo; o que passou de alguns dias sem atualizar aparece destacado.
+  function saldoIdadeHtml(){
+    var hoje = todayISO(), partes = [];
+    Object.keys(state.saldos || {}).forEach(function(k){
+      var c = state.saldos[k]; if(!c || !c.data) return;
+      var dias = c.data < hoje ? Math.round(daysDiff(c.data, hoje)) : 0, velho = dias > SALDO_VELHO_DIAS;
+      partes.push('<span class="saldo-idade' + (velho ? " velho" : "") + '">' + escapeAttr(rotuloConta(c)) + " em " + fmtDate(c.data) + (velho ? " · há " + dias + " dias" : "") + "</span>");
+    });
+    return partes.length ? '<p class="resumo-idades">Saldos: ' + partes.join(" · ") + "</p>" : "";
+  }
   function acaoResumo(a){
     if(a === "atualizar-saldo"){ abrirModalSaldo(); return; }
     if(a === "transferir"){ abrirTransferencia(); return; }
@@ -4304,7 +4328,7 @@ var FLX = (function(){
       '<div class="resumo-sec">'+
         '<div><span>'+(usaSaldo ? "Saldo hoje" : "Receitas do mês")+'</span><strong>'+fmt(usaSaldo ? base : r.recTotal)+'</strong></div>'+
         '<div><span>Resultado de '+nomeMes+'</span><strong>'+fmt(resultado)+'</strong></div>'+
-      '</div>'+conciliacaoHtml();
+      '</div>'+saldoIdadeHtml()+conciliacaoHtml();
     if(resumoAberto){
       var itens = function(lista, vazio){
         return lista.length ? '<ul class="resumo-itens">'+lista.map(function(t){
@@ -8465,7 +8489,11 @@ var IMPF = (function(){
       var r = IMPF.lerOfx(IMPF.decodificar(u8).texto);
       var com = r.contas.filter(function(c){ return c.lancamentos.length; });
       setImportStatus(null);
-      if(!com.length){ impErro("O OFX foi lido, mas não tem nenhum lançamento."); return; }
+      if(!com.length){
+        var soSaldo = r.contas.filter(function(c){ return c.tipo === "conta" && c.saldoFinal; })[0];
+        if(soSaldo){ impOfxSoSaldo(soSaldo); return; }
+        impErro("O OFX foi lido, mas não tem nenhum lançamento."); return;
+      }
       if(com.length === 1){ impIniciarConta(com[0]); return; }
       impEscolherConta(com); return;
     }
@@ -8501,6 +8529,35 @@ var IMPF = (function(){
   }
 
   // ---- OFX
+  // OFX sem lançamentos, mas com o saldo da conta: oferece registrar o saldo (o valor pode ser corrigido, o do arquivo pode estar defasado).
+  function impOfxSoSaldo(c){
+    var box = impEl("importMapa"); box.textContent = ""; box.hidden = false;
+    var h = document.createElement("div"); h.className = "imp-mapa";
+    var t = document.createElement("h3"); t.textContent = "Este OFX não tem lançamentos, só o saldo da conta"; h.appendChild(t);
+    var p = document.createElement("p");
+    p.textContent = "Conta" + (c.contaFinal ? " final " + c.contaFinal : "") + (c.banco ? " · " + c.banco : "") + (c.periodo ? ", de " + fmtDate(c.periodo.de) + " a " + fmtDate(c.periodo.ate) : "") +
+      ". O banco informa o saldo de " + fmt(c.saldoFinal.valor) + " em " + fmtDate(c.saldoFinal.data) + ". Se o saldo de hoje é outro, corrija antes de registrar.";
+    h.appendChild(p);
+    var l1 = document.createElement("label"); l1.setAttribute("for", "ofxSaldoNome"); l1.textContent = "Nome da conta"; h.appendChild(l1);
+    var n = document.createElement("input"); n.type = "text"; n.id = "ofxSaldoNome"; n.value = /NU PAGAMENTOS|NUBANK/i.test(c.banco || "") ? "Nubank" : (c.banco || ""); h.appendChild(n);
+    var l2 = document.createElement("label"); l2.setAttribute("for", "ofxSaldoValor"); l2.textContent = "Saldo"; h.appendChild(l2);
+    var v = document.createElement("input"); v.type = "text"; v.id = "ofxSaldoValor"; v.inputMode = "decimal"; v.value = String(c.saldoFinal.valor.toFixed(2)).replace(".", ","); h.appendChild(v);
+    var ok = document.createElement("button"); ok.type = "button"; ok.className = "btn btn-primary"; ok.id = "ofxSaldoOk"; ok.textContent = "Registrar saldo";
+    ok.onclick = function(){
+      var val = lerValorBR(v.value), nm = n.value.trim();
+      if(val === null){ toast("Digite o saldo da conta (ex.: 7,64)."); return; }
+      if(!nm){ toast("Dê um nome para a conta."); return; }
+      var ext = IMPF.ofxParaExt(c); ext.banco = impEl("importBanco").value.trim() || c.banco || "Extrato importado";
+      var chave = contaKeyDe(ext);
+      Object.keys(state.saldos || {}).forEach(function(k){ if(rotuloConta(state.saldos[k]).toLowerCase() === nm.toLowerCase()) chave = k; }); // já existe uma conta com esse nome: atualiza essa
+      var igual = Math.abs(val - c.saldoFinal.valor) < 0.005;
+      atualizarSaldos(state.saldos, chave, {nome: nm, banco: ext.banco, final: c.contaFinal, saldo: val, data: igual ? c.saldoFinal.data : todayISO(), origem: igual ? "extrato" : "manual"});
+      saveSaldos(); impFecharMapa(); renderAll(); toast("Saldo de " + nm + " registrado: " + fmt(val) + ".");
+    };
+    var cancel = document.createElement("button"); cancel.type = "button"; cancel.className = "btn btn-ghost"; cancel.textContent = "Cancelar"; cancel.onclick = impFecharMapa;
+    var row = document.createElement("div"); row.className = "imp-mapa-acoes"; row.appendChild(ok); row.appendChild(cancel); h.appendChild(row);
+    box.appendChild(h);
+  }
   function impEscolherConta(contas){
     var box = impEl("importMapa"); box.textContent = ""; box.hidden = false;
     var h = document.createElement("div"); h.className = "imp-mapa";
