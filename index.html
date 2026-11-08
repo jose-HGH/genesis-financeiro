@@ -1904,8 +1904,8 @@
       var inf = api.info(ref), r = inf.r, f = api.fmt;
       var box = $("v5Stats"); if(!box) return;
       var items = [
-        ["Entradas do mês", f(r.recTotal), "Já caiu " + f(r.recReal), "pos"],
-        ["Saídas do mês", f(r.despTotal), "Já saiu " + f(r.despReal), ""],
+        ["Entradas do mês", f(r.recTotal), "Já caiu " + f(r.recReal) + (inf.resg > 0.004 ? " · também entrou " + f(inf.resg) + " de resgate de investimento (não é renda)" : ""), "pos"],
+        ["Saídas do mês", f(r.despTotal), "Já saiu " + f(r.despReal) + (inf.aplic > 0.004 ? " · aplicado " + f(inf.aplic) + " em investimento (não é despesa)" : ""), ""],
         ["Saldo projetado", f(r.saldoProjetado), "Entradas menos saídas do mês", ""],
         ["Pendentes", String(inf.pend), "lançamentos ainda não efetivados", "warn"]
       ];
@@ -4997,14 +4997,22 @@ var FLX = (function(){
   }
 
   function v5Info(ref){
-    var r = computeTotals(ref), mr = monthRange(ref), pend = 0;
+    var r = computeTotals(ref), mr = monthRange(ref), pend = 0, resg = 0, aplic = 0;
     state.transactions.forEach(function(tx){
       var d = new Date(tx.dataEfet+"T00:00:00");
+      // resgate e aplicação de investimento são movimento neutro (nem renda nem despesa); o cartão do mês só os mostra à parte
+      if(tx.tipo === "transferencia_interna" && !isPrevista(tx) && d.getFullYear() === mr.first.getFullYear() && d.getMonth() === mr.first.getMonth()){
+        var nd = normDesc(tx.descricao || "");
+        if(!/RENDE FACIL|AUTOM/.test(nd)){
+          if(/\bRESGATE\b/.test(nd)) resg += Number(tx.valor) || 0;
+          else if(/\bAPLICACAO\b/.test(nd)) aplic += Number(tx.valor) || 0;
+        }
+      }
       if(d.getFullYear() !== mr.first.getFullYear() || d.getMonth() !== mr.first.getMonth()) return;
       if(isNeutro(tx) || isPrevista(tx)) return;
       if(!isRealized(tx, ref)) pend++;
     });
-    return {r: r, pend: pend};
+    return {r: r, pend: pend, resg: Math.round(resg * 100) / 100, aplic: Math.round(aplic * 100) / 100};
   }
 
   function renderBudgets(){
