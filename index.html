@@ -4118,6 +4118,10 @@ var FLX = (function(){
   }
   function importarLinhaDoExtrato(lista, chave){
     var c = state.saldos[chave], ref = c.ref, seq = 0;
+    lista = lista.filter(function(l){ // a linha que já existe nos lançamentos (mesma conta, data, documento e valor) não é gravada de novo
+      return !state.transactions.some(function(t){ return t.conta === chave && t.dataEfet === l.data && (t.documento || "") === (l.doc || "") && Math.abs(Math.abs(t.valor) - Math.abs(l.valor)) < 0.005; });
+    });
+    if(!lista.length) return 0;
     var rows = lista.map(function(l){ return linhaDeReferencia(ref, l, state.contrapartes); });
     var plan = buildImportPlan(rows, {txs: state.transactions, banco: ref.banco || "Extrato importado", cardKey: null, importId: novoImportId(Date.now()),
       faturaKey: null, conta: chave, newId: function(){ return newLocalId("k" + (seq++)); }});
@@ -4130,7 +4134,7 @@ var FLX = (function(){
     var res = conciliacaoDe(chave);
     if(acao === "vincular" && res.manuais[i]){ vincularAoManual(res.manuais[i], chave); toast("Lançamento vinculado ao extrato."); }
     else if(acao === "restaurar" && res.lixeira[i]){ Store.restore(res.lixeira[i].tx.id); toast("Lançamento restaurado."); }
-    else if(acao === "importar" && res.nunca[i]){ importarLinhaDoExtrato([res.nunca[i].linha], chave); toast("Linha importada do extrato."); }
+    else if(acao === "importar" && res.nunca[i]){ var nI = importarLinhaDoExtrato([res.nunca[i].linha], chave); toast(nI ? "Linha importada do extrato." : "Essa linha já existe nos seus lançamentos."); }
     renderConciliacao();
   }
   function acaoConciliacaoTodos(grupo){
@@ -6181,6 +6185,15 @@ var FLX = (function(){
     if(a.length < 3 || a.length !== b.length) return false;
     return a.every(function(ta, i){ var tb = b[i]; return ta === tb || (ta.length === 1 && tb[0] === ta) || (tb.length === 1 && ta[0] === tb); });
   }
+  function autoTransfInterna(r, titular, memoria){
+    if(r.proprio || r.pagamento || r.tipo === "transferencia_interna") return false;
+    var ehPoup = /POUPANCA/.test(impNorm(r.tipoOp || ""));
+    var nomeIgual = r.pessoa && r.contraparte && nomeIgualTitular(r.contraparte, titular) && (memoria || {})[chaveContraparte(r.contraparte)] !== "outra";
+    if(!ehPoup && !nomeIgual) return false;
+    r.proprio = {state: "auto"}; r.tipo = "transferencia_interna"; r.categoria = "Transferência interna";
+    r.unsure = r.unsure || {}; r.unsure.tipo = false; r.unsure.categoria = false;
+    return true;
+  }
   function parecePropria(contraparte, titular){
     var a = tokensNome(titular), b = tokensNome(contraparte);
     if(a.length < 2 || b.length < 2 || a[0] !== b[0]) return false;
@@ -6371,11 +6384,7 @@ var FLX = (function(){
     var faturas = null;
     rows.forEach(function(r){
       r.unsure = r.unsure || {};
-      // Movimento com a própria poupança, ou Pix/transferência com o nome inteiro do titular: é transferência entre contas suas (sem perguntar).
-      if(!r.proprio && !r.pagamento && r.tipo !== "transferencia_interna" &&
-         (/POUPANCA/.test(impNorm(r.tipoOp || "")) || (r.pessoa && r.contraparte && nomeIgualTitular(r.contraparte, ext.titular) && memoria[chaveContraparte(r.contraparte)] !== "outra"))){
-        r.proprio = {state: "auto"}; r.tipo = "transferencia_interna"; r.categoria = "Transferência interna"; r.unsure.tipo = false; r.unsure.categoria = false;
-      }
+      autoTransfInterna(r, ext.titular, memoria); // poupança ou nome inteiro do titular: transferência entre contas suas, sem perguntar
       // Transferência entre contas do próprio titular: sempre pergunta; depois de respondida, lembra.
       if(r.pessoa){
         var nomeBase = r.contraparte || nomeCandidato(r.tipoOp, ext.titular) || r.tipoOp;
@@ -6909,8 +6918,10 @@ var FLX = (function(){
   // ativos: lançamentos ativos; lixeira: lançamentos apagados.
   function conciliarConta(ref, chave, ativos, lixeira){
     if(!ref || !ref.linhas) return {aplicavel: false};
+    // o banco data o fim de semana no dia útil seguinte: linhas depois do fim do período contam como parte deste extrato
+    var ateEfet = ref.ate; ref.linhas.forEach(function(l){ if(l.data > ateEfet) ateEfet = l.data; });
     var doConta = ativos.filter(function(t){
-      return t.conta === chave && t.dataEfet >= ref.de && t.dataEfet <= ref.ate && t.statusParcela !== "prevista";
+      return t.conta === chave && t.dataEfet >= ref.de && t.dataEfet <= ateEfet && t.statusParcela !== "prevista";
     });
     var idx = {};
     doConta.forEach(function(t){
@@ -6966,7 +6977,7 @@ var FLX = (function(){
     });
     var diff = (extCents(ref.saldoFinal) - soma) / 100;
     return {aplicavel: true, ok: Math.abs(diff) < 0.005, diff: diff, calculado: soma / 100, saldoAnterior: ref.saldoAnterior, saldoFinal: ref.saldoFinal,
-      fora: candidatos.filter(function(t){ return !usados[t.id] && !isNeutro(t) && (!t.contaOrigem || t.contaOrigem === "banco") && t.dataEfet >= ref.de && t.dataEfet <= ref.ate; }),
+      fora: candidatos.filter(function(t){ return !usados[t.id] && !isNeutro(t) && (!t.contaOrigem || t.contaOrigem === "banco") && t.dataEfet >= ref.de && t.dataEfet <= ateEfet; }),
       de: ref.de, ate: ref.ate, casadas: ref.linhas.length - sobra.length, manuais: manuais, lixeira: naLixeira, nunca: nunca, extras: extras, extrasSemSinal: semSinal};
   }
   // Lançamento novo a partir de uma linha guardada do extrato (mesma regra de leitura da importação).
@@ -6976,6 +6987,7 @@ var FLX = (function(){
     var r = rows[0];
     r.selected = true;
     if(r.pagamento && r.pagamento.state === "pending") r.pagamento.state = "confirmed";
+    autoTransfInterna(r, ref.titular, memoria);
     if(r.pessoa){
       var nome = r.contraparte || nomeCandidato(r.tipoOp, ref.titular) || r.tipoOp;
       if((memoria || {})[chaveContraparte(nome)] === "propria"){ r.tipo = "transferencia_interna"; r.categoria = "Transferência interna"; }
