@@ -1,0 +1,78 @@
+# Aplica o banco e publica a Edge Function do copiloto no projeto Supabase.
+# Roda só quando alguém clica em "Run workflow" (Actions → Supabase).
+#
+# Secrets do repositório (Settings → Secrets and variables → Actions):
+#   SUPABASE_ACCESS_TOKEN  token pessoal do Supabase (supabase.com/dashboard/account/tokens)
+#   SUPABASE_DB_PASSWORD   senha do banco (Project Settings → Database)
+# A chave da Anthropic NÃO passa por aqui: ela fica só nos Secrets das Edge Functions.
+name: Supabase
+
+on:
+  workflow_dispatch:
+    inputs:
+      acao:
+        description: "O que fazer"
+        required: true
+        default: tudo
+        type: choice
+        options:
+          - tudo
+          - salvar-schema
+          - aplicar-banco
+          - publicar-funcao
+
+permissions:
+  contents: write
+
+concurrency:
+  group: supabase
+  cancel-in-progress: false
+
+env:
+  SUPABASE_PROJECT_REF: aclqdyfargqepqdvjixf
+  SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+  SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+  SUPABASE_CLI: npx --yes supabase@2.122.0
+
+jobs:
+  supabase:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Conferir secrets
+        run: |
+          test -n "$SUPABASE_ACCESS_TOKEN" || { echo "::error::Falta o secret SUPABASE_ACCESS_TOKEN"; exit 1; }
+          test -n "$SUPABASE_DB_PASSWORD" || { echo "::error::Falta o secret SUPABASE_DB_PASSWORD"; exit 1; }
+
+      - name: Testar regras do copiloto
+        run: node --experimental-strip-types --test supabase/functions/copiloto/regras.test.ts
+
+      - name: Ligar ao projeto
+        run: $SUPABASE_CLI link --project-ref "$SUPABASE_PROJECT_REF" --password "$SUPABASE_DB_PASSWORD"
+
+      # 1. Fotografia do banco ANTES de qualquer mudança (só estrutura, sem dados).
+      - name: Salvar schema atual
+        if: inputs.acao == 'tudo' || inputs.acao == 'salvar-schema'
+        run: |
+          $SUPABASE_CLI db dump --linked --password "$SUPABASE_DB_PASSWORD" -f supabase/schema/atual.sql
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add supabase/schema/atual.sql
+          git diff --cached --quiet || { git commit -m "Banco: fotografia do schema ($(date -u +%F))"; git push; }
+
+      # 2. Aplica as migrations novas (a CLI guarda quais já rodaram).
+      - name: Aplicar banco
+        if: inputs.acao == 'tudo' || inputs.acao == 'aplicar-banco'
+        run: |
+          $SUPABASE_CLI migration list --linked --password "$SUPABASE_DB_PASSWORD"
+          $SUPABASE_CLI db push --linked --yes --password "$SUPABASE_DB_PASSWORD"
+
+      # 3. Publica a Edge Function. Não mexe no site.
+      - name: Publicar função do copiloto
+        if: inputs.acao == 'tudo' || inputs.acao == 'publicar-funcao'
+        run: $SUPABASE_CLI functions deploy copiloto --project-ref "$SUPABASE_PROJECT_REF" --no-verify-jwt --use-api
