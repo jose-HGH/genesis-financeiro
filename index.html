@@ -355,6 +355,14 @@
   .ia-barra{display:flex; justify-content:flex-end;}
   .ia-barra.resumo-ia{display:contents;}
   .ia-barra.fx-ia, .ia-barra.conc-ia{margin:4px 0 10px;}
+  #simCorpo label{display:block; font-size:12px; color:var(--ink-2); margin-bottom:4px;}
+  #simCorpo input, #simCorpo select{font-family:var(--font-ui); font-size:13px; border:1px solid var(--border-strong); border-radius:9px; padding:8px 10px; background:var(--surface-alt); color:var(--ink); min-width:0; width:100%; box-sizing:border-box;}
+  .sim-ia{margin-bottom:14px;} .sim-linha{display:flex; gap:8px;} .sim-linha input{flex:1;} .sim-linha .btn{flex:none;}
+  .sim-msg{font-size:12.5px; color:var(--ink-2); margin-top:6px; min-height:1em;}
+  .sim-form{display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:10px; align-items:end;}
+  .sim-form [hidden]{display:none;} .sim-acao{display:flex;} .sim-acao .btn{width:100%;}
+  .sim-res{margin-top:14px; display:flex; flex-direction:column; gap:10px;} .sim-res h4{margin:0; font-size:15px;}
+  .sim-tab{width:100%; font-size:13px;} .sim-tab th, .sim-tab td{text-align:right; padding:6px 8px;} .sim-tab th:first-child{text-align:left; font-weight:500;}
   .ia-btn{display:inline-flex; align-items:center; gap:6px; height:32px; padding:0 14px; border-radius:999px; border:1px solid var(--line); background:var(--accent-soft); color:var(--ink); font:inherit; font-size:13px; font-weight:600; cursor:pointer;}
   .ia-btn:hover{border-color:var(--ink-2);}
   .ia-btn:disabled{opacity:.6; cursor:progress;}
@@ -1214,6 +1222,11 @@
     <div id="fxCorpo"></div>
   </section>
 
+  <section class="card" id="simCard" aria-labelledby="simT">
+    <div class="card-head"><h2 id="simT">Simulador "e se"</h2><span class="hint">Teste uma mudança antes de fazer. Nada é salvo nem aplicado.</span></div>
+    <div id="simCorpo"></div>
+  </section>
+
   <section class="card" id="famTopo" hidden>
     <div class="card-head"><h2 id="famTopoTitulo">Família</h2><span class="hint" id="famTopoHint"></span></div>
     <div class="kpi-row" id="famKpis"></div>
@@ -1747,6 +1760,7 @@
   put("analises", row(flex(cardOf("paymentChart"), "v5-n"), flex(cardOf("classStack"), "v5-n")));
   // Planejamento
   put("planejamento", $("fluxoCard"));
+  put("planejamento", $("simCard"));
   put("planejamento", row(flex(document.querySelector(".patrimonio-card"), "v5-n"), flex(cardOf("budgetList"), "v5-w")));
   // Conta
   put("conta", row(flex($("authCard"), "v5-n"), flex(cardOf("exportBox"), "v5-n")));
@@ -3061,6 +3075,268 @@ var FLX = (function(){
       if(t.closest("#fxSalvar")){ flxSalvar(); return; }
     });
     ["fxTipo", "fxMover"].forEach(function(i){ var e = document.getElementById(i); if(e) e.addEventListener("change", flxAjustaForm); });
+  })();
+
+  // ===== Simulador "e se" (passo 6) =====
+  // O sistema calcula; a IA (opcional, só para testadores) apenas preenche este formulário a partir
+  // de uma pergunta em texto livre e depois explica o resultado pelo "Explicar" (quadro "simulacao").
+  // Nada aqui é salvo nem aplicado: é só uma conta de antes e depois.
+  var SIMD = {cen: null, res: null, iaOk: null, iaCarregando: false, iaMsg: null, daIa: false};
+  var SIM_TIPOS = {cortar: "Gastar menos com algo", saida: "Gasto ou pagamento a mais", entrada: "Dinheiro a mais", parcelada: "Compra parcelada no cartão"};
+  function simC2(v){ return Math.round((Number(v) || 0) * 100) / 100; }
+  function simNorm(s){ return impNorm(s).toLowerCase().replace(/[^a-z0-9 ]+/g, " ").replace(/\s+/g, " ").trim(); }
+  function simCategorias(){
+    var set = {};
+    state.transactions.forEach(function(t){ if(isConsumo(t) && t.categoria) set[t.categoria] = 1; });
+    return Object.keys(set).sort(function(a, b){ return a.localeCompare(b, "pt-BR"); });
+  }
+  function simDiaVencimento(){
+    // dia de vencimento mais comum das faturas dos últimos meses; sem fatura, dia 10
+    var cont = {}, desde = shiftMonthKey(monthKey(todayISO()), -6), melhor = null;
+    state.transactions.forEach(function(t){
+      if(!isFaturaTx(t) || monthKey(t.dataEfet) < desde) return;
+      var d = +t.dataEfet.slice(8, 10); cont[d] = (cont[d] || 0) + 1;
+    });
+    Object.keys(cont).forEach(function(d){ if(melhor === null || cont[d] > cont[melhor]) melhor = d; });
+    return melhor === null ? 10 : +melhor;
+  }
+  function simDataNoMes(ym, dia){ return ym + "-" + pad2(Math.min(dia, FLX.ultimoDia(+ym.slice(0, 4), +ym.slice(5, 7)))); }
+  function simFaturaDoMes(ym){
+    var tot = 0;
+    state.transactions.forEach(function(t){
+      if(!isFaturaTx(t) || monthKey(t.dataEfet) !== ym) return;
+      if(hasParcela(t)) tot += t.valor; else if(countsAsSpend(t)) tot += despVal(t);
+    });
+    return simC2(tot);
+  }
+
+  // Cortar: média dos 3 meses completos anteriores dos gastos que batem com a categoria e/ou os termos.
+  function simCortar(c){
+    var hoje = todayISO(), ymHoje = monthKey(hoje), termos = (c.termos || []).map(simNorm).filter(Boolean);
+    var meses = [-3, -2, -1].map(function(n){ return shiftMonthKey(ymHoje, n); });
+    var comDados = {}, porMes = {}, n = 0, nAtual = 0, atual = 0;
+    state.transactions.forEach(function(t){
+      if(t.deletedAt) return;
+      var ym = monthKey(t.dataEfet); comDados[ym] = 1;
+      if(!isConsumo(t) || isPrevista(t)) return;
+      if(c.categoria && t.categoria !== c.categoria) return;
+      if(termos.length){ var d = simNorm(t.descricao); if(!termos.some(function(x){ return d.indexOf(x) !== -1; })) return; }
+      if(ym === ymHoje){ atual += despVal(t); nAtual++; return; }
+      if(meses.indexOf(ym) === -1) return;
+      porMes[ym] = (porMes[ym] || 0) + despVal(t); n++;
+    });
+    var base = meses.filter(function(m){ return comDados[m]; });
+    var usaAtual = !base.length, soma = 0;
+    base.forEach(function(m){ soma += porMes[m] || 0; });
+    var media = simC2(usaAtual ? atual : soma / base.length);
+    var eco = simC2(media * c.percentual / 100);
+    var d = {tipo: "cortar", categoria: c.categoria || null, percentual: c.percentual, meses_base: base.length, base: usaAtual ? "mes_atual" : "meses_anteriores",
+      lancamentos_encontrados: usaAtual ? nAtual : n, media_mensal: media, gasto_no_mes_atual: simC2(atual), economia_por_mes: eco,
+      economia_em_seis_meses: simC2(eco * 6), economia_em_doze_meses: simC2(eco * 12)};
+    if(termos.length){ // para o "Explicar": no máximo 80 caracteres
+      var txt = termos[0].slice(0, 80);
+      termos.slice(1).forEach(function(x){ if((txt + ", " + x).length <= 80) txt += ", " + x; });
+      d.termos = txt;
+    }
+    if(base.length){
+      var res = 0; base.forEach(function(m){ var r = computeTotals(m + "-15"); res += r.recTotal - r.despTotal; });
+      d.resultado_medio_antes = simC2(res / base.length); d.resultado_medio_depois = simC2(res / base.length + eco);
+    }
+    return {dados: d, vazio: media <= 0};
+  }
+
+  // Saída, entrada e parcelada: o calendário do Fluxo de caixa (hoje até 90 dias), com e sem o evento simulado.
+  function simMedir(sim, fim){
+    var dFim = sim.dias.filter(function(x){ return x.data === fim; })[0];
+    return {saldo_fim_do_mes: simC2(dFim ? dFim.saldo : sim.saldoFinal), saldo_no_fim_do_horizonte: simC2(sim.saldoFinal), menor_saldo: simC2(sim.menor ? sim.menor.saldo : 0),
+      dia_menor_saldo: sim.menor ? sim.menor.data : null, dias_negativos: sim.diasNeg};
+  }
+  function simFluxo(c){
+    var hoje = todayISO(), ym = monthKey(hoje), fim = simDataNoMes(ym, 31);
+    var ext = FLX.addDias(hoje, 90); if(ext < fim) ext = fim;
+    var ini = flxSaldoInicial(), base = flxEventos("meu", hoje, ext), extra = [], d = {tipo: c.tipo};
+    if(c.tipo === "parcelada"){
+      var n = c.parcelas, parc = c.valor_parcela ? simC2(c.valor_parcela) : simC2(c.valor / n), total = c.valor_parcela ? simC2(parc * n) : simC2(c.valor);
+      var dia = simDiaVencimento(), primeira = c.data;
+      if(!primeira){ primeira = simDataNoMes(ym, dia); if(primeira < FLX.addDias(hoje, 10)) primeira = simDataNoMes(shiftMonthKey(ym, 1), dia); }
+      var datas = [];
+      for(var i = 0; i < n; i++) datas.push(simDataNoMes(shiftMonthKey(monthKey(primeira), i), +primeira.slice(8, 10)));
+      datas.forEach(function(dt, i){ extra.push({key: "sim:" + i, desc: "Compra simulada", valor: parc, tipo: "saida", data: dt, prioridade: "essencial", fonte: "simulacao"}); });
+      d.valor_total = total; d.parcelas = n; d.valor_parcela = parc; d.primeira_parcela = datas[0]; d.ultima_parcela = datas[datas.length - 1];
+      d.vencimento_estimado = !c.data;
+      var pf = {}, nomes = ["primeiro_mes", "segundo_mes", "terceiro_mes"];
+      nomes.forEach(function(nm, i){ var m = shiftMonthKey(monthKey(primeira), i), a = simFaturaDoMes(m); pf[nm] = {mes: m, antes: a, depois: simC2(a + (i < n ? parc : 0))}; });
+      d.proximas_faturas = pf;
+    } else {
+      var data = c.data || hoje, ev = {key: "sim", desc: c.tipo === "entrada" ? "Entrada simulada" : "Saída simulada", valor: simC2(c.valor), tipo: c.tipo, data: data,
+        recorrencia: c.repetir === "mensal" ? "mensal" : "unica", prioridade: "essencial", fonte: "simulacao"};
+      FLX.expandir(ev, hoje, ext).forEach(function(o, i){ o.key = "sim:" + i; extra.push(o); });
+      d.valor = simC2(c.valor); d.repetir = ev.recorrencia; d.data = data;
+    }
+    var s0 = FLX.simular(ini.valor, hoje, ext, base), s1 = FLX.simular(ini.valor, hoje, ext, base.concat(extra));
+    d.saldo_informado = ini.n > 0; d.saldo_hoje = simC2(ini.valor); d.fim_do_mes = fim; d.horizonte_ate = ext;
+    d.antes = simMedir(s0, fim); d.depois = simMedir(s1, fim);
+    d.diferenca_saldo_fim_do_mes = simC2(Math.abs(d.depois.saldo_fim_do_mes - d.antes.saldo_fim_do_mes));
+    d.diferenca_menor_saldo = simC2(Math.abs(d.depois.menor_saldo - d.antes.menor_saldo));
+    if(s1.primeiroNeg) d.primeiro_dia_negativo_depois = s1.primeiroNeg;
+    return {dados: d, extra: extra.length};
+  }
+  function simCalcular(c){
+    if(!c) return null;
+    if(c.tipo === "cortar") return simCortar(c);
+    return simFluxo(c);
+  }
+
+  // --- formulário ---
+  function simLerForm(){
+    var $f = function(i){ return document.getElementById(i); }, tipo = $f("simTipo").value;
+    if(tipo === "cortar"){
+      var termos = String($f("simTermos").value || "").split(/[,;]/).map(simNorm).filter(function(t){ return t.length >= 2; }).slice(0, 6);
+      var cat = $f("simCat").value || null, pct = Math.round(Number($f("simPct").value));
+      if(!cat && !termos.length) return {erro: "Escolha uma categoria ou escreva palavras da descrição (ex.: ifood, rappi)."};
+      if(!(pct >= 1 && pct <= 100)) return {erro: "O corte vai de 1% a 100%."};
+      return {tipo: tipo, categoria: cat, termos: termos, percentual: pct};
+    }
+    var data = $f("simData").value || null;
+    if(data && data < todayISO()) return {erro: "A data precisa ser de hoje em diante."};
+    if(tipo === "parcelada"){
+      var n = Math.round(Number($f("simParcelas").value)), tot = lerValorBR($f("simValor").value), parc = lerValorBR($f("simValorParcela").value);
+      if(!(n >= 1 && n <= 48)) return {erro: "Número de parcelas de 1 a 48."};
+      if(!(tot > 0) && !(parc > 0)) return {erro: "Informe o valor total ou o valor de cada parcela."};
+      return {tipo: tipo, valor: parc > 0 ? null : tot, valor_parcela: parc > 0 ? parc : null, parcelas: n, data: data};
+    }
+    var v = lerValorBR($f("simValor").value);
+    if(!(v > 0)) return {erro: "Informe o valor."};
+    return {tipo: tipo, valor: v, repetir: $f("simRepetir").value, data: data};
+  }
+  function simValorTxt(v){ return v > 0 ? String(simC2(v).toFixed(2)).replace(".", ",") : ""; }
+  function simPreencher(c){
+    var $f = function(i){ return document.getElementById(i); };
+    if(!$f("simTipo")) return;
+    $f("simTipo").value = c.tipo;
+    if(c.tipo === "cortar"){
+      var sel = $f("simCat");
+      if(c.categoria && !Array.prototype.some.call(sel.options, function(o){ return o.value === c.categoria; })) sel.insertAdjacentHTML("beforeend", '<option value="' + flxEsc(c.categoria) + '">' + flxEsc(c.categoria) + "</option>");
+      sel.value = c.categoria || ""; $f("simTermos").value = (c.termos || []).join(", "); $f("simPct").value = c.percentual || 50;
+    } else {
+      $f("simValor").value = simValorTxt(c.valor); $f("simData").value = c.data || "";
+      if(c.tipo === "parcelada"){ $f("simParcelas").value = c.parcelas || ""; $f("simValorParcela").value = simValorTxt(c.valor_parcela); }
+      else $f("simRepetir").value = c.repetir || "unica";
+    }
+    simAjustaForm();
+  }
+  function simAjustaForm(){
+    var tipo = document.getElementById("simTipo").value;
+    Array.prototype.forEach.call(document.querySelectorAll("#simCard [data-sim-para]"), function(el){
+      el.hidden = el.dataset.simPara.split(" ").indexOf(tipo) === -1;
+    });
+    var lv = document.getElementById("simValorL"); if(lv) lv.textContent = tipo === "parcelada" ? "Valor total (R$)" : "Valor (R$)";
+    var ld = document.getElementById("simDataL"); if(ld) ld.textContent = tipo === "parcelada" ? "1ª parcela (opcional)" : "Quando (opcional; vazio = hoje)";
+  }
+  function simEsqueleto(){
+    var ia = COPI.ok && state.mode === "db";
+    var cats = simCategorias().map(function(c){ return '<option value="' + flxEsc(c) + '">' + flxEsc(c) + "</option>"; }).join("");
+    var h = "";
+    if(ia) h += '<div class="sim-ia"><label for="simPergunta">Pergunte ao copiloto</label><div class="sim-linha"><input id="simPergunta" maxlength="300" placeholder="Ex.: e se eu cortar delivery pela metade?">' +
+      '<button type="button" class="btn btn-primary" id="simPerguntar">Simular</button></div><div class="sim-msg" id="simIaMsg" role="status"></div></div>';
+    h += '<div class="sim-form"><div><label for="simTipo">' + (ia ? "Ou monte a simulação" : "O que você quer testar?") + '</label><select id="simTipo">' +
+      Object.keys(SIM_TIPOS).map(function(k){ return '<option value="' + k + '">' + SIM_TIPOS[k] + "</option>"; }).join("") + "</select></div>" +
+      '<div data-sim-para="cortar"><label for="simCat">Categoria</label><select id="simCat"><option value="">Qualquer categoria</option>' + cats + "</select></div>" +
+      '<div data-sim-para="cortar"><label for="simTermos">Palavras na descrição (opcional)</label><input id="simTermos" maxlength="120" placeholder="ifood, rappi"></div>' +
+      '<div data-sim-para="cortar"><label for="simPct">Cortar quanto (%)</label><input id="simPct" type="number" min="1" max="100" value="50"></div>' +
+      '<div data-sim-para="saida entrada parcelada"><label for="simValor" id="simValorL">Valor (R$)</label><input id="simValor" inputmode="decimal" placeholder="0,00"></div>' +
+      '<div data-sim-para="parcelada"><label for="simParcelas">Parcelas</label><input id="simParcelas" type="number" min="1" max="48" value="10"></div>' +
+      '<div data-sim-para="parcelada"><label for="simValorParcela">Ou valor de cada parcela (R$)</label><input id="simValorParcela" inputmode="decimal" placeholder="0,00"></div>' +
+      '<div data-sim-para="saida entrada"><label for="simRepetir">Repete</label><select id="simRepetir"><option value="unica">Só uma vez</option><option value="mensal">Todo mês</option></select></div>' +
+      '<div data-sim-para="saida entrada parcelada"><label for="simData" id="simDataL">Quando</label><input id="simData" type="date"></div>' +
+      '<div class="sim-acao"><button type="button" class="btn btn-ghost" id="simCalcular">Calcular</button></div></div><div id="simRes"></div>';
+    return h;
+  }
+  function renderSimulador(){
+    var corpo = document.getElementById("simCorpo"); if(!corpo) return;
+    var ia = !!(COPI.ok && state.mode === "db");
+    if(SIMD.iaOk !== ia || !document.getElementById("simTipo")){
+      var antes = document.getElementById("simPergunta") ? document.getElementById("simPergunta").value : "";
+      corpo.innerHTML = simEsqueleto(); SIMD.iaOk = ia;
+      if(SIMD.cen) simPreencher(SIMD.cen); else simAjustaForm();
+      if(antes && document.getElementById("simPergunta")) document.getElementById("simPergunta").value = antes;
+    }
+    var msg = document.getElementById("simIaMsg");
+    if(msg){ msg.textContent = SIMD.iaMsg || ""; var bt = document.getElementById("simPerguntar"); bt.disabled = SIMD.iaCarregando; bt.textContent = SIMD.iaCarregando ? "Pensando…" : "Simular"; }
+    simRenderRes();
+  }
+  function simLinha(rot, a, d){ return "<tr><th>" + rot + "</th><td>" + a + "</td><td>" + d + "</td></tr>"; }
+  function simRenderRes(){
+    var box = document.getElementById("simRes"); if(!box) return;
+    SIMD.res = null; delete COPI.dados.simulacao;
+    if(!SIMD.cen){ box.innerHTML = ""; return; }
+    var r = simCalcular(SIMD.cen); SIMD.res = r;
+    var d = r.dados, h = '<div class="sim-res">';
+    if(d.tipo === "cortar"){
+      var alvo = (d.categoria ? "«" + flxEsc(d.categoria) + "»" : "todas as categorias") + (d.termos ? ", só o que tem «" + flxEsc(d.termos) + "» na descrição" : "");
+      if(r.vazio){ box.innerHTML = '<div class="fx-nota">Não achei gastos em ' + alvo + (d.base === "mes_atual" ? " neste mês" : " nos últimos 3 meses") + ". Confira a categoria ou as palavras.</div>"; return; }
+      h += "<h4>Cortar " + d.percentual + "% de " + alvo + "</h4>" +
+        '<div class="fx-kpis"><div class="fx-kpi"><small>' + (d.base === "mes_atual" ? "Gasto neste mês até hoje" : "Média por mês (" + d.meses_base + (d.meses_base === 1 ? " mês" : " meses") + ")") + "</small><b>" + fmt(d.media_mensal) + "</b><small>" + d.lancamentos_encontrados + " lançamento(s)</small></div>" +
+        '<div class="fx-kpi"><small>Sobra por mês</small><b style="color:var(--pos)">' + fmt(d.economia_por_mes) + "</b></div>" +
+        '<div class="fx-kpi"><small>Em 6 meses</small><b>' + fmt(d.economia_em_seis_meses) + "</b></div>" +
+        '<div class="fx-kpi"><small>Em 12 meses</small><b>' + fmt(d.economia_em_doze_meses) + "</b></div></div>";
+      if(d.resultado_medio_antes != null) h += '<div class="fx-nota">Resultado médio do mês (receitas menos despesas): ' + fmt(d.resultado_medio_antes) + " → <b>" + fmt(d.resultado_medio_depois) + "</b></div>";
+      if(d.base === "mes_atual") h += '<div class="fx-nota">Ainda não há meses completos anteriores: a conta usa só o que foi gasto neste mês até hoje.</div>';
+    } else {
+      var titulo = d.tipo === "parcelada" ? "Compra de " + fmt(d.valor_total) + " em " + d.parcelas + "x de " + fmt(d.valor_parcela)
+        : (d.tipo === "entrada" ? "Entrada de " : "Saída de ") + fmt(d.valor) + (d.repetir === "mensal" ? " todo mês a partir de " : " em ") + flxDia(d.data);
+      h += "<h4>" + titulo + "</h4>";
+      if(d.tipo === "parcelada") h += '<div class="fx-nota">Parcelas de ' + flxDia(d.primeira_parcela) + "/" + d.primeira_parcela.slice(0, 4) + " a " + flxDia(d.ultima_parcela) + "/" + d.ultima_parcela.slice(0, 4) +
+        (d.vencimento_estimado ? " (vencimento estimado pelas suas faturas; o app não sabe o dia de fechamento do cartão)" : "") + ".</div>";
+      var neg = function(v){ return '<span class="' + (v < 0 ? "fx-neg" : "") + '">' + fmt(v) + "</span>"; };
+      h += '<div class="table-scroll"><table class="sim-tab"><thead><tr><th></th><th>Sem a mudança</th><th>Com a mudança</th></tr></thead><tbody>' +
+        simLinha("Saldo em " + flxDia(d.fim_do_mes), neg(d.antes.saldo_fim_do_mes), "<b>" + neg(d.depois.saldo_fim_do_mes) + "</b>") +
+        simLinha("Menor saldo até " + flxDia(d.horizonte_ate), neg(d.antes.menor_saldo) + " <small>" + flxDia(d.antes.dia_menor_saldo) + "</small>", "<b>" + neg(d.depois.menor_saldo) + "</b> <small>" + flxDia(d.depois.dia_menor_saldo) + "</small>") +
+        simLinha("Saldo em " + flxDia(d.horizonte_ate), neg(d.antes.saldo_no_fim_do_horizonte), "<b>" + neg(d.depois.saldo_no_fim_do_horizonte) + "</b>") +
+        simLinha("Dias no negativo", d.antes.dias_negativos, "<b>" + d.depois.dias_negativos + "</b>");
+      if(d.proximas_faturas) ["primeiro_mes", "segundo_mes", "terceiro_mes"].forEach(function(k){ var f = d.proximas_faturas[k]; h += simLinha("Fatura de " + fmtMonthLabel(f.mes), fmt(f.antes), "<b>" + fmt(f.depois) + "</b>"); });
+      h += "</tbody></table></div>";
+      if(d.depois.dias_negativos > d.antes.dias_negativos) h += '<div class="fx-alerta">⚠ Com a mudança, o saldo fica negativo a partir de <b>' + flxDia(d.primeiro_dia_negativo_depois) + "</b>.</div>";
+      if(!d.saldo_informado) h += '<div class="fx-nota fx-neg">Nenhum saldo informado: a conta parte de R$ 0,00. Use "Atualizar saldo" na tela inicial.</div>';
+      if(d.tipo === "saida") h += '<div class="fx-nota">Mostra só o efeito no caixa. Juros economizados com antecipação ainda não entram na conta.</div>';
+    }
+    COPI.dados.simulacao = {card: "simulacao", ref: todayISO(), dados: d};
+    h += copilotoBotao("simulacao", "fx-ia") + copilotoCaixa("simulacao") + '<div class="fx-nota">Simulação: nada foi salvo nem mudado nos seus lançamentos.</div></div>';
+    box.innerHTML = h;
+  }
+  function simPerguntar(){
+    var campo = document.getElementById("simPergunta"), pergunta = campo ? campo.value.trim() : "";
+    if(!pergunta || SIMD.iaCarregando || !COPI.ok || !sb || state.mode !== "db") return;
+    var resumo = copilotoResumo(todayISO());
+    simCategorias().forEach(function(c){ if(!(c in resumo.categorias)) resumo.categorias[c] = 0; }); // nomes das categorias, sem valores novos
+    resumo.hoje = todayISO();
+    SIMD.iaCarregando = true; SIMD.iaMsg = null; renderSimulador();
+    sb.functions.invoke("copiloto", {body: {recurso: "simulador", resumo: resumo, pergunta: pergunta}}).then(function(r){
+      if(r.error && r.error.context && typeof r.error.context.json === "function") return r.error.context.json().catch(function(){ return {ok: false}; });
+      return r.error ? {ok: false} : r.data;
+    }).catch(function(){ return {ok: false}; }).then(function(j){
+      j = j || {}; SIMD.iaCarregando = false;
+      if(!j.ok){ SIMD.iaMsg = j.mensagem || "O copiloto não respondeu agora. Tente de novo em instantes."; renderSimulador(); return; }
+      var c = j.cenario || {};
+      if(c.tipo === "nao_entendi" || !SIM_TIPOS[c.tipo]){ SIMD.iaMsg = "Não entendi essa simulação. Diga o valor (ex.: \"e se eu comprar uma TV de R$ 3.000 em 10x?\") ou monte no formulário abaixo."; renderSimulador(); return; }
+      SIMD.iaMsg = "O copiloto preencheu o formulário a partir da sua pergunta. Confira os campos: a conta é do app.";
+      SIMD.cen = c; SIMD.daIa = true;
+      simPreencher(c); renderSimulador();
+      if(SIMD.res && !SIMD.res.vazio) copilotoExplicar("simulacao");
+    });
+  }
+  (function simLigar(){
+    document.addEventListener("click", function(ev){
+      var t = ev.target && ev.target.closest ? ev.target : null; if(!t) return;
+      if(t.closest("#simCalcular")){
+        var c = simLerForm();
+        if(c.erro){ toast(c.erro); return; }
+        SIMD.cen = c; SIMD.daIa = false; renderSimulador(); return;
+      }
+      if(t.closest("#simPerguntar")){ simPerguntar(); }
+    });
+    document.addEventListener("change", function(ev){ if(ev.target && ev.target.id === "simTipo") simAjustaForm(); });
+    document.addEventListener("keydown", function(ev){ if(ev.key === "Enter" && ev.target && ev.target.id === "simPergunta"){ ev.preventDefault(); simPerguntar(); } });
   })();
 
   // ===== Lembretes (barra do topo) =====
@@ -5061,6 +5337,7 @@ var FLX = (function(){
     renderLedger(ref);
     renderTrash();
     try{ renderFluxo(); }catch(e){ if(window.console) console.error(e); }
+    try{ renderSimulador(); }catch(e){ if(window.console) console.error(e); }
     try{ lemRender(); }catch(e){ if(window.console) console.error(e); }
     if(window.__v5ui){ try{ window.__v5ui.after(ref); }catch(e){} }
   }
@@ -9451,7 +9728,7 @@ var CAIXA = (function(){
     var mudou = ok !== COPI.ok || uid !== COPI.uid;
     COPI.ok = ok; COPI.uid = uid;
     if(!ok) COPI.resp = {};
-    if(mudou){ try{ renderHero(refISO()); renderFluxo(); renderConciliacao(); }catch(e){ if(window.console) console.error(e); } }
+    if(mudou){ try{ renderHero(refISO()); renderFluxo(); renderConciliacao(); renderSimulador(); }catch(e){ if(window.console) console.error(e); } }
   }
   function copilotoCarregarStatus(){
     if(!sb || state.mode !== "db") return;
@@ -9478,6 +9755,7 @@ var CAIXA = (function(){
   function copilotoRedesenhar(chave){
     if(chave === "previsao") renderHero(refISO());
     else if(chave === "fluxo") renderFluxo();
+    else if(chave === "simulacao") simRenderRes();
     else renderConciliacao();
   }
   function copilotoExplicar(chave){
@@ -9489,6 +9767,8 @@ var CAIXA = (function(){
     copilotoRedesenhar(chave);
     var resumo = copilotoResumo(d.ref);
     resumo.card = d.card; resumo[d.card] = d.dados;
+    // simulador: a categoria escolhida precisa estar no resumo, mesmo sem gasto neste mês (vai com 0)
+    if(d.card === "simulacao" && d.dados.categoria && !(d.dados.categoria in resumo.categorias)) resumo.categorias[d.dados.categoria] = 0;
     sb.functions.invoke("copiloto", {body: {recurso: "explicar", resumo: resumo}}).then(function(r){
       if(r.error && r.error.context && typeof r.error.context.json === "function") return r.error.context.json().catch(function(){ return {ok: false}; });
       return r.error ? {ok: false} : r.data;
