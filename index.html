@@ -363,7 +363,13 @@
   .sim-form [hidden]{display:none;} .sim-acao{display:flex;} .sim-acao .btn{width:100%;}
   .sim-res{margin-top:14px; display:flex; flex-direction:column; gap:10px;} .sim-res h4{margin:0; font-size:15px;}
   .sim-tab{width:100%; font-size:13px;} .sim-sug{background:var(--soft);}
-  .sim-perfis{display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:10px;} .sim-porque{display:block; font-size:12.5px; color:var(--ink-2); margin-top:6px; line-height:1.4;} .sim-tab th, .sim-tab td{text-align:right; padding:6px 8px;} .sim-tab th:first-child{text-align:left; font-weight:500;}
+  .sim-perfis{display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:8px;}
+  .sim-perfil{display:flex; flex-direction:column; gap:2px; padding:10px 12px; border-radius:14px; background:var(--soft,var(--glass)); border:1px solid var(--line); font-size:13px;}
+  .sim-perfil small{font-size:11.5px; color:var(--ink-2);} .sim-perfil b{font-size:15px;}
+  .sim-porque{font-size:12px; color:var(--ink-2);}
+  .sim-aviso{padding:10px 12px; border-radius:12px; background:var(--neg-wash, rgba(220,38,38,.08)); border:1px solid rgba(220,38,38,.25); font-size:13.5px; line-height:1.45;}
+  .sim-mais summary{cursor:pointer; font-size:12.5px; color:var(--ink-2);} .sim-mais ul{list-style:none; margin:8px 0 4px; padding:0; font-size:13px;}
+  .sim-mais li{display:flex; justify-content:space-between; padding:3px 0; border-bottom:1px solid var(--line);} .sim-tab th, .sim-tab td{text-align:right; padding:6px 8px;} .sim-tab th:first-child{text-align:left; font-weight:500;}
   .ia-btn{display:inline-flex; align-items:center; gap:6px; height:32px; padding:0 14px; border-radius:999px; border:1px solid var(--line); background:var(--accent-soft); color:var(--ink); font:inherit; font-size:13px; font-weight:600; cursor:pointer;}
   .ia-btn:hover{border-color:var(--ink-2);}
   .ia-btn:disabled{opacity:.6; cursor:progress;}
@@ -3180,6 +3186,7 @@ var FLX = (function(){
     d.diferenca_saldo_fim_do_mes = simC2(Math.abs(d.depois.saldo_fim_do_mes - d.antes.saldo_fim_do_mes));
     d.diferenca_menor_saldo = simC2(Math.abs(d.depois.menor_saldo - d.antes.menor_saldo));
     if(s1.primeiroNeg) d.primeiro_dia_negativo_depois = s1.primeiroNeg;
+    if(c.tipo !== "entrada") d.nao_recomendado = d.antes.dias_negativos > 0 ? "ja_negativo" : (d.depois.dias_negativos > 0 ? "fica_negativo" : null);
     return {dados: d, extra: extra.length};
   }
   // "Em quantas vezes é melhor?": o app calcula as opções e destaca três perfis por regra fixa (sem IA),
@@ -3207,7 +3214,9 @@ var FLX = (function(){
     else perfis.menos_negativa = lista.slice().sort(function(a, b){ return b[1].menor_saldo - a[1].menor_saldo || a[1].parcelas - b[1].parcelas; })[0][0];
     if(folga.length) perfis.com_folga = folga[0][0];
     perfis.parcela_mais_leve = lista[lista.length - 1][0];
-    return {dados: {tipo: "parcelada_comparar", valor_total: simC2(c.valor), opcoes: opcoes, perfis: perfis, renda_do_mes: renda, folga_minima: margem,
+    // Regra do app, não da IA: se já vai ficar negativo sem a compra, ou se toda forma de pagar deixa negativo, a compra não é recomendada.
+    var aviso = base.antes.dias_negativos > 0 ? "ja_negativo" : (!semNeg.length ? "fica_negativo" : null);
+    return {dados: {tipo: "parcelada_comparar", nao_recomendado: aviso, valor_total: simC2(c.valor), opcoes: opcoes, perfis: perfis, renda_do_mes: renda, folga_minima: margem,
       sem_compra: {menor_saldo: base.antes.menor_saldo, dias_negativos: base.antes.dias_negativos, saldo_no_fim_do_horizonte: base.antes.saldo_no_fim_do_horizonte},
       primeira_parcela: base.primeira_parcela, vencimento_estimado: base.vencimento_estimado, saldo_informado: base.saldo_informado, horizonte_ate: base.horizonte_ate}};
   }
@@ -3297,6 +3306,12 @@ var FLX = (function(){
     if(msg){ msg.textContent = SIMD.iaMsg || ""; var bt = document.getElementById("simPerguntar"); bt.disabled = SIMD.iaCarregando; bt.textContent = SIMD.iaCarregando ? "Pensando…" : "Simular"; }
     simRenderRes();
   }
+  function simAvisoHtml(a, gasto){
+    var o = gasto ? "este gasto" : "esta compra";
+    if(a === "ja_negativo") return '<div class="sim-aviso"><b>Não é recomendado agora.</b> Seu saldo já vai ficar negativo nos próximos dias, mesmo sem ' + o + ". Fazer isso agora afundaria mais na dívida.</div>";
+    if(a === "fica_negativo") return '<div class="sim-aviso"><b>Não é recomendado.</b> ' + (gasto ? "Este gasto" : "Esta compra") + " deixaria seu saldo negativo, e ficar no negativo custa juros.</div>";
+    return "";
+  }
   function simLinha(rot, a, d){ return "<tr><th>" + rot + "</th><td>" + a + "</td><td>" + d + "</td></tr>"; }
   function simRenderRes(){
     var box = document.getElementById("simRes"); if(!box) return;
@@ -3306,32 +3321,25 @@ var FLX = (function(){
     var d = r.dados, h = '<div class="sim-res">';
     if(d.tipo === "parcelada_comparar"){
       var nomeOp = function(op){ return op.parcelas === 1 ? "À vista" : op.parcelas + "x de " + fmt(op.valor_parcela); };
-      var negC = function(v){ return '<span class="' + (v < 0 ? "fx-neg" : "") + '">' + fmt(v) + "</span>"; };
-      var porchave = {}; Object.keys(d.perfis).forEach(function(p){ (porchave[d.perfis[p]] = porchave[d.perfis[p]] || []).push(SIM_PERFIS[p]); });
-      var porque = {
-        mais_rapida: "Menos parcelas sem nenhum dia negativo: a fatura fica livre mais cedo, mas o pior dia pode ficar justo.",
-        com_folga: "Menos parcelas que ainda deixam no pior dia pelo menos " + fmt(d.folga_minima) + " (10% da renda do mês) de folga para imprevistos.",
-        parcela_mais_leve: "A menor parcela: pesa menos em cada mês, mas compromete a fatura por mais tempo.",
-        menos_negativa: "Nenhuma opção evita dia negativo. Esta é a que deixa o pior dia menos negativo."};
-      h += "<h4>Em quantas vezes parcelar " + fmt(d.valor_total) + "?</h4><div class=\"sim-perfis\">";
+      var curto = {mais_rapida: "Termina mais rápido", menos_negativa: "Menos negativo", com_folga: "Com folga", parcela_mais_leve: "Parcela mais leve"};
+      var nota = {mais_rapida: "libera a fatura antes, mas fica justo", menos_negativa: "o pior dia fica menos negativo", com_folga: "sobra margem para imprevistos", parcela_mais_leve: "pesa menos, por mais meses"};
+      h += '<h4>' + fmt(d.valor_total) + ": em quantas vezes?</h4>";
+      h += simAvisoHtml(d.nao_recomendado);
+      var vistos = {};
+      h += '<div class="sim-perfis">';
       ["mais_rapida", "menos_negativa", "com_folga", "parcela_mais_leve"].forEach(function(p){
-        if(!d.perfis[p]) return;
-        var op = d.opcoes[d.perfis[p]];
-        h += '<div class="fx-kpi"><small>' + SIM_PERFIS[p] + "</small><b>" + nomeOp(op) + "</b><small>Pior dia: " + negC(op.menor_saldo) + " em " + flxDia(op.dia_menor_saldo) +
-          (op.parcelas > 1 ? " · " + op.parcelas + " meses de fatura" : "") + '</small><span class="sim-porque">' + porque[p] + "</span></div>";
+        var k = d.perfis[p]; if(!k) return;
+        var op = d.opcoes[k], junto = vistos[k]; vistos[k] = 1;
+        if(junto) return; // dois perfis na mesma opção: mostra uma vez só
+        var rot = Object.keys(d.perfis).filter(function(q){ return d.perfis[q] === k; }).map(function(q){ return curto[q]; }).join(" · ");
+        var folga = op.menor_saldo < 0 ? '<span class="fx-neg">fica ' + fmt(op.menor_saldo) + "</span>" : "sobram " + fmt(op.menor_saldo);
+        h += '<div class="sim-perfil"><small>' + rot + "</small><b>" + nomeOp(op) + "</b><span>" + folga + " no pior dia</span><span class=\"sim-porque\">" + nota[p] + "</span></div>";
       });
       h += "</div>";
-      if(!d.perfis.com_folga && d.perfis.mais_rapida) h += '<div class="fx-alerta">Nenhuma opção deixa ' + fmt(d.folga_minima) + " de folga no pior dia. Todas deixam o saldo justo nos próximos meses.</div>";
-      if(!(d.renda_do_mes > 0)) h += '<div class="fx-nota">Sem receita lançada neste mês, a folga mínima ficou em R$ 0,00.</div>';
-      h += '<div class="table-scroll"><table class="sim-tab"><thead><tr><th>Todas as opções</th><th>Menor saldo até ' + flxDia(d.horizonte_ate) + "</th><th>Saldo em " + flxDia(d.horizonte_ate) + "</th><th>Dias no negativo</th></tr></thead><tbody>" +
-        "<tr><th>Sem a compra</th><td>" + negC(d.sem_compra.menor_saldo) + "</td><td>" + negC(d.sem_compra.saldo_no_fim_do_horizonte) + "</td><td>" + d.sem_compra.dias_negativos + "</td></tr>";
-      SIM_OPCOES.forEach(function(o){
-        var op = d.opcoes[o[1]], tags = porchave[o[1]] || [];
-        h += "<tr" + (tags.length ? ' class="sim-sug"' : "") + "><th>" + nomeOp(op) + tags.map(function(t){ return ' <span class="tag">' + t + "</span>"; }).join("") + "</th><td>" + negC(op.menor_saldo) + " <small>" + flxDia(op.dia_menor_saldo) + "</small></td><td>" + negC(op.saldo_no_fim_do_horizonte) + "</td><td>" + op.dias_negativos + "</td></tr>";
-      });
-      h += "</tbody></table></div>" +
-        '<div class="fx-nota">O app não escolhe por você: cada perfil troca uma coisa por outra. A conta supõe parcelas sem juros, com a 1ª em ' + flxDia(d.primeira_parcela) + (d.vencimento_estimado ? " (vencimento estimado pelas suas faturas)" : "") + ", e olha os próximos 90 dias. Se a loja cobrar juros a partir de certo número de parcelas, o total muda.</div>";
-      if(!d.saldo_informado) h += '<div class="fx-nota fx-neg">Nenhum saldo informado: a conta parte de R$ 0,00. Use "Atualizar saldo" na tela inicial.</div>';
+      h += '<details class="sim-mais"><summary>Ver todas as opções</summary><ul>' + SIM_OPCOES.map(function(o){
+        var op = d.opcoes[o[1]]; return "<li><span>" + nomeOp(op) + "</span><span class=\"" + (op.menor_saldo < 0 ? "fx-neg" : "") + "\">" + fmt(op.menor_saldo) + "</span></li>";
+      }).join("") + '</ul><div class="fx-nota">Menor saldo até ' + flxDia(d.horizonte_ate) + ". Sem juros, 1ª parcela em " + flxDia(d.primeira_parcela) + (d.vencimento_estimado ? " (estimada)" : "") + ". Folga = 10% da renda do mês (" + fmt(d.folga_minima) + ").</div></details>";
+      if(!d.saldo_informado) h += '<div class="fx-nota fx-neg">Sem saldo informado: a conta parte de R$ 0,00.</div>';
     } else if(d.tipo === "cortar"){
       var alvo = (d.categoria ? "«" + flxEsc(d.categoria) + "»" : "todas as categorias") + (d.termos ? ", só o que tem «" + flxEsc(d.termos) + "» na descrição" : "");
       if(r.vazio){ box.innerHTML = '<div class="fx-nota">Não achei gastos em ' + alvo + (d.base === "mes_atual" ? " neste mês" : " nos últimos 3 meses") + ". Confira a categoria ou as palavras.</div>"; return; }
@@ -3345,7 +3353,7 @@ var FLX = (function(){
     } else {
       var titulo = d.tipo === "parcelada" ? "Compra de " + fmt(d.valor_total) + " em " + d.parcelas + "x de " + fmt(d.valor_parcela)
         : (d.tipo === "entrada" ? "Entrada de " : "Saída de ") + fmt(d.valor) + (d.repetir === "mensal" ? " todo mês a partir de " : " em ") + flxDia(d.data);
-      h += "<h4>" + titulo + "</h4>";
+      h += "<h4>" + titulo + "</h4>" + simAvisoHtml(d.nao_recomendado, d.tipo === "saida");
       if(d.tipo === "parcelada") h += '<div class="fx-nota">Parcelas de ' + flxDia(d.primeira_parcela) + "/" + d.primeira_parcela.slice(0, 4) + " a " + flxDia(d.ultima_parcela) + "/" + d.ultima_parcela.slice(0, 4) +
         (d.vencimento_estimado ? " (vencimento estimado pelas suas faturas; o app não sabe o dia de fechamento do cartão)" : "") + ".</div>";
       var neg = function(v){ return '<span class="' + (v < 0 ? "fx-neg" : "") + '">' + fmt(v) + "</span>"; };
@@ -3356,7 +3364,7 @@ var FLX = (function(){
         simLinha("Dias no negativo", d.antes.dias_negativos, "<b>" + d.depois.dias_negativos + "</b>");
       if(d.proximas_faturas) ["primeiro_mes", "segundo_mes", "terceiro_mes"].forEach(function(k){ var f = d.proximas_faturas[k]; h += simLinha("Fatura de " + fmtMonthLabel(f.mes), fmt(f.antes), "<b>" + fmt(f.depois) + "</b>"); });
       h += "</tbody></table></div>";
-      if(d.depois.dias_negativos > d.antes.dias_negativos) h += '<div class="fx-alerta">⚠ Com a mudança, o saldo fica negativo a partir de <b>' + flxDia(d.primeiro_dia_negativo_depois) + "</b>.</div>";
+      if(d.depois.dias_negativos > d.antes.dias_negativos && !d.nao_recomendado) h += '<div class="fx-alerta">⚠ Com a mudança, o saldo fica negativo a partir de <b>' + flxDia(d.primeiro_dia_negativo_depois) + "</b>.</div>";
       if(!d.saldo_informado) h += '<div class="fx-nota fx-neg">Nenhum saldo informado: a conta parte de R$ 0,00. Use "Atualizar saldo" na tela inicial.</div>';
       if(d.tipo === "saida") h += '<div class="fx-nota">Mostra só o efeito no caixa. Juros economizados com antecipação ainda não entram na conta.</div>';
     }
