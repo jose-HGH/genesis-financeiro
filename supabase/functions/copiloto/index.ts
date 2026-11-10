@@ -23,7 +23,7 @@ import postgres from "npm:postgres@3.4.5";
 import { MENSAGENS, RECURSOS, SISTEMA_FIXO } from "./recursos.ts";
 import {
   custoMaximoUsd, custoUsd, divergencias, estimarTokens, impressaoDigital,
-  type ResumoBase, type Uso, validarResumo, valoresInventados,
+  type ResumoBase, type Uso, validarCardExplicar, validarResumo, valoresInventados,
 } from "./regras.ts";
 
 const ORIGENS = (Deno.env.get("ORIGENS_PERMITIDAS") ??
@@ -102,6 +102,10 @@ Deno.serve(async (req) => {
   if (!recurso || !recurso.ativo) return recusar(origem, 404, "recurso_indisponivel");
   if (validarResumo(corpo.resumo) !== null) return recusar(origem, 400, "resumo_invalido");
   const resumo = corpo.resumo as ResumoBase;
+  // Explicar: só os números do quadro, sem texto livre (ver regras.ts).
+  if (recurso.instrucaoPorCard && validarCardExplicar(resumo) !== null) return recusar(origem, 400, "resumo_invalido");
+  const instrucao = recurso.instrucao +
+    (recurso.instrucaoPorCard ? "\n\n" + (recurso.instrucaoPorCard[String(resumo.card)] ?? "") : "");
   const pergunta = recurso.aceitaPergunta && typeof corpo.pergunta === "string"
     ? corpo.pergunta.trim().slice(0, MAX_PERGUNTA_CHARS) : "";
   if (recurso.aceitaPergunta && !pergunta) return recusar(origem, 400, "resumo_invalido");
@@ -135,7 +139,7 @@ Deno.serve(async (req) => {
   }
 
   // 6. Reserva: o pior caso de duas chamadas (a original e uma nova tentativa)
-  const tokensEntrada = estimarTokens(SISTEMA_FIXO + resumoJson + recurso.instrucao + pergunta);
+  const tokensEntrada = estimarTokens(SISTEMA_FIXO + resumoJson + instrucao + pergunta);
   const reserva = 2 * custoMaximoUsd(recurso.modelo, tokensEntrada, recurso.maxTokensSaida);
   const [r] = await sql<{ pedido_id: string | null; motivo: string | null }[]>`
     select * from copiloto.reservar(${userId}::uuid, ${nomeRecurso}, ${recurso.modelo}, ${recurso.versaoPrompt}, ${reserva})`;
@@ -167,7 +171,7 @@ Deno.serve(async (req) => {
             { type: "text" as const, text: "RESUMO:\n" + resumoJson, cache_control: { type: "ephemeral" as const } },
             {
               type: "text" as const,
-              text: recurso.instrucao + (pergunta ? "\n\nPERGUNTA DA PESSOA:\n" + pergunta : "") +
+              text: instrucao + (pergunta ? "\n\nPERGUNTA DA PESSOA:\n" + pergunta : "") +
                 (tentativa > 1 ? "\n\nAtenção: a resposta anterior citou valores que não estão no RESUMO. Cite só valores do RESUMO." : ""),
             },
           ],

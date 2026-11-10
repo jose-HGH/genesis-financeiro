@@ -172,3 +172,47 @@ export function divergencias(
   }
   return ruins.sort();
 }
+
+// ---------------------------------------------------------------------
+// Botão "Explicar" (passo 3): os números do quadro vão junto do resumo
+// ---------------------------------------------------------------------
+
+/** Quadros que têm botão "Explicar". O nome é também o campo do resumo com os números. */
+export const CARDS_EXPLICAR = ["previsao", "fluxo", "diferencas"] as const;
+export type CardExplicar = typeof CARDS_EXPLICAR[number];
+
+const CHAVE_OK = /^[a-z_]{1,40}$/;
+// Texto só como data (AAAA-MM-DD ou AAAA-MM) ou rótulo curto: nada de texto livre,
+// para nenhuma descrição de lançamento (nomes, CPF) nem instrução ir para a IA.
+const TEXTO_OK = /^(\d{4}-\d{2}(-\d{2})?|[a-z_]{1,24})$/;
+const MAX_CAMPOS_CARD = 80;
+
+/**
+ * Valida o resumo do "Explicar": campo "card" com um quadro conhecido e o campo
+ * de mesmo nome com só números, verdadeiro/falso, datas e rótulos curtos, até 3
+ * níveis. Nenhum outro campo extra. Devolve a mensagem de erro ou null.
+ */
+export function validarCardExplicar(r: ResumoBase): string | null {
+  const card = r.card;
+  if (typeof card !== "string" || !(CARDS_EXPLICAR as readonly string[]).includes(card)) return "card desconhecido";
+  const extras = Object.keys(r).filter((k) => !["versao", "mes", "categorias", "card", card].includes(k));
+  if (extras.length) return `campo inesperado: ${extras[0]}`;
+  let campos = 0;
+  const visitar = (v: unknown, nivel: number): string | null => {
+    if (v === null || typeof v === "boolean") return null;
+    if (typeof v === "number") return Number.isFinite(v) ? null : "número inválido";
+    if (typeof v === "string") return TEXTO_OK.test(v) ? null : "texto não permitido";
+    if (typeof v !== "object" || Array.isArray(v)) return "tipo não permitido";
+    if (nivel > 3) return "níveis demais";
+    for (const [k, x] of Object.entries(v as Record<string, unknown>)) {
+      if (!CHAVE_OK.test(k)) return `nome de campo inválido: ${k}`;
+      if (++campos > MAX_CAMPOS_CARD) return "campos demais";
+      const e = visitar(x, nivel + 1);
+      if (e) return e;
+    }
+    return null;
+  };
+  const dados = r[card];
+  if (!dados || typeof dados !== "object" || Array.isArray(dados)) return "números do quadro ausentes";
+  return visitar(dados, 1);
+}
