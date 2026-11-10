@@ -284,7 +284,7 @@ const TERMO_OK = /^[a-z0-9]+( [a-z0-9]+){0,2}$/;
 const VALOR_MAX = 1_000_000;
 
 function normalizarTermo(t: string): string {
-  return t.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9 ]+/g, " ")
+  return t.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9 ]+/g, " ")
     .replace(/\s+/g, " ").trim();
 }
 function dinheiro(v: unknown): number | null {
