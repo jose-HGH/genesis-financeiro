@@ -163,6 +163,7 @@ Deno.serve(async (req) => {
         model: recurso.modelo,
         max_tokens: recurso.maxTokensSaida,
         output_config: { effort: recurso.esforco },
+        ...(recurso.semPensamento ? { thinking: { type: "disabled" as const } } : {}),
         // Ordem fixa para o cache: instruções iguais para todos → resumo da pessoa → pedido.
         system: [{ type: "text" as const, text: SISTEMA_FIXO, cache_control: { type: "ephemeral" as const } }],
         messages: [{
@@ -194,7 +195,7 @@ Deno.serve(async (req) => {
         break;
       }
       const candidato = textoDaResposta(msg as { content: Array<{ type: string; text?: string }> });
-      if (!candidato) { motivo = "resposta_vazia"; continue; }
+      if (!candidato) { motivo = msg.stop_reason === "max_tokens" ? "limite_de_saida" : "resposta_vazia"; continue; }
       if (valoresInventados(candidato, resumo).length === 0) {
         texto = candidato; status = "ok"; motivo = null;
       } else {

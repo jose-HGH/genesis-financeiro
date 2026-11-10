@@ -18,6 +18,9 @@ export interface Recurso {
   instrucao: string;
   // Só no "explicar": um trecho a mais conforme o quadro (campo "card" do resumo).
   instrucaoPorCard?: Record<string, string>;
+  // Sem raciocínio interno: no Haiku 5.5 ele vem ligado e pode gastar todo o
+  // limite de saída sem sobrar texto (aconteceu no explicar-1).
+  semPensamento?: boolean;
 }
 
 // Instruções fixas, iguais para todas as pessoas e todos os recursos.
@@ -58,7 +61,7 @@ export const RECURSOS: Record<string, Recurso> = {
   // da conciliação. O app manda os números que o quadro já mostra; nada de texto livre.
   explicar: {
     modelo: "claude-haiku-5-5", esforco: "low", maxTokensSaida: 700,
-    versaoPrompt: "explicar-1", ativo: true, aceitaPergunta: false,
+    versaoPrompt: "explicar-2", ativo: true, aceitaPergunta: false, semPensamento: true,
     instrucao: `A pessoa apertou o botão "Explicar" num quadro da tela. O campo "card" do RESUMO diz qual quadro, e o campo com esse mesmo nome traz os números que o quadro mostra, com nomes que já dizem o que cada um é. Explique em até dois parágrafos curtos, com no máximo 90 palavras no total: o que o número principal quer dizer e de onde ele vem. Cite no máximo quatro valores em reais, copiados do RESUMO. Não fale de campos zerados, vazios ou ausentes. Não use as categorias de consumo, a menos que ajudem a entender o quadro. Termine com uma frase curta sobre o que a pessoa pode conferir na tela, sem dar ordens.`,
     instrucaoPorCard: {
       previsao: `Quadro "Previsão para o fim do mês". Se "com_saldo" for true, a previsão parte do saldo de hoje das contas, soma o que ainda vai entrar até o fim do mês ("a_receber_ate_o_fim") e tira o que ainda vai sair ("a_pagar_ate_o_fim", que já inclui a fatura pendente e as despesas previstas). Se "com_saldo" for false, não há saldo informado: a previsão é o resultado das receitas menos as despesas do mês, contando as previstas. "situacao" vale "ok" (sobra folga), "aperto" (sobra pouco, menos de 10% da renda do mês) ou "neg" (as contas passam o saldo). "resultado_do_mes" é receitas menos despesas do mês, sem o saldo: diga isso se ele for diferente da previsão.`,
