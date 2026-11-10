@@ -344,10 +344,14 @@ export function validarCenario(
     return { cenario: { ...vazio, tipo, valor, data, repetir } };
   }
 
-  // parcelada
-  const parcelas = typeof o.parcelas === "number" && Number.isInteger(o.parcelas) ? o.parcelas : NaN;
-  if (!(parcelas >= 1 && parcelas <= 48)) return { erro: "parcelas fora de 1 a 48" };
+  // parcelada; sem número de parcelas = comparar opções (o app escolhe por regra)
+  let parcelas: number | null = null;
+  if (o.parcelas !== null && o.parcelas !== undefined) {
+    parcelas = typeof o.parcelas === "number" && Number.isInteger(o.parcelas) ? o.parcelas : NaN;
+    if (!(parcelas >= 1 && parcelas <= 48)) return { erro: "parcelas fora de 1 a 48" };
+  }
   const valor = dinheiro(o.valor), valorParcela = dinheiro(o.valor_parcela);
   if (valor === null && valorParcela === null) return { erro: "parcelada sem valor" };
+  if (parcelas === null && valor === null) return { erro: "comparar parcelas precisa do valor total" };
   return { cenario: { ...vazio, tipo, parcelas, valor: valorParcela === null ? valor : null, valor_parcela: valorParcela, data } };
 }

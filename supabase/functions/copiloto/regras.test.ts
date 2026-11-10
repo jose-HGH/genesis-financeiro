@@ -109,6 +109,10 @@ test("simulador: saída, entrada e parcelada", () => {
   assert.equal(q.valor, null); assert.equal(q.valor_parcela, 250);
   ruim(validarCenario({ ...base, tipo: "parcelada", valor: 3000, parcelas: 60 }, CATS, "2026-11-10"));
   ruim(validarCenario({ ...base, tipo: "parcelada", parcelas: 10 }, CATS, "2026-11-10"));
+  // "em quantas vezes é melhor?": sem parcelas, com o total, vira comparação
+  const cmp = ok(validarCenario({ ...base, tipo: "parcelada", valor: 400, parcelas: null }, CATS, "2026-11-10"));
+  assert.equal(cmp.parcelas, null); assert.equal(cmp.valor, 400);
+  ruim(validarCenario({ ...base, tipo: "parcelada", valor_parcela: 40, parcelas: null }, CATS, "2026-11-10"));
   assert.equal(ok(validarCenario({ ...base, tipo: "nao_entendi", valor: 9 }, CATS, "2026-11-10")).valor, null);
   ruim(validarCenario({ tipo: "apagar_tudo" }, CATS, "2026-11-10"));
   ruim(validarCenario("texto", CATS, "2026-11-10"));

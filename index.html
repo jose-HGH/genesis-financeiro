@@ -362,7 +362,7 @@
   .sim-form{display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:10px; align-items:end;}
   .sim-form [hidden]{display:none;} .sim-acao{display:flex;} .sim-acao .btn{width:100%;}
   .sim-res{margin-top:14px; display:flex; flex-direction:column; gap:10px;} .sim-res h4{margin:0; font-size:15px;}
-  .sim-tab{width:100%; font-size:13px;} .sim-tab th, .sim-tab td{text-align:right; padding:6px 8px;} .sim-tab th:first-child{text-align:left; font-weight:500;}
+  .sim-tab{width:100%; font-size:13px;} .sim-sug{background:var(--soft);} .sim-tab th, .sim-tab td{text-align:right; padding:6px 8px;} .sim-tab th:first-child{text-align:left; font-weight:500;}
   .ia-btn{display:inline-flex; align-items:center; gap:6px; height:32px; padding:0 14px; border-radius:999px; border:1px solid var(--line); background:var(--accent-soft); color:var(--ink); font:inherit; font-size:13px; font-weight:600; cursor:pointer;}
   .ia-btn:hover{border-color:var(--ink-2);}
   .ia-btn:disabled{opacity:.6; cursor:progress;}
@@ -3181,9 +3181,28 @@ var FLX = (function(){
     if(s1.primeiroNeg) d.primeiro_dia_negativo_depois = s1.primeiroNeg;
     return {dados: d, extra: extra.length};
   }
+  // "Em quantas vezes é melhor?": compara as opções e aponta uma por regra fixa (sem IA):
+  // a com menos parcelas que não deixa nenhum dia negativo; se nenhuma evita, a de pior dia menos negativo.
+  var SIM_OPCOES = [[1, "uma_vez"], [2, "duas_vezes"], [3, "tres_vezes"], [4, "quatro_vezes"], [5, "cinco_vezes"], [6, "seis_vezes"], [10, "dez_vezes"], [12, "doze_vezes"]];
+  function simComparar(c){
+    var opcoes = {}, lista = [], base = null;
+    SIM_OPCOES.forEach(function(o){
+      var r = simFluxo({tipo: "parcelada", valor: c.valor, parcelas: o[0], data: c.data}).dados;
+      if(!base) base = r;
+      var op = {parcelas: o[0], valor_parcela: r.valor_parcela, menor_saldo: r.depois.menor_saldo, dia_menor_saldo: r.depois.dia_menor_saldo, dias_negativos: r.depois.dias_negativos, saldo_no_fim_do_horizonte: r.depois.saldo_no_fim_do_horizonte};
+      opcoes[o[1]] = op; lista.push([o[1], op]);
+    });
+    var semNeg = lista.filter(function(x){ return x[1].dias_negativos === 0; }), sug;
+    if(semNeg.length) sug = semNeg[0];
+    else sug = lista.slice().sort(function(a, b){ return b[1].menor_saldo - a[1].menor_saldo || a[1].parcelas - b[1].parcelas; })[0];
+    return {dados: {tipo: "parcelada_comparar", valor_total: simC2(c.valor), opcoes: opcoes, sugerida: sug[0], regra: semNeg.length ? "menos_parcelas_sem_negativo" : "nenhuma_evita_negativo",
+      sem_compra: {menor_saldo: base.antes.menor_saldo, dias_negativos: base.antes.dias_negativos, saldo_no_fim_do_horizonte: base.antes.saldo_no_fim_do_horizonte}, primeira_parcela: base.primeira_parcela, vencimento_estimado: base.vencimento_estimado,
+      saldo_informado: base.saldo_informado, horizonte_ate: base.horizonte_ate}};
+  }
   function simCalcular(c){
     if(!c) return null;
     if(c.tipo === "cortar") return simCortar(c);
+    if(c.tipo === "parcelada" && !c.parcelas) return simComparar(c);
     return simFluxo(c);
   }
 
@@ -3200,9 +3219,10 @@ var FLX = (function(){
     var data = $f("simData").value || null;
     if(data && data < todayISO()) return {erro: "A data precisa ser de hoje em diante."};
     if(tipo === "parcelada"){
-      var n = Math.round(Number($f("simParcelas").value)), tot = lerValorBR($f("simValor").value), parc = lerValorBR($f("simValorParcela").value);
-      if(!(n >= 1 && n <= 48)) return {erro: "Número de parcelas de 1 a 48."};
+      var nTxt = String($f("simParcelas").value || "").trim(), n = nTxt ? Math.round(Number(nTxt)) : null, tot = lerValorBR($f("simValor").value), parc = lerValorBR($f("simValorParcela").value);
+      if(n !== null && !(n >= 1 && n <= 48)) return {erro: "Número de parcelas de 1 a 48 (ou deixe vazio para comparar)."};
       if(!(tot > 0) && !(parc > 0)) return {erro: "Informe o valor total ou o valor de cada parcela."};
+      if(n === null && !(tot > 0)) return {erro: "Para comparar parcelas, informe o valor total."};
       return {tipo: tipo, valor: parc > 0 ? null : tot, valor_parcela: parc > 0 ? parc : null, parcelas: n, data: data};
     }
     var v = lerValorBR($f("simValor").value);
@@ -3220,7 +3240,7 @@ var FLX = (function(){
       sel.value = c.categoria || ""; $f("simTermos").value = (c.termos || []).join(", "); $f("simPct").value = c.percentual || 50;
     } else {
       $f("simValor").value = simValorTxt(c.valor); $f("simData").value = c.data || "";
-      if(c.tipo === "parcelada"){ $f("simParcelas").value = c.parcelas || ""; $f("simValorParcela").value = simValorTxt(c.valor_parcela); }
+      if(c.tipo === "parcelada"){ $f("simParcelas").value = c.parcelas || ""; $f("simValorParcela").value = c.parcelas ? simValorTxt(c.valor_parcela) : ""; }
       else $f("simRepetir").value = c.repetir || "unica";
     }
     simAjustaForm();
@@ -3245,7 +3265,7 @@ var FLX = (function(){
       '<div data-sim-para="cortar"><label for="simTermos">Palavras na descrição (opcional)</label><input id="simTermos" maxlength="120" placeholder="ifood, rappi"></div>' +
       '<div data-sim-para="cortar"><label for="simPct">Cortar quanto (%)</label><input id="simPct" type="number" min="1" max="100" value="50"></div>' +
       '<div data-sim-para="saida entrada parcelada"><label for="simValor" id="simValorL">Valor (R$)</label><input id="simValor" inputmode="decimal" placeholder="0,00"></div>' +
-      '<div data-sim-para="parcelada"><label for="simParcelas">Parcelas</label><input id="simParcelas" type="number" min="1" max="48" value="10"></div>' +
+      '<div data-sim-para="parcelada"><label for="simParcelas">Parcelas (vazio = comparar)</label><input id="simParcelas" type="number" min="1" max="48" placeholder="comparar"></div>' +
       '<div data-sim-para="parcelada"><label for="simValorParcela">Ou valor de cada parcela (R$)</label><input id="simValorParcela" inputmode="decimal" placeholder="0,00"></div>' +
       '<div data-sim-para="saida entrada"><label for="simRepetir">Repete</label><select id="simRepetir"><option value="unica">Só uma vez</option><option value="mensal">Todo mês</option></select></div>' +
       '<div data-sim-para="saida entrada parcelada"><label for="simData" id="simDataL">Quando</label><input id="simData" type="date"></div>' +
@@ -3272,7 +3292,24 @@ var FLX = (function(){
     if(!SIMD.cen){ box.innerHTML = ""; return; }
     var r = simCalcular(SIMD.cen); SIMD.res = r;
     var d = r.dados, h = '<div class="sim-res">';
-    if(d.tipo === "cortar"){
+    if(d.tipo === "parcelada_comparar"){
+      var nomeOp = function(op){ return op.parcelas === 1 ? "À vista" : op.parcelas + "x de " + fmt(op.valor_parcela); };
+      var negC = function(v){ return '<span class="' + (v < 0 ? "fx-neg" : "") + '">' + fmt(v) + "</span>"; };
+      h += "<h4>Em quantas vezes parcelar " + fmt(d.valor_total) + "?</h4>" +
+        '<div class="table-scroll"><table class="sim-tab"><thead><tr><th>Opção</th><th>Menor saldo até ' + flxDia(d.horizonte_ate) + "</th><th>Saldo em " + flxDia(d.horizonte_ate) + "</th><th>Dias no negativo</th></tr></thead><tbody>" +
+        "<tr><th>Sem a compra</th><td>" + negC(d.sem_compra.menor_saldo) + "</td><td>" + negC(d.sem_compra.saldo_no_fim_do_horizonte) + "</td><td>" + d.sem_compra.dias_negativos + "</td></tr>";
+      SIM_OPCOES.forEach(function(o){
+        var op = d.opcoes[o[1]], s = o[1] === d.sugerida;
+        h += "<tr" + (s ? ' class="sim-sug"' : "") + "><th>" + nomeOp(op) + (s ? ' <span class="tag">sugerida</span>' : "") + "</th><td>" + negC(op.menor_saldo) + " <small>" + flxDia(op.dia_menor_saldo) + "</small></td><td>" + negC(op.saldo_no_fim_do_horizonte) + "</td><td>" + op.dias_negativos + "</td></tr>";
+      });
+      h += "</tbody></table></div>";
+      var sg = d.opcoes[d.sugerida];
+      h += '<div class="' + (d.regra === "menos_parcelas_sem_negativo" ? "fx-ok" : "fx-alerta") + '">' + (d.regra === "menos_parcelas_sem_negativo"
+        ? "<b>" + nomeOp(sg) + "</b> é a opção com menos parcelas que não deixa nenhum dia negativo. Menos parcelas = menos meses de fatura comprometida."
+        : "Nenhuma opção evita dia negativo. A que deixa o pior dia menos negativo é <b>" + nomeOp(sg) + "</b>.") + "</div>" +
+        '<div class="fx-nota">A conta supõe parcelas sem juros, com a 1ª em ' + flxDia(d.primeira_parcela) + (d.vencimento_estimado ? " (vencimento estimado pelas suas faturas)" : "") + ". Se a loja cobrar juros a partir de certo número de parcelas, o total muda.</div>";
+      if(!d.saldo_informado) h += '<div class="fx-nota fx-neg">Nenhum saldo informado: a conta parte de R$ 0,00. Use "Atualizar saldo" na tela inicial.</div>';
+    } else if(d.tipo === "cortar"){
       var alvo = (d.categoria ? "«" + flxEsc(d.categoria) + "»" : "todas as categorias") + (d.termos ? ", só o que tem «" + flxEsc(d.termos) + "» na descrição" : "");
       if(r.vazio){ box.innerHTML = '<div class="fx-nota">Não achei gastos em ' + alvo + (d.base === "mes_atual" ? " neste mês" : " nos últimos 3 meses") + ". Confira a categoria ou as palavras.</div>"; return; }
       h += "<h4>Cortar " + d.percentual + "% de " + alvo + "</h4>" +
