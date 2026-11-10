@@ -1,9 +1,10 @@
 // Cada recurso de IA: modelo, esforço, limite de saída, versão do prompt e
 // se já está ligado. Quem escolhe o modelo é o servidor, nunca o app.
 //
-// Passo 1 (Base) liga só o recurso "teste", que não aparece para ninguém:
+// Passo 1 (Base) ligou o recurso "teste", que não aparece para ninguém:
 // serve para provar que um pedido passa por todas as travas. Os outros
 // entram ligados (ativo: true) cada um no seu passo, com o prompt próprio.
+// Passo 3 ligou o "explicar".
 
 export type Esforco = "low" | "medium";
 
@@ -15,6 +16,8 @@ export interface Recurso {
   ativo: boolean;
   aceitaPergunta: boolean;
   instrucao: string;
+  // Só no "explicar": um trecho a mais conforme o quadro (campo "card" do resumo).
+  instrucaoPorCard?: Record<string, string>;
 }
 
 // Instruções fixas, iguais para todas as pessoas e todos os recursos.
@@ -51,11 +54,17 @@ export const RECURSOS: Record<string, Recurso> = {
     versaoPrompt: "teste-1", ativo: true, aceitaPergunta: false,
     instrucao: "Em uma frase, diga qual categoria teve o maior consumo no mês do RESUMO e o valor dela, copiado do RESUMO.",
   },
-  // Passo 3: botão "Explicar" nos cards.
+  // Passo 3: botão "Explicar" nos cards de previsão, fluxo de caixa e diferença
+  // da conciliação. O app manda os números que o quadro já mostra; nada de texto livre.
   explicar: {
     modelo: "claude-haiku-5-5", esforco: "low", maxTokensSaida: 700,
-    versaoPrompt: "explicar-0", ativo: false, aceitaPergunta: false,
-    instrucao: "(definida no passo 3)",
+    versaoPrompt: "explicar-1", ativo: true, aceitaPergunta: false,
+    instrucao: `A pessoa apertou o botão "Explicar" num quadro da tela. O campo "card" do RESUMO diz qual quadro, e o campo com esse mesmo nome traz os números que o quadro mostra, com nomes que já dizem o que cada um é. Explique em até dois parágrafos curtos, com no máximo 90 palavras no total: o que o número principal quer dizer e de onde ele vem. Cite no máximo quatro valores em reais, copiados do RESUMO. Não fale de campos zerados, vazios ou ausentes. Não use as categorias de consumo, a menos que ajudem a entender o quadro. Termine com uma frase curta sobre o que a pessoa pode conferir na tela, sem dar ordens.`,
+    instrucaoPorCard: {
+      previsao: `Quadro "Previsão para o fim do mês". Se "com_saldo" for true, a previsão parte do saldo de hoje das contas, soma o que ainda vai entrar até o fim do mês ("a_receber_ate_o_fim") e tira o que ainda vai sair ("a_pagar_ate_o_fim", que já inclui a fatura pendente e as despesas previstas). Se "com_saldo" for false, não há saldo informado: a previsão é o resultado das receitas menos as despesas do mês, contando as previstas. "situacao" vale "ok" (sobra folga), "aperto" (sobra pouco, menos de 10% da renda do mês) ou "neg" (as contas passam o saldo). "resultado_do_mes" é receitas menos despesas do mês, sem o saldo: diga isso se ele for diferente da previsão.`,
+      fluxo: `Quadro "Fluxo de caixa": o app simula o saldo dia a dia, de hoje até o fim do mês, com as entradas e saídas que já conhece. "menor_saldo" é o saldo no pior dia ("dia_menor_saldo"). Se "dias_negativos" for maior que zero, explique o descasamento: a partir de que dia o saldo fica negativo ("primeiro_dia_negativo"), quanto falta no pior dia ("buraco") e quanto isso pode custar de juros no período ("juros_estimados", a uma taxa média de "juros_pct_mes" por cento ao mês). Se existir "reorganizacao", diga que o app achou um jeito de evitar o negativo mudando a data de contas que a pessoa deixou mover, e que nada muda sem ela apertar "Aplicar". Se existir "sem_saida", diga com cuidado que mudar datas dentro do mês não resolve, quanto falta ("falta") e, se existir "volta_ao_positivo", em que dia o saldo volta ao positivo. Se "dias_negativos" for zero, diga de forma simples que nenhum dia fica negativo. Se "saldo_informado" for false, lembre que o calendário partiu de zero porque não há saldo informado.`,
+      diferencas: `Quadro "Conciliação" de uma conta: o app pega o saldo anterior do extrato do banco, soma os lançamentos que a pessoa tem no app para essa conta no período ("saldo_calculado") e compara com o saldo final que o banco informou ("saldo_banco"). "diferenca" é o tamanho da diferença; "lado" vale "banco_maior" (o banco tem mais do que o app calculou) ou "app_maior". Explique de onde a diferença costuma vir usando só os grupos que existirem, cada um com "quantidade" e "valor": "manuais" (lançamentos digitados à mão com o mesmo valor de uma linha do extrato, ainda sem vínculo), "lixeira" (linhas do extrato que foram lançadas e depois apagadas), "nunca_salvas" (linhas do extrato que não existem no app) e "fora_do_extrato" (lançamentos do app no período que não aparecem no extrato, por exemplo pagos em dinheiro). Não diga que os grupos explicam a diferença inteira nem que somam a diferença. Diga que a janela de conciliação mostra cada linha e o botão para resolver.`,
+    },
   },
   // Passo 5: carta do mês.
   resumo_mensal: {

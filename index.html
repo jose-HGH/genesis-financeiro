@@ -349,9 +349,21 @@
   .resumo-sec span{font-size:12px; color:var(--ink-muted);}
   .resumo-sec strong{font-family:var(--font-num); font-size:19px; font-weight:600; overflow-wrap:anywhere;}
   @media (max-width:560px){.resumo-sec{grid-template-columns:1fr; gap:12px;}}
-  .resumo-rodape{display:flex; justify-content:space-between; gap:16px; margin-top:8px;}
+  .resumo-rodape{display:flex; justify-content:space-between; align-items:center; gap:8px 16px; margin-top:8px; flex-wrap:wrap;}
   .resumo-link{background:none; border:0; padding:8px 0; font:inherit; font-size:13px; color:var(--ink-2); text-decoration:underline; text-underline-offset:3px; cursor:pointer;}
   .resumo-link:hover{color:var(--ink);}
+  .ia-barra{display:flex; justify-content:flex-end;}
+  .ia-barra.resumo-ia{display:contents;}
+  .ia-barra.fx-ia, .ia-barra.conc-ia{margin:4px 0 10px;}
+  .ia-btn{display:inline-flex; align-items:center; gap:6px; height:32px; padding:0 14px; border-radius:999px; border:1px solid var(--line); background:var(--accent-soft); color:var(--ink); font:inherit; font-size:13px; font-weight:600; cursor:pointer;}
+  .ia-btn:hover{border-color:var(--ink-2);}
+  .ia-btn:disabled{opacity:.6; cursor:progress;}
+  .ia-btn:focus-visible{outline:2px solid var(--ink); outline-offset:3px;}
+  .ia-caixa{border:1px solid var(--line); border-left:3px solid var(--accent-ink-v5, var(--ink)); background:var(--soft); border-radius:12px; padding:12px 14px; margin:4px 0 10px; font-size:14px; line-height:1.5; color:var(--ink);}
+  .ia-caixa p{margin:0 0 8px;}
+  .ia-caixa.ia-erro{border-left-color:var(--muted, #888);}
+  .ia-rodape{display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; font-size:12px; color:var(--muted, #666);}
+  .ia-rodape .resumo-link{padding:4px 0; font-size:12px;}
   .resumo-link:focus-visible, .resumo-linha button:focus-visible{outline:2px solid var(--ink); outline-offset:3px; border-radius:4px;}
   .resumo-det{display:flex; flex-direction:column; gap:2px; margin-top:6px; padding:12px 14px; border-radius:12px; background:var(--surface-alt); font-size:14px;}
   .resumo-linha{display:flex; justify-content:space-between; align-items:baseline; gap:12px; padding:7px 0; font-variant-numeric:tabular-nums;}
@@ -2959,6 +2971,8 @@ var FLX = (function(){
     }
     var viewObj = {sim: view};
     var menor = an.base.menor;
+    COPI.dados.fluxo = {card: "fluxo", ref: refISO(), dados: copilotoDadosFluxo(c)};
+    h += copilotoBotao("fluxo", "fx-ia") + copilotoCaixa("fluxo");
     h += '<div class="fx-kpis">' +
       '<div class="fx-kpi"><small>' + (c.esc === "meu" ? "Saldo de hoje" : "Ponto de partida") + "</small><b>" + fmt(c.ini.valor) + "</b></div>" +
       '<div class="fx-kpi"><small>Menor saldo no período</small><b class="' + (menor && menor.saldo < 0 ? "fx-neg" : "") + '">' + fmt(menor ? menor.saldo : 0) + '</b><small>' + (menor ? flxDia(menor.data) : "") + "</small></div>" +
@@ -4121,6 +4135,11 @@ var FLX = (function(){
     if(!res.aplicavel){ el.innerHTML = '<p class="conc-resumo">Esta conta ainda não tem as linhas do extrato guardadas. Envie o PDF de novo e use "Guardar as linhas só para conferência".</p>'; return; }
     var html = '<p class="conc-resumo">Extrato de '+fmtDate(res.de)+' a '+fmtDate(res.ate)+': saldo anterior '+fmt(res.saldoAnterior)+' + lançamentos = <strong>'+fmt(res.calculado)+'</strong>; o banco diz <strong>'+fmt(res.saldoFinal)+'</strong>. '+
       (res.ok ? '<span class="conc-ok">✓ Conciliada.</span>' : '<span class="conc-dif">Diferença de '+fmt(Math.abs(res.diff))+'.</span>')+'</p>';
+    if(!res.ok){
+      var chIa = "diferencas|" + chave;
+      COPI.dados[chIa] = {card: "diferencas", ref: refISO(), dados: copilotoDadosConciliacao(chave, res)};
+      html += copilotoBotao(chIa, "conc-ia") + copilotoCaixa(chIa);
+    }
     var grupo = function(titulo, texto, itens, fn, todos){
       if(!itens.length) return "";
       return '<div class="conc-grupo"><h4>'+titulo+' ('+itens.length+')</h4><p>'+texto+'</p>'+itens.map(fn).join("")+
@@ -4324,7 +4343,7 @@ var FLX = (function(){
     card.className = "resumo-card fade-in";
     var rodape = function(){
       return '<div class="resumo-rodape"><button type="button" class="resumo-link" data-resumo="detalhes" aria-expanded="'+(resumoAberto ? "true" : "false")+'">'+(resumoAberto ? "Ocultar detalhes" : "Ver detalhes")+'</button>'+
-        '<button type="button" class="resumo-link" data-resumo="atualizar-saldo">Atualizar saldo</button><button type="button" class="resumo-link" data-resumo="transferir">Transferir entre contas</button></div>';
+        '<button type="button" class="resumo-link" data-resumo="atualizar-saldo">Atualizar saldo</button><button type="button" class="resumo-link" data-resumo="transferir">Transferir entre contas</button>'+copilotoBotao("previsao", "resumo-ia")+'</div>';
     };
     // Sem saldo informado nem extrato importado: nada de números zerados.
     if(mesAtual && !chaves.length){
@@ -4340,13 +4359,21 @@ var FLX = (function(){
     var renda = r.recTotal || (state.patrimonio && state.patrimonio.rendaMensal) || 0;
     var sit = situacaoPrevisao(valor, renda);
     var resultado = Math.round((r.recTotal - r.despTotal) * 100) / 100;
+    var c2 = function(v){ return Math.round((Number(v) || 0) * 100) / 100; };
+    var dadosIa = usaSaldo
+      ? {com_saldo: true, fim_do_mes: fimMes, previsao: c2(valor), situacao: sit.estado, saldo_hoje: c2(base), contas_com_saldo: chaves.length,
+         a_receber_ate_o_fim: c2(r.recPend), a_pagar_ate_o_fim: c2(r.despPend + r.prevDesp), fatura_pendente: c2(computeHeroBreakdown(ref, r).faturaPend),
+         despesas_previstas: c2(r.prevDesp), receitas_do_mes: c2(r.recTotal), despesas_do_mes: c2(r.despTotal), resultado_do_mes: resultado}
+      : {com_saldo: false, fim_do_mes: fimMes, previsao: c2(valor), situacao: sit.estado, receitas_do_mes: c2(r.recTotal + r.prevRec),
+         despesas_do_mes: c2(r.despTotal + r.prevDesp), receitas_previstas: c2(r.prevRec), despesas_previstas: c2(r.prevDesp), resultado_do_mes: resultado};
+    COPI.dados.previsao = {card: "previsao", ref: ref, dados: dadosIa};
     var html = '<div class="resumo-titulo">Previsão para '+fmtDate(fimMes)+'</div>'+
       '<div class="resumo-valor resumo-'+sit.estado+'">'+fmt(valor)+'</div>'+
       '<p class="resumo-frase">'+sit.frase+'</p>'+
       '<div class="resumo-sec">'+
         '<div><span>'+(usaSaldo ? "Saldo hoje" : "Receitas do mês")+'</span><strong>'+fmt(usaSaldo ? base : r.recTotal)+'</strong></div>'+
         '<div><span>Resultado de '+nomeMes+'</span><strong>'+fmt(resultado)+'</strong></div>'+
-      '</div>'+saldoIdadeHtml()+conciliacaoHtml();
+      '</div>'+copilotoCaixa("previsao")+saldoIdadeHtml()+conciliacaoHtml();
     if(resumoAberto){
       var itens = function(lista, vazio){
         return lista.length ? '<ul class="resumo-itens">'+lista.map(function(t){
@@ -9298,6 +9325,7 @@ var CAIXA = (function(){
     var uidSaindo = state.uid;
     sb.auth.signOut().then(function(){
       state.mode = "local"; state.uid = null; state.col = null; famLimparCache(uidSaindo); famReset();
+      COPI.ok = false; COPI.uid = null; COPI.resp = {}; COPI.dados = {};
       showAuthUI(null);
       initLocal();
       toast("Você saiu da conta na nuvem.");
@@ -9308,6 +9336,7 @@ var CAIXA = (function(){
   // As versões exigidas vêm do servidor (public.termos_versoes). Se o banco
   // ainda não tiver essas tabelas, nada aqui atrapalha o app: só não pede.
   var TERMOS_PENDENTE_KEY = "genesis.aceitePendente";
+  var COPI = {ok: false, uid: null, dados: {}, resp: {}}; // copiloto: botão Explicar (ver mais abaixo)
   var termosAtual = null; // {uid, faltam: ["termos", ...], versoes: {...}}
   function termosGuardarAceitePendente(email){
     try{ localStorage.setItem(TERMOS_PENDENTE_KEY, JSON.stringify({email: String(email || "").toLowerCase(), em: new Date().toISOString()})); }catch(e){}
@@ -9334,6 +9363,7 @@ var CAIXA = (function(){
       var versoes = r[0].data, feitos = {};
       (r[1].data || []).forEach(function(a){ feitos[a.documento + "|" + a.versao] = true; });
       var testador = !r[2].error && r[2].data && r[2].data.testador === "ativo";
+      copilotoAplicarStatus(uid, r[2].error ? null : r[2].data);
       var docs = testador ? ["termos", "privacidade", "ia"] : ["termos", "privacidade"];
       var faltam = docs.filter(function(d){ return versoes[d] && !feitos[d + "|" + versoes[d]]; });
       if(!faltam.length) return;
@@ -9381,6 +9411,7 @@ var CAIXA = (function(){
       document.getElementById("termosModal").hidden = true;
       try{ localStorage.removeItem(TERMOS_PENDENTE_KEY); }catch(e){}
       toast("Obrigado. Aceite registrado.");
+      copilotoCarregarStatus();
     }).catch(function(err){
       btn.disabled = false;
       st.textContent = "Não foi possível salvar agora: " + (err && err.message ? err.message : "erro de conexão"); st.className = "auth-status error";
@@ -9410,6 +9441,100 @@ var CAIXA = (function(){
     var mes = mr.first.getFullYear() + "-" + String(mr.first.getMonth() + 1).padStart(2, "0");
     return {versao: 1, mes: mes, categorias: cats};
   }
+  // ---------- Copiloto: botão "Explicar" nos quadros (passo 3) ----------
+  // O sistema calcula, a IA explica. Cada quadro guarda em COPI.dados os números que já mostra
+  // (só números, datas e rótulos curtos: nada de descrição de lançamento). O botão aparece só
+  // para testador ativo, com o consentimento de IA em dia e a IA ligada (public.copiloto_meu_status);
+  // o servidor confere tudo de novo a cada pedido.
+  function copilotoAplicarStatus(uid, st){
+    var ok = !!(st && st.testador === "ativo" && st.liberado && st.aceites_em_dia);
+    var mudou = ok !== COPI.ok || uid !== COPI.uid;
+    COPI.ok = ok; COPI.uid = uid;
+    if(!ok) COPI.resp = {};
+    if(mudou){ try{ renderHero(refISO()); renderFluxo(); renderConciliacao(); }catch(e){ if(window.console) console.error(e); } }
+  }
+  function copilotoCarregarStatus(){
+    if(!sb || state.mode !== "db") return;
+    var uid = state.uid;
+    sb.rpc("copiloto_meu_status").then(function(r){ copilotoAplicarStatus(uid, r.error ? null : r.data); }).catch(function(){});
+  }
+  function copilotoSig(d){ return d ? monthKey(d.ref) + "|" + JSON.stringify(d.dados) : ""; }
+  function copilotoBotao(chave, classe){
+    if(!COPI.ok || state.mode !== "db") return "";
+    var r = COPI.resp[chave], carregando = r && r.carregando && r.sig === copilotoSig(COPI.dados[chave]);
+    return '<div class="ia-barra ' + (classe || "") + '"><button type="button" class="ia-btn" data-ia-explicar="' + escapeAttr(chave) + '"' + (carregando ? " disabled" : "") + '>' +
+      '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/></svg>' +
+      (carregando ? "Explicando…" : "Explicar") + "</button></div>";
+  }
+  function copilotoCaixa(chave){
+    var r = COPI.resp[chave];
+    if(!COPI.ok || !r || r.carregando || r.sig !== copilotoSig(COPI.dados[chave])) return "";
+    var corpo = window.__v5hide ? "<p>Os valores estão ocultos. Mostre os valores para ler a explicação.</p>"
+      : String(r.texto || "").split(/\n\s*\n/).map(function(p){ return "<p>" + escapeAttr(p.trim()).replace(/\n/g, "<br>") + "</p>"; }).join("");
+    return '<div class="ia-caixa' + (r.erro ? " ia-erro" : "") + '" role="status">' + corpo +
+      '<div class="ia-rodape"><span>' + (r.erro ? "Os números do quadro continuam valendo." : "Texto escrito por IA a partir dos números deste quadro. Os números são do app.") + "</span>" +
+      '<button type="button" class="resumo-link" data-ia-fechar="' + escapeAttr(chave) + '">Fechar</button></div></div>';
+  }
+  function copilotoRedesenhar(chave){
+    if(chave === "previsao") renderHero(refISO());
+    else if(chave === "fluxo") renderFluxo();
+    else renderConciliacao();
+  }
+  function copilotoExplicar(chave){
+    var d = COPI.dados[chave];
+    if(!d || !COPI.ok || !sb || state.mode !== "db") return;
+    var sig = copilotoSig(d), atual = COPI.resp[chave];
+    if(atual && atual.carregando) return;
+    COPI.resp[chave] = {sig: sig, carregando: true};
+    copilotoRedesenhar(chave);
+    var resumo = copilotoResumo(d.ref);
+    resumo.card = d.card; resumo[d.card] = d.dados;
+    sb.functions.invoke("copiloto", {body: {recurso: "explicar", resumo: resumo}}).then(function(r){
+      if(r.error && r.error.context && typeof r.error.context.json === "function") return r.error.context.json().catch(function(){ return {ok: false}; });
+      return r.error ? {ok: false} : r.data;
+    }).catch(function(){ return {ok: false}; }).then(function(j){
+      j = j || {};
+      COPI.resp[chave] = {sig: sig, texto: j.ok ? j.texto : (j.mensagem || "O copiloto não respondeu agora. Tente de novo em instantes."), erro: !j.ok};
+      copilotoRedesenhar(chave);
+    });
+  }
+  function copilotoDadosFluxo(c){
+    var an = c.an, b = an.base, menor = b.menor, c2 = function(v){ return Math.round((Number(v) || 0) * 100) / 100; };
+    var d = {escopo: c.esc === "familia" ? "familia" : "meu", saldo_informado: c.esc === "meu" ? c.ini.n > 0 : false, saldo_inicial: c2(c.ini.valor),
+      fim_do_periodo: c.j.fim, menor_saldo: c2(menor ? menor.saldo : 0), dia_menor_saldo: menor ? menor.data : null, saldo_no_fim: c2(b.saldoFinal),
+      dias_negativos: b.buraco > 0 ? b.diasNeg : 0};
+    if(b.buraco > 0){
+      d.primeiro_dia_negativo = b.primeiroNeg; d.buraco = c2(b.buraco);
+      d.juros_pct_mes = Number(an.jurosPct) || 0; d.juros_estimados = c2(an.antes.jurosNeg);
+    }
+    if(an.reorg) d.reorganizacao = {contas: an.reorg.movimentos.length, saldo_min_depois: c2(an.reorg.depois.saldoMin), piora_mes_seguinte: !!an.reorg.proxMes.piora};
+    if(an.semSaida){
+      var s = an.semSaida;
+      d.sem_saida = {falta: c2(s.falta), nenhuma_conta_movel: !!s.semMoveis, volta_ao_positivo: s.recuperaEm || null};
+    }
+    return d;
+  }
+  function copilotoDadosConciliacao(chave, res){
+    var c2 = function(v){ return Math.round((Number(v) || 0) * 100) / 100; };
+    var grupo = function(lista){ return {quantidade: lista.length, valor: c2(lista.reduce(function(s, m){ return s + Math.abs(Number(m.linha.valor) || 0); }, 0))}; };
+    var data = function(v){ return /^\d{4}-\d{2}-\d{2}$/.test(String(v || "")) ? v : null; };
+    var d = {saldo_anterior: c2(res.saldoAnterior), saldo_calculado: c2(res.calculado), saldo_banco: c2(res.saldoFinal), diferenca: c2(Math.abs(res.diff)),
+      lado: res.diff > 0 ? "banco_maior" : "app_maior", de: data(res.de), ate: data(res.ate), linhas_conferidas: res.casadas || 0};
+    if(res.manuais.length) d.manuais = grupo(res.manuais);
+    if(res.lixeira.length) d.lixeira = grupo(res.lixeira);
+    if(res.nunca.length) d.nunca_salvas = grupo(res.nunca);
+    if(res.fora && res.fora.length) d.fora_do_extrato = {quantidade: res.fora.length,
+      valor: c2(Math.abs(res.fora.reduce(function(s, t){ return s + (tipoEntra(t.tipo) ? -t.valor : t.valor); }, 0)))};
+    return d;
+  }
+  document.addEventListener("click", function(e){
+    var b = e.target && e.target.closest ? e.target.closest("[data-ia-explicar],[data-ia-fechar]") : null;
+    if(!b) return;
+    e.stopPropagation();
+    if(b.dataset.iaExplicar){ copilotoExplicar(b.dataset.iaExplicar); return; }
+    var ch = b.dataset.iaFechar; delete COPI.resp[ch]; copilotoRedesenhar(ch);
+  }, true);
+
   // Prova das travas de ponta a ponta. No console do navegador, logado:
   //   await genesisCopilotoTeste()
   window.genesisCopilotoTeste = function(){
@@ -9422,7 +9547,7 @@ var CAIXA = (function(){
 
 
   window.__v5api = {renderAll: renderAll, info: v5Info, fmt: fmt, guessCategoria: guessCategoria, famRefresh: (typeof famRefresh === 'function' ? famRefresh : null)};
-  if(window.__GENESIS_TEST__){ window.__genesis = {Store: Store, state: state, aplicarNuvem: aplicarNuvem, loadSynced: loadSynced, saveSynced: saveSynced}; }
+  if(window.__GENESIS_TEST__){ window.__genesis = {Store: Store, state: state, aplicarNuvem: aplicarNuvem, loadSynced: loadSynced, saveSynced: saveSynced, COPI: COPI, copilotoAplicarStatus: copilotoAplicarStatus, copilotoResumo: copilotoResumo, renderAll: renderAll}; }
 
 
 
