@@ -362,7 +362,8 @@
   .sim-form{display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:10px; align-items:end;}
   .sim-form [hidden]{display:none;} .sim-acao{display:flex;} .sim-acao .btn{width:100%;}
   .sim-res{margin-top:14px; display:flex; flex-direction:column; gap:10px;} .sim-res h4{margin:0; font-size:15px;}
-  .sim-tab{width:100%; font-size:13px;} .sim-sug{background:var(--soft);} .sim-tab th, .sim-tab td{text-align:right; padding:6px 8px;} .sim-tab th:first-child{text-align:left; font-weight:500;}
+  .sim-tab{width:100%; font-size:13px;} .sim-sug{background:var(--soft);}
+  .sim-perfis{display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:10px;} .sim-porque{display:block; font-size:12.5px; color:var(--ink-2); margin-top:6px; line-height:1.4;} .sim-tab th, .sim-tab td{text-align:right; padding:6px 8px;} .sim-tab th:first-child{text-align:left; font-weight:500;}
   .ia-btn{display:inline-flex; align-items:center; gap:6px; height:32px; padding:0 14px; border-radius:999px; border:1px solid var(--line); background:var(--accent-soft); color:var(--ink); font:inherit; font-size:13px; font-weight:600; cursor:pointer;}
   .ia-btn:hover{border-color:var(--ink-2);}
   .ia-btn:disabled{opacity:.6; cursor:progress;}
@@ -3181,23 +3182,34 @@ var FLX = (function(){
     if(s1.primeiroNeg) d.primeiro_dia_negativo_depois = s1.primeiroNeg;
     return {dados: d, extra: extra.length};
   }
-  // "Em quantas vezes é melhor?": compara as opções e aponta uma por regra fixa (sem IA):
-  // a com menos parcelas que não deixa nenhum dia negativo; se nenhuma evita, a de pior dia menos negativo.
+  // "Em quantas vezes é melhor?": o app calcula as opções e destaca três perfis por regra fixa (sem IA),
+  // para a pessoa escolher sabendo o que ganha e o que perde em cada um:
+  //   mais_rapida: menos parcelas sem nenhum dia negativo (libera a fatura antes, mas pode deixar o saldo justo);
+  //   com_folga: menos parcelas cujo pior dia ainda guarda a folga mínima (10% da renda do mês, a mesma régua do "aperto");
+  //   parcela_mais_leve: 12x (menor parcela, mais meses comprometidos).
+  // Se nenhuma opção evita dia negativo, "menos_negativa" é a de pior dia menos negativo.
   var SIM_OPCOES = [[1, "uma_vez"], [2, "duas_vezes"], [3, "tres_vezes"], [4, "quatro_vezes"], [5, "cinco_vezes"], [6, "seis_vezes"], [10, "dez_vezes"], [12, "doze_vezes"]];
+  var SIM_PERFIS = {mais_rapida: "Termina mais rápido", com_folga: "Com folga", parcela_mais_leve: "Parcela mais leve", menos_negativa: "Menos negativo"};
   function simComparar(c){
     var opcoes = {}, lista = [], base = null;
     SIM_OPCOES.forEach(function(o){
       var r = simFluxo({tipo: "parcelada", valor: c.valor, parcelas: o[0], data: c.data}).dados;
       if(!base) base = r;
-      var op = {parcelas: o[0], valor_parcela: r.valor_parcela, menor_saldo: r.depois.menor_saldo, dia_menor_saldo: r.depois.dia_menor_saldo, dias_negativos: r.depois.dias_negativos, saldo_no_fim_do_horizonte: r.depois.saldo_no_fim_do_horizonte};
+      var op = {parcelas: o[0], valor_parcela: r.valor_parcela, menor_saldo: r.depois.menor_saldo, dia_menor_saldo: r.depois.dia_menor_saldo,
+        dias_negativos: r.depois.dias_negativos, saldo_no_fim_do_horizonte: r.depois.saldo_no_fim_do_horizonte};
       opcoes[o[1]] = op; lista.push([o[1], op]);
     });
-    var semNeg = lista.filter(function(x){ return x[1].dias_negativos === 0; }), sug;
-    if(semNeg.length) sug = semNeg[0];
-    else sug = lista.slice().sort(function(a, b){ return b[1].menor_saldo - a[1].menor_saldo || a[1].parcelas - b[1].parcelas; })[0];
-    return {dados: {tipo: "parcelada_comparar", valor_total: simC2(c.valor), opcoes: opcoes, sugerida: sug[0], regra: semNeg.length ? "menos_parcelas_sem_negativo" : "nenhuma_evita_negativo",
-      sem_compra: {menor_saldo: base.antes.menor_saldo, dias_negativos: base.antes.dias_negativos, saldo_no_fim_do_horizonte: base.antes.saldo_no_fim_do_horizonte}, primeira_parcela: base.primeira_parcela, vencimento_estimado: base.vencimento_estimado,
-      saldo_informado: base.saldo_informado, horizonte_ate: base.horizonte_ate}};
+    var rt = computeTotals(todayISO()), renda = simC2(rt.recTotal || (state.patrimonio && state.patrimonio.rendaMensal) || 0);
+    var margem = simC2(0.1 * renda), perfis = {};
+    var semNeg = lista.filter(function(x){ return x[1].dias_negativos === 0; });
+    var folga = lista.filter(function(x){ return x[1].dias_negativos === 0 && x[1].menor_saldo >= margem; });
+    if(semNeg.length) perfis.mais_rapida = semNeg[0][0];
+    else perfis.menos_negativa = lista.slice().sort(function(a, b){ return b[1].menor_saldo - a[1].menor_saldo || a[1].parcelas - b[1].parcelas; })[0][0];
+    if(folga.length) perfis.com_folga = folga[0][0];
+    perfis.parcela_mais_leve = lista[lista.length - 1][0];
+    return {dados: {tipo: "parcelada_comparar", valor_total: simC2(c.valor), opcoes: opcoes, perfis: perfis, renda_do_mes: renda, folga_minima: margem,
+      sem_compra: {menor_saldo: base.antes.menor_saldo, dias_negativos: base.antes.dias_negativos, saldo_no_fim_do_horizonte: base.antes.saldo_no_fim_do_horizonte},
+      primeira_parcela: base.primeira_parcela, vencimento_estimado: base.vencimento_estimado, saldo_informado: base.saldo_informado, horizonte_ate: base.horizonte_ate}};
   }
   function simCalcular(c){
     if(!c) return null;
@@ -3295,19 +3307,30 @@ var FLX = (function(){
     if(d.tipo === "parcelada_comparar"){
       var nomeOp = function(op){ return op.parcelas === 1 ? "À vista" : op.parcelas + "x de " + fmt(op.valor_parcela); };
       var negC = function(v){ return '<span class="' + (v < 0 ? "fx-neg" : "") + '">' + fmt(v) + "</span>"; };
-      h += "<h4>Em quantas vezes parcelar " + fmt(d.valor_total) + "?</h4>" +
-        '<div class="table-scroll"><table class="sim-tab"><thead><tr><th>Opção</th><th>Menor saldo até ' + flxDia(d.horizonte_ate) + "</th><th>Saldo em " + flxDia(d.horizonte_ate) + "</th><th>Dias no negativo</th></tr></thead><tbody>" +
+      var porchave = {}; Object.keys(d.perfis).forEach(function(p){ (porchave[d.perfis[p]] = porchave[d.perfis[p]] || []).push(SIM_PERFIS[p]); });
+      var porque = {
+        mais_rapida: "Menos parcelas sem nenhum dia negativo: a fatura fica livre mais cedo, mas o pior dia pode ficar justo.",
+        com_folga: "Menos parcelas que ainda deixam no pior dia pelo menos " + fmt(d.folga_minima) + " (10% da renda do mês) de folga para imprevistos.",
+        parcela_mais_leve: "A menor parcela: pesa menos em cada mês, mas compromete a fatura por mais tempo.",
+        menos_negativa: "Nenhuma opção evita dia negativo. Esta é a que deixa o pior dia menos negativo."};
+      h += "<h4>Em quantas vezes parcelar " + fmt(d.valor_total) + "?</h4><div class=\"sim-perfis\">";
+      ["mais_rapida", "menos_negativa", "com_folga", "parcela_mais_leve"].forEach(function(p){
+        if(!d.perfis[p]) return;
+        var op = d.opcoes[d.perfis[p]];
+        h += '<div class="fx-kpi"><small>' + SIM_PERFIS[p] + "</small><b>" + nomeOp(op) + "</b><small>Pior dia: " + negC(op.menor_saldo) + " em " + flxDia(op.dia_menor_saldo) +
+          (op.parcelas > 1 ? " · " + op.parcelas + " meses de fatura" : "") + '</small><span class="sim-porque">' + porque[p] + "</span></div>";
+      });
+      h += "</div>";
+      if(!d.perfis.com_folga && d.perfis.mais_rapida) h += '<div class="fx-alerta">Nenhuma opção deixa ' + fmt(d.folga_minima) + " de folga no pior dia. Todas deixam o saldo justo nos próximos meses.</div>";
+      if(!(d.renda_do_mes > 0)) h += '<div class="fx-nota">Sem receita lançada neste mês, a folga mínima ficou em R$ 0,00.</div>';
+      h += '<div class="table-scroll"><table class="sim-tab"><thead><tr><th>Todas as opções</th><th>Menor saldo até ' + flxDia(d.horizonte_ate) + "</th><th>Saldo em " + flxDia(d.horizonte_ate) + "</th><th>Dias no negativo</th></tr></thead><tbody>" +
         "<tr><th>Sem a compra</th><td>" + negC(d.sem_compra.menor_saldo) + "</td><td>" + negC(d.sem_compra.saldo_no_fim_do_horizonte) + "</td><td>" + d.sem_compra.dias_negativos + "</td></tr>";
       SIM_OPCOES.forEach(function(o){
-        var op = d.opcoes[o[1]], s = o[1] === d.sugerida;
-        h += "<tr" + (s ? ' class="sim-sug"' : "") + "><th>" + nomeOp(op) + (s ? ' <span class="tag">sugerida</span>' : "") + "</th><td>" + negC(op.menor_saldo) + " <small>" + flxDia(op.dia_menor_saldo) + "</small></td><td>" + negC(op.saldo_no_fim_do_horizonte) + "</td><td>" + op.dias_negativos + "</td></tr>";
+        var op = d.opcoes[o[1]], tags = porchave[o[1]] || [];
+        h += "<tr" + (tags.length ? ' class="sim-sug"' : "") + "><th>" + nomeOp(op) + tags.map(function(t){ return ' <span class="tag">' + t + "</span>"; }).join("") + "</th><td>" + negC(op.menor_saldo) + " <small>" + flxDia(op.dia_menor_saldo) + "</small></td><td>" + negC(op.saldo_no_fim_do_horizonte) + "</td><td>" + op.dias_negativos + "</td></tr>";
       });
-      h += "</tbody></table></div>";
-      var sg = d.opcoes[d.sugerida];
-      h += '<div class="' + (d.regra === "menos_parcelas_sem_negativo" ? "fx-ok" : "fx-alerta") + '">' + (d.regra === "menos_parcelas_sem_negativo"
-        ? "<b>" + nomeOp(sg) + "</b> é a opção com menos parcelas que não deixa nenhum dia negativo. Menos parcelas = menos meses de fatura comprometida."
-        : "Nenhuma opção evita dia negativo. A que deixa o pior dia menos negativo é <b>" + nomeOp(sg) + "</b>.") + "</div>" +
-        '<div class="fx-nota">A conta supõe parcelas sem juros, com a 1ª em ' + flxDia(d.primeira_parcela) + (d.vencimento_estimado ? " (vencimento estimado pelas suas faturas)" : "") + ". Se a loja cobrar juros a partir de certo número de parcelas, o total muda.</div>";
+      h += "</tbody></table></div>" +
+        '<div class="fx-nota">O app não escolhe por você: cada perfil troca uma coisa por outra. A conta supõe parcelas sem juros, com a 1ª em ' + flxDia(d.primeira_parcela) + (d.vencimento_estimado ? " (vencimento estimado pelas suas faturas)" : "") + ", e olha os próximos 90 dias. Se a loja cobrar juros a partir de certo número de parcelas, o total muda.</div>";
       if(!d.saldo_informado) h += '<div class="fx-nota fx-neg">Nenhum saldo informado: a conta parte de R$ 0,00. Use "Atualizar saldo" na tela inicial.</div>';
     } else if(d.tipo === "cortar"){
       var alvo = (d.categoria ? "«" + flxEsc(d.categoria) + "»" : "todas as categorias") + (d.termos ? ", só o que tem «" + flxEsc(d.termos) + "» na descrição" : "");
