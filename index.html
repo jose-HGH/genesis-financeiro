@@ -3156,10 +3156,13 @@ var FLX = (function(){
   }
 
   // Saída, entrada e parcelada: o calendário do Fluxo de caixa (hoje até 90 dias), com e sem o evento simulado.
-  function simMedir(sim, fim){
-    var dFim = sim.dias.filter(function(x){ return x.data === fim; })[0];
-    return {saldo_fim_do_mes: simC2(dFim ? dFim.saldo : sim.saldoFinal), saldo_no_fim_do_horizonte: simC2(sim.saldoFinal), menor_saldo: simC2(sim.menor ? sim.menor.saldo : 0),
-      dia_menor_saldo: sim.menor ? sim.menor.data : null, dias_negativos: sim.diasNeg};
+  // menor_saldo e dias_negativos contam a partir de "desde" (o dia em que a mudança começa a pesar):
+  // antes disso a compra não muda nada, e um aperto que já existe esconderia a diferença entre as opções.
+  function simMedir(sim, fim, desde){
+    var dFim = sim.dias.filter(function(x){ return x.data === fim; })[0], menor = null, neg = 0;
+    sim.dias.forEach(function(x){ if(desde && x.data < desde) return; if(x.saldo < 0) neg++; if(!menor || x.saldo < menor.saldo) menor = x; });
+    return {saldo_fim_do_mes: simC2(dFim ? dFim.saldo : sim.saldoFinal), saldo_no_fim_do_horizonte: simC2(sim.saldoFinal), menor_saldo: simC2(menor ? menor.saldo : 0),
+      dia_menor_saldo: menor ? menor.data : null, dias_negativos: neg};
   }
   function simFluxo(c){
     var hoje = todayISO(), ym = monthKey(hoje), fim = simDataNoMes(ym, 31);
@@ -3185,11 +3188,16 @@ var FLX = (function(){
     }
     var s0 = FLX.simular(ini.valor, hoje, ext, base), s1 = FLX.simular(ini.valor, hoje, ext, base.concat(extra));
     d.saldo_informado = ini.n > 0; d.saldo_hoje = simC2(ini.valor); d.fim_do_mes = fim; d.horizonte_ate = ext;
-    d.antes = simMedir(s0, fim); d.depois = simMedir(s1, fim);
+    var desde = extra.length ? extra[0].data : null;
+    if(desde && desde < hoje) desde = hoje;
+    d.contado_a_partir_de = desde;
+    d.antes = simMedir(s0, fim, desde); d.depois = simMedir(s1, fim, desde);
+    // aperto que já existe antes da mudança começar (para o aviso, não para comparar opções)
+    if(desde && s0.diasNeg > d.antes.dias_negativos) d.negativo_antes_da_mudanca = {menor_saldo: simC2(s0.menor.saldo), dia_menor_saldo: s0.menor.data};
     d.diferenca_saldo_fim_do_mes = simC2(Math.abs(d.depois.saldo_fim_do_mes - d.antes.saldo_fim_do_mes));
     d.diferenca_menor_saldo = simC2(Math.abs(d.depois.menor_saldo - d.antes.menor_saldo));
     if(s1.primeiroNeg) d.primeiro_dia_negativo_depois = s1.primeiroNeg;
-    if(c.tipo !== "entrada") d.nao_recomendado = d.antes.dias_negativos > 0 ? "ja_negativo" : (d.depois.dias_negativos > 0 ? "fica_negativo" : null);
+    if(c.tipo !== "entrada") d.nao_recomendado = s0.diasNeg > 0 ? "ja_negativo" : (d.depois.dias_negativos > 0 ? "fica_negativo" : null);
     return {dados: d, extra: extra.length};
   }
   // "Em quantas vezes é melhor?": o app calcula as opções e destaca três perfis por regra fixa (sem IA),
@@ -3218,9 +3226,10 @@ var FLX = (function(){
     if(folga.length) perfis.com_folga = folga[0][0];
     perfis.parcela_mais_leve = lista[lista.length - 1][0];
     // Regra do app, não da IA: se já vai ficar negativo sem a compra, ou se toda forma de pagar deixa negativo, a compra não é recomendada.
-    var aviso = base.antes.dias_negativos > 0 ? "ja_negativo" : (!semNeg.length ? "fica_negativo" : null);
+    var aviso = base.antes.dias_negativos > 0 || base.negativo_antes_da_mudanca ? "ja_negativo" : (!semNeg.length ? "fica_negativo" : null);
     return {dados: {tipo: "parcelada_comparar", nao_recomendado: aviso, valor_total: simC2(c.valor), opcoes: opcoes, perfis: perfis, renda_do_mes: renda, folga_minima: margem,
       sem_compra: {menor_saldo: base.antes.menor_saldo, dias_negativos: base.antes.dias_negativos, saldo_no_fim_do_horizonte: base.antes.saldo_no_fim_do_horizonte},
+      negativo_antes_da_compra: base.negativo_antes_da_mudanca || null,
       primeira_parcela: base.primeira_parcela, vencimento_estimado: base.vencimento_estimado, saldo_informado: base.saldo_informado, horizonte_ate: base.horizonte_ate}};
   }
   function simCalcular(c){
@@ -3310,9 +3319,10 @@ var FLX = (function(){
     if(msg){ msg.textContent = SIMD.iaMsg || ""; var bt = document.getElementById("simPerguntar"); bt.disabled = SIMD.iaCarregando; bt.textContent = SIMD.iaCarregando ? "Pensando…" : "Simular"; }
     simRenderRes();
   }
-  function simAvisoHtml(a, gasto){
+  function simAvisoHtml(a, gasto, antes){
     var o = gasto ? "este gasto" : "esta compra";
-    if(a === "ja_negativo") return '<div class="sim-aviso"><b>Não é recomendado agora.</b> Seu saldo já vai ficar negativo nos próximos dias, mesmo sem ' + o + ". Fazer isso agora afundaria mais na dívida.</div>";
+    if(a === "ja_negativo") return '<div class="sim-aviso"><b>Não é recomendado agora.</b> Seu saldo já vai ficar negativo nos próximos dias, mesmo sem ' + o +
+      (antes ? " (chega a " + fmt(antes.menor_saldo) + " em " + flxDia(antes.dia_menor_saldo) + ")" : "") + ". Fazer isso agora afundaria mais na dívida.</div>";
     if(a === "fica_negativo") return '<div class="sim-aviso"><b>Não é recomendado.</b> ' + (gasto ? "Este gasto" : "Esta compra") + " deixaria seu saldo negativo, e ficar no negativo custa juros.</div>";
     return "";
   }
@@ -3328,7 +3338,7 @@ var FLX = (function(){
       var curto = {mais_rapida: "Termina mais rápido", menos_negativa: "Menos negativo", com_folga: "Com folga", parcela_mais_leve: "Parcela mais leve"};
       var nota = {mais_rapida: "libera a fatura antes, mas fica justo", menos_negativa: "o pior dia fica menos negativo", com_folga: "sobra margem para imprevistos", parcela_mais_leve: "pesa menos, por mais meses"};
       h += '<h4>' + fmt(d.valor_total) + ": em quantas vezes?</h4>";
-      h += simAvisoHtml(d.nao_recomendado);
+      h += simAvisoHtml(d.nao_recomendado, false, d.negativo_antes_da_compra);
       var vistos = {};
       h += '<div class="sim-perfis">';
       ["mais_rapida", "menos_negativa", "com_folga", "parcela_mais_leve"].forEach(function(p){
@@ -3337,12 +3347,12 @@ var FLX = (function(){
         if(junto) return; // dois perfis na mesma opção: mostra uma vez só
         var rot = Object.keys(d.perfis).filter(function(q){ return d.perfis[q] === k; }).map(function(q){ return curto[q]; }).join(" · ");
         var folga = op.menor_saldo < 0 ? '<span class="fx-neg">fica ' + fmt(op.menor_saldo) + "</span>" : "sobram " + fmt(op.menor_saldo);
-        h += '<div class="sim-perfil"><small>' + rot + "</small><b>" + nomeOp(op) + "</b><span>" + folga + " no pior dia</span><span class=\"sim-porque\">" + (p === "mais_rapida" && d.perfis.com_folga === k ? "termina rápido e ainda sobra margem" : nota[p]) + "</span></div>";
+        h += '<div class="sim-perfil"><small>' + rot + "</small><b>" + nomeOp(op) + "</b><span>" + folga + " no pior dia depois da compra</span><span class=\"sim-porque\">" + (p === "mais_rapida" && d.perfis.com_folga === k ? "termina rápido e ainda sobra margem" : nota[p]) + "</span></div>";
       });
       h += "</div>";
       h += '<details class="sim-mais"><summary>Ver todas as opções</summary><ul>' + SIM_OPCOES.map(function(o){
         var op = d.opcoes[o[1]]; return "<li><span>" + nomeOp(op) + "</span><span class=\"" + (op.menor_saldo < 0 ? "fx-neg" : "") + "\">" + fmt(op.menor_saldo) + "</span></li>";
-      }).join("") + '</ul><div class="fx-nota">Menor saldo até ' + flxDia(d.horizonte_ate) + ". Sem juros, 1ª parcela em " + flxDia(d.primeira_parcela) + (d.vencimento_estimado ? " (estimada)" : "") + ". Folga = 10% da renda do mês (" + fmt(d.folga_minima) + ").</div></details>";
+      }).join("") + '</ul><div class="fx-nota">Pior dia contado da 1ª parcela até ' + flxDia(d.horizonte_ate) + ". Sem juros, 1ª parcela em " + flxDia(d.primeira_parcela) + (d.vencimento_estimado ? " (estimada)" : "") + ". Folga = 10% da renda do mês (" + fmt(d.folga_minima) + ").</div></details>";
       if(!d.saldo_informado) h += '<div class="fx-nota fx-neg">Sem saldo informado: a conta parte de R$ 0,00.</div>';
     } else if(d.tipo === "cortar"){
       var alvo = (d.categoria ? "«" + flxEsc(d.categoria) + "»" : "todas as categorias") + (d.termos ? ", só o que tem «" + flxEsc(d.termos) + "» na descrição" : "");
@@ -3357,15 +3367,15 @@ var FLX = (function(){
     } else {
       var titulo = d.tipo === "parcelada" ? "Compra de " + fmt(d.valor_total) + " em " + d.parcelas + "x de " + fmt(d.valor_parcela)
         : (d.tipo === "entrada" ? "Entrada de " : "Saída de ") + fmt(d.valor) + (d.repetir === "mensal" ? " todo mês a partir de " : " em ") + flxDia(d.data);
-      h += "<h4>" + titulo + "</h4>" + simAvisoHtml(d.nao_recomendado, d.tipo === "saida");
+      h += "<h4>" + titulo + "</h4>" + simAvisoHtml(d.nao_recomendado, d.tipo === "saida", d.negativo_antes_da_mudanca);
       if(d.tipo === "parcelada") h += '<div class="fx-nota">Parcelas de ' + flxDia(d.primeira_parcela) + "/" + d.primeira_parcela.slice(0, 4) + " a " + flxDia(d.ultima_parcela) + "/" + d.ultima_parcela.slice(0, 4) +
         (d.vencimento_estimado ? " (vencimento estimado pelas suas faturas; o app não sabe o dia de fechamento do cartão)" : "") + ".</div>";
       var neg = function(v){ return '<span class="' + (v < 0 ? "fx-neg" : "") + '">' + fmt(v) + "</span>"; };
       h += '<div class="table-scroll"><table class="sim-tab"><thead><tr><th></th><th>Sem a mudança</th><th>Com a mudança</th></tr></thead><tbody>' +
         simLinha("Saldo em " + flxDia(d.fim_do_mes), neg(d.antes.saldo_fim_do_mes), "<b>" + neg(d.depois.saldo_fim_do_mes) + "</b>") +
-        simLinha("Menor saldo até " + flxDia(d.horizonte_ate), neg(d.antes.menor_saldo) + " <small>" + flxDia(d.antes.dia_menor_saldo) + "</small>", "<b>" + neg(d.depois.menor_saldo) + "</b> <small>" + flxDia(d.depois.dia_menor_saldo) + "</small>") +
+        simLinha("Menor saldo de " + flxDia(d.contado_a_partir_de) + " a " + flxDia(d.horizonte_ate), neg(d.antes.menor_saldo) + " <small>" + flxDia(d.antes.dia_menor_saldo) + "</small>", "<b>" + neg(d.depois.menor_saldo) + "</b> <small>" + flxDia(d.depois.dia_menor_saldo) + "</small>") +
         simLinha("Saldo em " + flxDia(d.horizonte_ate), neg(d.antes.saldo_no_fim_do_horizonte), "<b>" + neg(d.depois.saldo_no_fim_do_horizonte) + "</b>") +
-        simLinha("Dias no negativo", d.antes.dias_negativos, "<b>" + d.depois.dias_negativos + "</b>");
+        simLinha("Dias no negativo desde " + flxDia(d.contado_a_partir_de), d.antes.dias_negativos, "<b>" + d.depois.dias_negativos + "</b>");
       if(d.proximas_faturas) ["primeiro_mes", "segundo_mes", "terceiro_mes"].forEach(function(k){ var f = d.proximas_faturas[k]; h += simLinha("Fatura de " + fmtMonthLabel(f.mes), fmt(f.antes), "<b>" + fmt(f.depois) + "</b>"); });
       h += "</tbody></table></div>";
       if(d.depois.dias_negativos > d.antes.dias_negativos && !d.nao_recomendado) h += '<div class="fx-alerta">⚠ Com a mudança, o saldo fica negativo a partir de <b>' + flxDia(d.primeiro_dia_negativo_depois) + "</b>.</div>";
