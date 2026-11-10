@@ -37,7 +37,16 @@ const auth = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_
   auth: { persistSession: false, autoRefreshToken: false },
 });
 // maxRetries 0: uma nova tentativa automática gastaria fora da reserva.
-const anthropic = new Anthropic({ apiKey: Deno.env.get("ANTHROPIC_API_KEY"), maxRetries: 0, timeout: 60_000 });
+// trim: um espaço ou quebra de linha colada junto no painel invalida a chave.
+const CHAVE = (Deno.env.get("ANTHROPIC_API_KEY") ?? "").trim().replace(/^["']|["']$/g, "");
+const anthropic = new Anthropic({ apiKey: CHAVE, maxRetries: 0, timeout: 60_000 });
+
+// Só o formato da chave, nunca a chave: ajuda a achar erro de cópia num 401.
+function formatoDaChave(): string {
+  const tipo = CHAVE.startsWith("sk-ant-api03-") ? "api03" : CHAVE.startsWith("sk-ant-admin") ? "admin"
+    : CHAVE.startsWith("sk-ant-") ? "outra-sk-ant" : CHAVE ? "nao-sk-ant" : "vazia";
+  return `tipo=${tipo} tamanho=${CHAVE.length}`;
+}
 
 function cabecalhos(origem: string | null): HeadersInit {
   const h: Record<string, string> = { "Content-Type": "application/json; charset=utf-8", "Vary": "Origin" };
@@ -191,7 +200,8 @@ Deno.serve(async (req) => {
   } catch (e) {
     // Sem texto do erro no registro: pode conter trechos do pedido.
     const err = e as { status?: number; name?: string };
-    console.error("copiloto: anthropic", err.name ?? "erro", err.status ?? "");
+    console.error("copiloto: anthropic", err.name ?? "erro", err.status ?? "",
+      err.status === 401 ? formatoDaChave() : "");
     status = "erro"; motivo = "api_" + (err.status ?? "falhou");
   }
 
