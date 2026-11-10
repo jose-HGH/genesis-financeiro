@@ -5,7 +5,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.0/dist/umd/supabase.js"></script>
-<meta name="app-version" content="20261102-203732">
+<meta name="app-version" content="20261110-120000">
 <script>
 (function(){
   var m = document.querySelector('meta[name="app-version"]'); var cur = m && m.content; if(!cur) return;
@@ -607,6 +607,11 @@
   .auth-status{margin-top:10px; font-size:12.5px; color:var(--ink-2); min-height:1em;}
   .auth-status.error{color:var(--critical-text);}
   .auth-status.good{color:var(--good-text);}
+  .auth-aceite{flex-basis:100%; font-size:12.5px; color:var(--ink-2); display:flex; gap:8px; align-items:flex-start; line-height:1.4;}
+  .auth-aceite[hidden], .termos-linha[hidden]{display:none;}
+  .auth-aceite a, .termos-linha a, .trust-footer a{color:inherit; text-decoration:underline; text-underline-offset:2px;}
+  .termos-linha{font-size:13px; color:var(--ink-2); display:flex; gap:8px; align-items:flex-start; line-height:1.45;}
+  .termos-linha input, .auth-aceite input{margin-top:2px; flex:none;}
   .auth-link{margin-top:10px; padding:0; border:0; background:none; font:inherit; font-size:12.5px; color:var(--ink-2); text-decoration:underline; text-underline-offset:2px; cursor:pointer;}
   .auth-link:focus-visible{outline:2px solid var(--brand); outline-offset:2px; border-radius:3px;}
   #authForgotForm{margin-top:10px;}
@@ -1164,6 +1169,7 @@
         <input type="email" id="authEmail" placeholder="seu@email.com" required autocomplete="email">
         <input type="password" id="authPassword" placeholder="senha (mín. 6 caracteres)" required minlength="6" autocomplete="current-password">
         <button type="submit" class="btn btn-primary" id="authSubmitBtn">Entrar</button>
+        <label class="auth-aceite" id="authAceiteLinha" hidden><input type="checkbox" id="authAceite"> Li e aceito os <a href="termos.html" target="_blank" rel="noopener">Termos de Uso</a> e a <a href="privacidade.html" target="_blank" rel="noopener">Política de Privacidade</a>.</label>
       </form>
       <button type="button" class="auth-link" id="btnForgot">Esqueci minha senha</button>
       <form id="authForgotForm" class="auth-form" hidden>
@@ -1495,7 +1501,7 @@
 
   <section class="card" id="importCard">
     <div class="card-head"><h2>Importar extrato bancário</h2></div>
-    <p class="import-intro">Envie o PDF, OFX, CSV ou Excel do extrato ou da fatura e eu identifico data, descrição e valor de cada linha automaticamente. O arquivo é lido só no seu navegador — nada é enviado para fora. Você confere e ajusta tudo antes de confirmar o lançamento.</p>
+    <p class="import-intro">Envie o PDF, OFX, CSV ou Excel do extrato ou da fatura e eu identifico data, descrição e valor de cada linha automaticamente. O arquivo é lido só no seu navegador e nunca é enviado. Se você estiver conectado à nuvem, só os lançamentos que você confirmar ficam salvos na sua conta. Você confere e ajusta tudo antes de confirmar o lançamento.</p>
     <label class="dropzone" id="pdfDropzone" for="pdfFileInput">
       <span class="dz-icon">+</span>
       <span class="dz-title">Clique para escolher o arquivo ou arraste aqui</span>
@@ -1548,6 +1554,7 @@
     <span>Dados salvos na sua conta</span>
     <span>Este app só registra — nunca movimenta dinheiro</span>
     <span>Você pode exportar seus dados quando quiser</span>
+    <span><a href="termos.html" target="_blank" rel="noopener">Termos de uso</a> · <a href="privacidade.html" target="_blank" rel="noopener">Privacidade</a></span>
   </div>
   <footer>Os lançamentos que você adiciona ou edita aqui ficam salvos <span id="footerSync">neste navegador</span>.</footer>
 </div>
@@ -1625,6 +1632,16 @@
     <h3 id="confirmaTitulo">Confirmar</h3>
     <p id="confirmaTexto" style="margin:0; font-size:14px; color:var(--ink-2);"></p>
     <div class="modal-acoes"><button type="button" class="btn btn-ghost" id="btnConfirmaNao">Cancelar</button><button type="button" class="btn btn-primary" id="btnConfirmaSim">Continuar</button></div>
+  </div>
+</div>
+<div id="termosModal" class="modal-fundo" hidden>
+  <div class="modal-caixa" role="alertdialog" aria-modal="true" aria-labelledby="termosTitulo">
+    <h3 id="termosTitulo">Termos e privacidade</h3>
+    <p class="fam-nota" id="termosTexto">Para continuar usando a conta na nuvem, leia e aceite os documentos abaixo.</p>
+    <label class="termos-linha" id="termosLinhaBase"><input type="checkbox" id="termosAceiteBase"> Li e aceito os <a href="termos.html" target="_blank" rel="noopener">Termos de Uso</a> e a <a href="privacidade.html" target="_blank" rel="noopener">Política de Privacidade</a>.</label>
+    <label class="termos-linha" id="termosLinhaIa" hidden><input type="checkbox" id="termosAceiteIa"> Aceito que, quando eu usar o copiloto de IA, um resumo dos meus números (sem CPF, contas, cartões ou nomes) seja enviado à Anthropic, nos Estados Unidos, só para gerar a resposta.</label>
+    <div class="auth-status" id="termosStatus"></div>
+    <div class="modal-acoes"><button type="button" class="btn btn-ghost" id="termosSair">Sair da conta</button><button type="button" class="btn btn-primary" id="termosAceitar">Aceitar e continuar</button></div>
   </div>
 </div>
 <div id="undoBar" role="status" hidden><span id="undoText"></span><button type="button" id="undoBtn">Desfazer</button></div>
@@ -2401,6 +2418,7 @@
       renderSyncBanner(uid);
       showAuthUI(session);
       famRefresh();
+      termosConferir(session);
       col.onSnapshot(function(liveSnap){
         var docs = liveSnap.docs.map(docToTx);
         var parts = particionar(docs);
@@ -9160,6 +9178,7 @@ var CAIXA = (function(){
       authMode = this.dataset.mode;
       document.querySelectorAll(".auth-tab").forEach(function(b){ b.classList.toggle("active", b===btn); });
       document.getElementById("authSubmitBtn").textContent = authMode === "signup" ? "Criar conta" : "Entrar";
+      document.getElementById("authAceiteLinha").hidden = authMode !== "signup";
       setAuthStatus("");
     });
   });
@@ -9170,6 +9189,10 @@ var CAIXA = (function(){
     var email = document.getElementById("authEmail").value.trim();
     var password = document.getElementById("authPassword").value;
     var submitBtn = document.getElementById("authSubmitBtn");
+    if(authMode === "signup"){
+      if(!document.getElementById("authAceite").checked){ setAuthStatus("Para criar a conta, aceite os Termos de Uso e a Política de Privacidade.", "error"); return; }
+      termosGuardarAceitePendente(email);
+    }
     submitBtn.disabled = true;
     setAuthStatus(authMode === "signup" ? "Criando conta…" : "Entrando…");
     var action = authMode === "signup"
@@ -9269,7 +9292,8 @@ var CAIXA = (function(){
     });
   });
 
-  document.getElementById("btnSignOut").addEventListener("click", function(){
+  document.getElementById("btnSignOut").addEventListener("click", sairDaConta);
+  function sairDaConta(){
     if(!sb) return;
     var uidSaindo = state.uid;
     sb.auth.signOut().then(function(){
@@ -9278,7 +9302,123 @@ var CAIXA = (function(){
       initLocal();
       toast("Você saiu da conta na nuvem.");
     });
+  }
+
+  // ---------- Termos de uso, privacidade e consentimento de IA ----------
+  // As versões exigidas vêm do servidor (public.termos_versoes). Se o banco
+  // ainda não tiver essas tabelas, nada aqui atrapalha o app: só não pede.
+  var TERMOS_PENDENTE_KEY = "genesis.aceitePendente";
+  var termosAtual = null; // {uid, faltam: ["termos", ...], versoes: {...}}
+  function termosGuardarAceitePendente(email){
+    try{ localStorage.setItem(TERMOS_PENDENTE_KEY, JSON.stringify({email: String(email || "").toLowerCase(), em: new Date().toISOString()})); }catch(e){}
+  }
+  function termosAceitePendente(email){
+    try{
+      var p = JSON.parse(localStorage.getItem(TERMOS_PENDENTE_KEY) || "null");
+      return !!(p && p.email && p.email === String(email || "").toLowerCase());
+    }catch(e){ return false; }
+  }
+  function termosGravar(docs, versoes){
+    var linhas = docs.map(function(d){ return {documento: d, versao: versoes[d]}; });
+    return DB.from("aceites_termos").upsert(linhas, {onConflict: "user_id,documento,versao", ignoreDuplicates: true}).then(throwIfError);
+  }
+  function termosConferir(session){
+    if(!sb || !session) return;
+    var uid = session.user.id, email = session.user.email;
+    Promise.all([
+      sb.rpc("termos_versoes"),
+      DB.from("aceites_termos").select("documento,versao").eq("user_id", uid),
+      sb.rpc("copiloto_meu_status")
+    ]).then(function(r){
+      if(r[0].error || r[1].error || !r[0].data) return; // banco ainda sem a base: não pede nada
+      var versoes = r[0].data, feitos = {};
+      (r[1].data || []).forEach(function(a){ feitos[a.documento + "|" + a.versao] = true; });
+      var testador = !r[2].error && r[2].data && r[2].data.testador === "ativo";
+      var docs = testador ? ["termos", "privacidade", "ia"] : ["termos", "privacidade"];
+      var faltam = docs.filter(function(d){ return versoes[d] && !feitos[d + "|" + versoes[d]]; });
+      if(!faltam.length) return;
+      var base = faltam.filter(function(d){ return d !== "ia"; });
+      // Quem marcou o aceite ao criar a conta neste aparelho não precisa marcar de novo.
+      if(base.length && termosAceitePendente(email)){
+        termosGravar(base, versoes).then(function(){
+          try{ localStorage.removeItem(TERMOS_PENDENTE_KEY); }catch(e){}
+          faltam = faltam.filter(function(d){ return d === "ia"; });
+          if(faltam.length) termosAbrir(uid, faltam, versoes);
+        }).catch(function(){ termosAbrir(uid, faltam, versoes); });
+        return;
+      }
+      termosAbrir(uid, faltam, versoes);
+    }).catch(function(){ /* sem rede ou sem a base: tenta no próximo login */ });
+  }
+  function termosAbrir(uid, faltam, versoes){
+    termosAtual = {uid: uid, faltam: faltam, versoes: versoes};
+    var temBase = faltam.some(function(d){ return d !== "ia"; }), temIa = faltam.indexOf("ia") >= 0;
+    document.getElementById("termosLinhaBase").hidden = !temBase;
+    document.getElementById("termosLinhaIa").hidden = !temIa;
+    document.getElementById("termosAceiteBase").checked = false;
+    document.getElementById("termosAceiteIa").checked = false;
+    document.getElementById("termosTexto").textContent = temBase
+      ? "Para continuar usando a conta na nuvem, leia e aceite os documentos abaixo."
+      : "Você está no grupo de testes do copiloto de IA. Para usá-lo, confirme o consentimento abaixo.";
+    document.getElementById("termosSair").textContent = temBase ? "Sair da conta" : "Agora não";
+    document.getElementById("termosStatus").textContent = "";
+    document.getElementById("termosModal").hidden = false;
+  }
+  document.getElementById("termosAceitar").addEventListener("click", function(){
+    if(!termosAtual) return;
+    var a = termosAtual, st = document.getElementById("termosStatus");
+    var querBase = a.faltam.some(function(d){ return d !== "ia"; });
+    var querIa = a.faltam.indexOf("ia") >= 0;
+    var okBase = document.getElementById("termosAceiteBase").checked;
+    var okIa = document.getElementById("termosAceiteIa").checked;
+    if(querBase && !okBase){ st.textContent = "Marque a caixa dos Termos e da Política para continuar."; st.className = "auth-status error"; return; }
+    if(!querBase && querIa && !okIa){ st.textContent = "Marque a caixa do consentimento para usar o copiloto."; st.className = "auth-status error"; return; }
+    // O consentimento de IA é opcional para quem só quer o app.
+    var docs = a.faltam.filter(function(d){ return d !== "ia" || okIa; });
+    var btn = this; btn.disabled = true; st.textContent = "Salvando…"; st.className = "auth-status";
+    termosGravar(docs, a.versoes).then(function(){
+      btn.disabled = false; termosAtual = null;
+      document.getElementById("termosModal").hidden = true;
+      try{ localStorage.removeItem(TERMOS_PENDENTE_KEY); }catch(e){}
+      toast("Obrigado. Aceite registrado.");
+    }).catch(function(err){
+      btn.disabled = false;
+      st.textContent = "Não foi possível salvar agora: " + (err && err.message ? err.message : "erro de conexão"); st.className = "auth-status error";
+    });
   });
+  document.getElementById("termosSair").addEventListener("click", function(){
+    var a = termosAtual; termosAtual = null;
+    document.getElementById("termosModal").hidden = true;
+    // Sem aceitar os termos, a conta na nuvem não continua. O consentimento de IA pode esperar.
+    if(a && a.faltam.some(function(d){ return d !== "ia"; })) sairDaConta();
+  });
+
+  // ---------- Copiloto: resumo do mês e pedido de teste (passo 1, sem botão) ----------
+  // Monta o resumo versão 1 que a Edge Function confere com o banco. Mesma regra do
+  // servidor (copiloto.totais_por_categoria): despesa soma, estorno subtrai,
+  // previstas futuras ficam de fora. Os próximos passos acrescentam campos aqui.
+  function copilotoResumo(ref){
+    ref = ref || refISO();
+    var mr = monthRange(ref), cats = {};
+    state.transactions.forEach(function(tx){
+      if(!isConsumo(tx) || isPrevista(tx) || tx.deletedAt) return;
+      var d = new Date(tx.dataEfet + "T00:00:00");
+      if(d.getFullYear() !== mr.first.getFullYear() || d.getMonth() !== mr.first.getMonth()) return;
+      var c = tx.categoria || "Sem categoria";
+      cats[c] = Math.round(((cats[c] || 0) + despVal(tx)) * 100) / 100;
+    });
+    var mes = mr.first.getFullYear() + "-" + String(mr.first.getMonth() + 1).padStart(2, "0");
+    return {versao: 1, mes: mes, categorias: cats};
+  }
+  // Prova das travas de ponta a ponta. No console do navegador, logado:
+  //   await genesisCopilotoTeste()
+  window.genesisCopilotoTeste = function(){
+    if(!sb || state.mode !== "db") return Promise.resolve({ok: false, mensagem: "Entre na conta na nuvem primeiro."});
+    return sb.functions.invoke("copiloto", {body: {recurso: "teste", resumo: copilotoResumo()}}).then(function(r){
+      if(r.error && r.error.context && typeof r.error.context.json === "function") return r.error.context.json();
+      return r.error ? {ok: false, mensagem: r.error.message} : r.data;
+    });
+  };
 
 
   window.__v5api = {renderAll: renderAll, info: v5Info, fmt: fmt, guessCategoria: guessCategoria, famRefresh: (typeof famRefresh === 'function' ? famRefresh : null)};

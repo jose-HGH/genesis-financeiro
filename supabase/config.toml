@@ -1,0 +1,7 @@
+# Configuração mínima para a CLI do Supabase publicar o que está nesta pasta.
+project_id = "aclqdyfargqepqdvjixf"
+
+[functions.copiloto]
+# O token é conferido dentro da função (supabase.auth.getUser), que funciona
+# com as chaves ES256 novas. A verificação antiga do gateway fica desligada.
+verify_jwt = false
