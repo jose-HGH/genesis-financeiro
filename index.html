@@ -358,6 +358,9 @@
   #simCorpo label{display:block; font-size:12px; color:var(--ink-2); margin-bottom:4px;}
   #simCorpo input, #simCorpo select{font-family:var(--font-ui); font-size:13px; border:1px solid var(--border-strong); border-radius:9px; padding:8px 10px; background:var(--surface-alt); color:var(--ink); min-width:0; width:100%; box-sizing:border-box;}
   .sim-ia{margin-bottom:14px;} .sim-linha{display:flex; gap:8px;} .sim-linha input{flex:1;} .sim-linha .btn{flex:none;}
+  .sim-mic{padding:0 12px; display:inline-flex; align-items:center; justify-content:center;} .sim-mic.ouvindo{color:#fff; background:var(--neg-solid, #dc2626); border-color:transparent; animation:simPulso 1.2s ease-in-out infinite;}
+  @keyframes simPulso{0%,100%{box-shadow:0 0 0 0 rgba(220,38,38,.45);} 50%{box-shadow:0 0 0 8px rgba(220,38,38,0);}}
+  @media (prefers-reduced-motion: reduce){ .sim-mic.ouvindo{animation:none;} }
   .sim-msg{font-size:12.5px; color:var(--ink-2); margin-top:6px; min-height:1em;}
   .sim-form{display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:10px; align-items:end;}
   .sim-form [hidden]{display:none;} .sim-acao{display:flex;} .sim-acao .btn{width:100%;}
@@ -3278,7 +3281,8 @@ var FLX = (function(){
     var ia = COPI.ok && state.mode === "db";
     var cats = simCategorias().map(function(c){ return '<option value="' + flxEsc(c) + '">' + flxEsc(c) + "</option>"; }).join("");
     var h = "";
-    if(ia) h += '<div class="sim-ia"><label for="simPergunta">Pergunte ao copiloto</label><div class="sim-linha"><input id="simPergunta" maxlength="300" placeholder="Ex.: e se eu cortar delivery pela metade?">' +
+    if(ia) h += '<div class="sim-ia"><label for="simPergunta">Pergunte ao copiloto</label><div class="sim-linha"><input id="simPergunta" maxlength="300" placeholder="Escreva ou toque no microfone: “tênis de 400, em quantas vezes?”">' +
+      (simVozDisponivel() ? '<button type="button" class="btn btn-ghost sim-mic" id="simMic" aria-label="Falar a pergunta" aria-pressed="false"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button>' : "") +
       '<button type="button" class="btn btn-primary" id="simPerguntar">Simular</button></div><div class="sim-msg" id="simIaMsg" role="status"></div></div>';
     h += '<div class="sim-form"><div><label for="simTipo">' + (ia ? "Ou monte a simulação" : "O que você quer testar?") + '</label><select id="simTipo">' +
       Object.keys(SIM_TIPOS).map(function(k){ return '<option value="' + k + '">' + SIM_TIPOS[k] + "</option>"; }).join("") + "</select></div>" +
@@ -3333,7 +3337,7 @@ var FLX = (function(){
         if(junto) return; // dois perfis na mesma opção: mostra uma vez só
         var rot = Object.keys(d.perfis).filter(function(q){ return d.perfis[q] === k; }).map(function(q){ return curto[q]; }).join(" · ");
         var folga = op.menor_saldo < 0 ? '<span class="fx-neg">fica ' + fmt(op.menor_saldo) + "</span>" : "sobram " + fmt(op.menor_saldo);
-        h += '<div class="sim-perfil"><small>' + rot + "</small><b>" + nomeOp(op) + "</b><span>" + folga + " no pior dia</span><span class=\"sim-porque\">" + nota[p] + "</span></div>";
+        h += '<div class="sim-perfil"><small>' + rot + "</small><b>" + nomeOp(op) + "</b><span>" + folga + " no pior dia</span><span class=\"sim-porque\">" + (p === "mais_rapida" && d.perfis.com_folga === k ? "termina rápido e ainda sobra margem" : nota[p]) + "</span></div>";
       });
       h += "</div>";
       h += '<details class="sim-mais"><summary>Ver todas as opções</summary><ul>' + SIM_OPCOES.map(function(o){
@@ -3372,8 +3376,39 @@ var FLX = (function(){
     h += copilotoBotao("simulacao", "fx-ia") + copilotoCaixa("simulacao") + '<div class="fx-nota">Simulação: nada foi salvo nem mudado nos seus lançamentos.</div></div>';
     box.innerHTML = h;
   }
-  function simPerguntar(){
-    var campo = document.getElementById("simPergunta"), pergunta = campo ? campo.value.trim() : "";
+  // Falar em vez de escrever: reconhecimento de fala do próprio navegador (Chrome no Android, Safari no iPhone).
+  // O app recebe só o texto; quando a pessoa para de falar, a pergunta segue sozinha para o simulador.
+  var SIMVOZ = {rec: null, ouvindo: false};
+  function simVozDisponivel(){ return !!(window.SpeechRecognition || window.webkitSpeechRecognition); }
+  function simVozMarcar(on){
+    SIMVOZ.ouvindo = on;
+    var b = document.getElementById("simMic"); if(b){ b.setAttribute("aria-pressed", String(on)); b.classList.toggle("ouvindo", on); }
+  }
+  function simVoz(){
+    if(SIMVOZ.ouvindo && SIMVOZ.rec){ SIMVOZ.rec.stop(); return; }
+    var R = window.SpeechRecognition || window.webkitSpeechRecognition; if(!R) return;
+    var rec = new R(), final = "", erro = null;
+    var campo = function(){ return document.getElementById("simPergunta"); }; // a tela pode ser redesenhada enquanto a pessoa fala
+    rec.lang = "pt-BR"; rec.interimResults = true; rec.continuous = false; rec.maxAlternatives = 1;
+    rec.onresult = function(ev){
+      var parcial = ""; final = "";
+      for(var i = 0; i < ev.results.length; i++){ if(ev.results[i].isFinal) final += ev.results[i][0].transcript; else parcial += ev.results[i][0].transcript; }
+      if(campo()) campo().value = (final + parcial).trim().slice(0, 300);
+    };
+    rec.onerror = function(ev){ erro = ev.error; };
+    rec.onend = function(){
+      simVozMarcar(false); SIMVOZ.rec = null;
+      var msg = document.getElementById("simIaMsg");
+      if(erro === "not-allowed" || erro === "service-not-allowed"){ if(msg) msg.textContent = "Sem permissão para o microfone. Libere o microfone para este site nas configurações do navegador, ou escreva a pergunta."; return; }
+      if(erro && erro !== "no-speech" && erro !== "aborted"){ if(msg) msg.textContent = "Não consegui ouvir agora. Tente de novo ou escreva a pergunta."; return; }
+      if(final.trim()){ if(campo()) campo().value = final.trim().slice(0, 300); simPerguntar(final.trim().slice(0, 300)); }
+      else if(msg && !erro) msg.textContent = "Não ouvi nada. Toque no microfone e fale a pergunta.";
+    };
+    try{ rec.start(); SIMVOZ.rec = rec; simVozMarcar(true); var m = document.getElementById("simIaMsg"); if(m) m.textContent = "Ouvindo… fale a sua pergunta."; }
+    catch(e){ simVozMarcar(false); }
+  }
+  function simPerguntar(texto){
+    var campo = document.getElementById("simPergunta"), pergunta = typeof texto === "string" ? texto : (campo ? campo.value.trim() : "");
     if(!pergunta || SIMD.iaCarregando || !COPI.ok || !sb || state.mode !== "db") return;
     var resumo = copilotoResumo(todayISO());
     simCategorias().forEach(function(c){ if(!(c in resumo.categorias)) resumo.categorias[c] = 0; }); // nomes das categorias, sem valores novos
@@ -3401,7 +3436,8 @@ var FLX = (function(){
         if(c.erro){ toast(c.erro); return; }
         SIMD.cen = c; SIMD.daIa = false; renderSimulador(); return;
       }
-      if(t.closest("#simPerguntar")){ simPerguntar(); }
+      if(t.closest("#simPerguntar")){ simPerguntar(); return; }
+      if(t.closest("#simMic")){ simVoz(); }
     });
     document.addEventListener("change", function(ev){ if(ev.target && ev.target.id === "simTipo") simAjustaForm(); });
     document.addEventListener("keydown", function(ev){ if(ev.key === "Enter" && ev.target && ev.target.id === "simPergunta"){ ev.preventDefault(); simPerguntar(); } });
