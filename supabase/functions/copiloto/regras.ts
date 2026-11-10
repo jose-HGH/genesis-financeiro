@@ -178,7 +178,7 @@ export function divergencias(
 // ---------------------------------------------------------------------
 
 /** Quadros que têm botão "Explicar". O nome é também o campo do resumo com os números. */
-export const CARDS_EXPLICAR = ["previsao", "fluxo", "diferencas"] as const;
+export const CARDS_EXPLICAR = ["previsao", "fluxo", "diferencas", "simulacao"] as const;
 export type CardExplicar = typeof CARDS_EXPLICAR[number];
 
 const CHAVE_OK = /^[a-z_]{1,40}$/;
@@ -198,16 +198,23 @@ export function validarCardExplicar(r: ResumoBase): string | null {
   const extras = Object.keys(r).filter((k) => !["versao", "mes", "categorias", "card", card].includes(k));
   if (extras.length) return `campo inesperado: ${extras[0]}`;
   let campos = 0;
-  const visitar = (v: unknown, nivel: number): string | null => {
+  // No quadro do simulador, dois textos a mais: o nome de uma categoria que já
+  // está no resumo e os termos de busca (minúsculas, sem acento) que a pessoa usou.
+  const textoExtraOk = (chave: string, v: string): boolean =>
+    card === "simulacao" && (
+      (chave === "categoria" && Object.prototype.hasOwnProperty.call(r.categorias, v)) ||
+      (chave === "termos" && v.length <= 80 && /^[a-z0-9]+( [a-z0-9]+)*(, [a-z0-9]+( [a-z0-9]+)*){0,5}$/.test(v))
+    );
+  const visitar = (v: unknown, nivel: number, chave = ""): string | null => {
     if (v === null || typeof v === "boolean") return null;
     if (typeof v === "number") return Number.isFinite(v) ? null : "número inválido";
-    if (typeof v === "string") return TEXTO_OK.test(v) ? null : "texto não permitido";
+    if (typeof v === "string") return TEXTO_OK.test(v) || textoExtraOk(chave, v) ? null : "texto não permitido";
     if (typeof v !== "object" || Array.isArray(v)) return "tipo não permitido";
     if (nivel > 3) return "níveis demais";
     for (const [k, x] of Object.entries(v as Record<string, unknown>)) {
       if (!CHAVE_OK.test(k)) return `nome de campo inválido: ${k}`;
       if (++campos > MAX_CAMPOS_CARD) return "campos demais";
-      const e = visitar(x, nivel + 1);
+      const e = visitar(x, nivel + 1, k);
       if (e) return e;
     }
     return null;
@@ -215,4 +222,136 @@ export function validarCardExplicar(r: ResumoBase): string | null {
   const dados = r[card];
   if (!dados || typeof dados !== "object" || Array.isArray(dados)) return "números do quadro ausentes";
   return visitar(dados, 1);
+}
+
+// ---------------------------------------------------------------------
+// Simulador "e se" (passo 6): a IA só transforma o pedido em texto livre
+// nos campos do formulário. Quem calcula é o app; a IA explica depois
+// pelo "Explicar" com o quadro "simulacao".
+// ---------------------------------------------------------------------
+
+const DATA_ISO = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * Resumo do pedido do simulador: o resumo base mais "hoje" (para a IA
+ * entender "dia 20" ou "mês que vem"). Nenhum outro campo, para nada além das
+ * categorias e da pergunta da própria pessoa ir para a IA.
+ */
+export function validarResumoSimulador(r: ResumoBase): string | null {
+  const extras = Object.keys(r).filter((k) => !["versao", "mes", "categorias", "hoje"].includes(k));
+  if (extras.length) return `campo inesperado: ${extras[0]}`;
+  if (typeof r.hoje !== "string" || !DATA_ISO.test(r.hoje)) return "hoje precisa ser AAAA-MM-DD";
+  if (Object.keys(r.categorias).length > 60) return "categorias demais";
+  return null;
+}
+
+export const TIPOS_CENARIO = ["cortar", "saida", "entrada", "parcelada", "nao_entendi"] as const;
+export type TipoCenario = typeof TIPOS_CENARIO[number];
+
+export interface Cenario {
+  tipo: TipoCenario;
+  categoria: string | null;
+  termos: string[];
+  percentual: number | null;
+  valor: number | null;
+  valor_parcela: number | null;
+  parcelas: number | null;
+  data: string | null;
+  repetir: "unica" | "mensal" | null;
+}
+
+const anulavel = (t: Record<string, unknown>) => ({ anyOf: [t, { type: "null" }] });
+
+/** Esquema da saída estruturada (output_config.format). Todos os campos sempre presentes. */
+export const ESQUEMA_CENARIO = {
+  type: "object",
+  additionalProperties: false,
+  required: ["tipo", "categoria", "termos", "percentual", "valor", "valor_parcela", "parcelas", "data", "repetir"],
+  properties: {
+    tipo: { type: "string", enum: [...TIPOS_CENARIO] },
+    categoria: anulavel({ type: "string" }),
+    termos: { type: "array", items: { type: "string" } },
+    percentual: anulavel({ type: "number" }),
+    valor: anulavel({ type: "number" }),
+    valor_parcela: anulavel({ type: "number" }),
+    parcelas: anulavel({ type: "integer" }),
+    data: anulavel({ type: "string", format: "date" }),
+    repetir: anulavel({ type: "string", enum: ["unica", "mensal"] }),
+  },
+} as const;
+
+const TERMO_OK = /^[a-z0-9]+( [a-z0-9]+){0,2}$/;
+const VALOR_MAX = 1_000_000;
+
+function normalizarTermo(t: string): string {
+  return t.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9 ]+/g, " ")
+    .replace(/\s+/g, " ").trim();
+}
+function dinheiro(v: unknown): number | null {
+  return typeof v === "number" && Number.isFinite(v) && v > 0 && v <= VALOR_MAX ? Math.round(v * 100) / 100 : null;
+}
+function somarDias(iso: string, dias: number): string {
+  const d = new Date(iso + "T00:00:00Z");
+  d.setUTCDate(d.getUTCDate() + dias);
+  return d.toISOString().slice(0, 10);
+}
+
+/**
+ * Confere e normaliza o cenário que a IA devolveu. Devolve {cenario} pronto
+ * para o formulário ou {erro}. A categoria tem de ser uma das categorias do
+ * resumo; termos viram minúsculas sem acento; datas ficam entre hoje e 1 ano.
+ */
+export function validarCenario(
+  bruto: unknown, categorias: Record<string, number>, hoje: string,
+): { cenario: Cenario } | { erro: string } {
+  if (!bruto || typeof bruto !== "object" || Array.isArray(bruto)) return { erro: "não é objeto" };
+  const o = bruto as Record<string, unknown>;
+  const tipo = o.tipo as TipoCenario;
+  if (!(TIPOS_CENARIO as readonly string[]).includes(tipo)) return { erro: "tipo desconhecido" };
+  const vazio: Cenario = {
+    tipo: "nao_entendi", categoria: null, termos: [], percentual: null, valor: null,
+    valor_parcela: null, parcelas: null, data: null, repetir: null,
+  };
+  if (tipo === "nao_entendi") return { cenario: vazio };
+
+  if (tipo === "cortar") {
+    let categoria: string | null = null;
+    if (typeof o.categoria === "string" && o.categoria.trim()) {
+      if (!Object.prototype.hasOwnProperty.call(categorias, o.categoria)) return { erro: "categoria fora da lista" };
+      categoria = o.categoria;
+    }
+    const termos = Array.isArray(o.termos)
+      ? [...new Set(o.termos.filter((t) => typeof t === "string").map((t) => normalizarTermo(t as string))
+        .filter((t) => t.length >= 2 && t.length <= 24 && TERMO_OK.test(t)))].slice(0, 6)
+      : [];
+    if (!categoria && !termos.length) return { erro: "cortar sem categoria nem termos" };
+    const p = typeof o.percentual === "number" && Number.isFinite(o.percentual) ? Math.round(o.percentual) : NaN;
+    if (!(p >= 1 && p <= 100)) return { erro: "percentual fora de 1 a 100" };
+    return { cenario: { ...vazio, tipo, categoria, termos, percentual: p } };
+  }
+
+  let data: string | null = null;
+  if (typeof o.data === "string" && o.data) {
+    if (!DATA_ISO.test(o.data) || isNaN(Date.parse(o.data + "T00:00:00Z"))) return { erro: "data inválida" };
+    if (o.data < hoje || o.data > somarDias(hoje, 366)) return { erro: "data fora de hoje até 1 ano" };
+    data = o.data;
+  }
+
+  if (tipo === "saida" || tipo === "entrada") {
+    const valor = dinheiro(o.valor);
+    if (valor === null) return { erro: "valor inválido" };
+    const repetir = o.repetir === "mensal" ? "mensal" : "unica";
+    return { cenario: { ...vazio, tipo, valor, data, repetir } };
+  }
+
+  // parcelada; sem número de parcelas = comparar opções (o app escolhe por regra)
+  let parcelas: number | null = null;
+  if (o.parcelas !== null && o.parcelas !== undefined) {
+    parcelas = typeof o.parcelas === "number" && Number.isInteger(o.parcelas) ? o.parcelas : NaN;
+    if (!(parcelas >= 1 && parcelas <= 48)) return { erro: "parcelas fora de 1 a 48" };
+  }
+  const valor = dinheiro(o.valor), valorParcela = dinheiro(o.valor_parcela);
+  if (valor === null && valorParcela === null) return { erro: "parcelada sem valor" };
+  if (parcelas === null && valor === null) return { erro: "comparar parcelas precisa do valor total" };
+  return { cenario: { ...vazio, tipo, parcelas, valor: valorParcela === null ? valor : null, valor_parcela: valorParcela, data } };
 }

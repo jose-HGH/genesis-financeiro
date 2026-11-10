@@ -3,7 +3,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   custoMaximoUsd, custoUsd, divergencias, impressaoDigital, jsonCanonico,
-  paraCentavos, validarCardExplicar, validarResumo, valoresEmReais, valoresInventados,
+  paraCentavos, validarCardExplicar, validarCenario, validarResumo, validarResumoSimulador,
+  valoresEmReais, valoresInventados,
 } from "./regras.ts";
 
 test("paraCentavos entende formato brasileiro e inglês", () => {
@@ -70,4 +71,58 @@ test("validarCardExplicar recusa texto livre, quadro desconhecido e campos extra
   assert.notEqual(validarCardExplicar({ ...base, card: "previsao", previsao: { itens: [1, 2] } }), null);
   assert.notEqual(validarCardExplicar({ ...base, card: "previsao", previsao: { valor: 1 }, fluxo: { valor: 2 } }), null);
   assert.notEqual(validarCardExplicar({ ...base, card: "previsao", previsao: { a: { b: { c: { d: 1 } } } } }), null);
+});
+
+// ---------------- Simulador (passo 6) ----------------
+const CATS = { "Alimentação": 812.4, "Delivery": 0, "Transporte": 300 };
+const ok = (r: ReturnType<typeof validarCenario>) => { assert.ok("cenario" in r, JSON.stringify(r)); return (r as { cenario: any }).cenario; };
+const ruim = (r: ReturnType<typeof validarCenario>) => { assert.ok("erro" in r, JSON.stringify(r)); };
+const base = { categoria: null, termos: [], percentual: null, valor: null, valor_parcela: null, parcelas: null, data: null, repetir: null };
+
+test("simulador: resumo só com categorias e hoje", () => {
+  const r = { versao: 1, mes: "2026-11", categorias: CATS, hoje: "2026-11-10" };
+  assert.equal(validarResumoSimulador(r), null);
+  assert.notEqual(validarResumoSimulador({ ...r, hoje: "10/11" }), null);
+  assert.notEqual(validarResumoSimulador({ ...r, extrato: "PIX JOSE" }), null);
+});
+
+test("simulador: cortar delivery pela metade", () => {
+  const c = ok(validarCenario({ ...base, tipo: "cortar", termos: ["iFood", "IFD*", "Zé Delivery", "x"], percentual: 50 }, CATS, "2026-11-10"));
+  assert.deepEqual(c.termos, ["ifood", "ifd", "ze delivery"]);
+  assert.equal(c.percentual, 50);
+  assert.equal(ok(validarCenario({ ...base, tipo: "cortar", categoria: "Delivery", percentual: 50 }, CATS, "2026-11-10")).categoria, "Delivery");
+  ruim(validarCenario({ ...base, tipo: "cortar", categoria: "Restaurantes", percentual: 50 }, CATS, "2026-11-10"));
+  ruim(validarCenario({ ...base, tipo: "cortar", percentual: 50 }, CATS, "2026-11-10"));
+  ruim(validarCenario({ ...base, tipo: "cortar", termos: ["uber"], percentual: 0 }, CATS, "2026-11-10"));
+  ruim(validarCenario({ ...base, tipo: "cortar", termos: ["uber"], percentual: 150 }, CATS, "2026-11-10"));
+});
+
+test("simulador: saída, entrada e parcelada", () => {
+  const s = ok(validarCenario({ ...base, tipo: "saida", valor: 200.004, repetir: "mensal" }, CATS, "2026-11-10"));
+  assert.equal(s.valor, 200); assert.equal(s.repetir, "mensal");
+  assert.equal(ok(validarCenario({ ...base, tipo: "entrada", valor: 500, data: "2026-11-20" }, CATS, "2026-11-10")).repetir, "unica");
+  ruim(validarCenario({ ...base, tipo: "entrada", valor: 500, data: "2026-11-01" }, CATS, "2026-11-10")); // antes de hoje
+  ruim(validarCenario({ ...base, tipo: "saida", valor: -3 }, CATS, "2026-11-10"));
+  const p = ok(validarCenario({ ...base, tipo: "parcelada", valor: 3000, parcelas: 10 }, CATS, "2026-11-10"));
+  assert.equal(p.valor, 3000); assert.equal(p.valor_parcela, null);
+  const q = ok(validarCenario({ ...base, tipo: "parcelada", valor: 3000, valor_parcela: 250, parcelas: 12 }, CATS, "2026-11-10"));
+  assert.equal(q.valor, null); assert.equal(q.valor_parcela, 250);
+  ruim(validarCenario({ ...base, tipo: "parcelada", valor: 3000, parcelas: 60 }, CATS, "2026-11-10"));
+  ruim(validarCenario({ ...base, tipo: "parcelada", parcelas: 10 }, CATS, "2026-11-10"));
+  // "em quantas vezes é melhor?": sem parcelas, com o total, vira comparação
+  const cmp = ok(validarCenario({ ...base, tipo: "parcelada", valor: 400, parcelas: null }, CATS, "2026-11-10"));
+  assert.equal(cmp.parcelas, null); assert.equal(cmp.valor, 400);
+  ruim(validarCenario({ ...base, tipo: "parcelada", valor_parcela: 40, parcelas: null }, CATS, "2026-11-10"));
+  assert.equal(ok(validarCenario({ ...base, tipo: "nao_entendi", valor: 9 }, CATS, "2026-11-10")).valor, null);
+  ruim(validarCenario({ tipo: "apagar_tudo" }, CATS, "2026-11-10"));
+  ruim(validarCenario("texto", CATS, "2026-11-10"));
+});
+
+test("explicar: quadro simulacao aceita categoria do resumo e termos, nada além", () => {
+  const r = (dados: Record<string, unknown>) => ({ versao: 1, mes: "2026-11", categorias: CATS, card: "simulacao", simulacao: dados });
+  assert.equal(validarCardExplicar(r({ tipo: "cortar", categoria: "Delivery", termos: "ifood, ze delivery", percentual: 50, economia_por_mes: 120.5 })), null);
+  assert.notEqual(validarCardExplicar(r({ tipo: "cortar", categoria: "Restaurante do Zé" })), null);
+  assert.notEqual(validarCardExplicar(r({ tipo: "cortar", termos: "IFOOD *JOSE SILVA" })), null);
+  assert.notEqual(validarCardExplicar(r({ tipo: "saida", rotulo: "Delivery" })), null); // categoria só no campo categoria
+  assert.equal(validarCardExplicar(r({ tipo: "parcelada", antes: { saldo_fim_do_mes: 10 }, proximas_faturas: { primeiro_mes: { mes: "2026-12", antes: 1, depois: 2 } } })), null);
 });
