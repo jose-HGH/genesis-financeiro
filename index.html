@@ -366,7 +366,7 @@
   .sim-form [hidden]{display:none;} .sim-acao{display:flex;} .sim-acao .btn{width:100%;}
   .sim-res{margin-top:14px; display:flex; flex-direction:column; gap:10px;} .sim-res h4{margin:0; font-size:15px;}
   .sim-tab{width:100%; font-size:13px;} .sim-sug{background:var(--soft);}
-  .sim-cartoes{display:flex; flex-wrap:wrap; gap:8px; margin-top:8px;} .sim-cartoes .btn{display:flex; flex-direction:column; align-items:flex-start; gap:2px; height:auto; padding:8px 12px; text-align:left;} .sim-cartoes small{font-size:11.5px; color:var(--ink-2);}
+  .sim-cartoes{display:flex; flex-wrap:wrap; gap:8px; margin-top:8px;} .sim-cartoes .btn{display:flex; flex-direction:column; align-items:flex-start; gap:2px; height:auto; padding:8px 12px; text-align:left; border-radius:14px;} .sim-cartoes small{font-size:11.5px; color:var(--ink-2);} .sim-cartoes .sim-tag{font-weight:600; color:var(--pos);}
   .sim-perfis{display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:8px;}
   .sim-perfil{display:flex; flex-direction:column; gap:2px; padding:10px 12px; border-radius:14px; background:var(--soft,var(--glass)); border:1px solid var(--line); font-size:13px;}
   .sim-perfil small{font-size:11.5px; color:var(--ink-2);} .sim-perfil b{font-size:15px;}
@@ -2770,7 +2770,7 @@ var FLX = (function(){
     return {falta: r.falta, pior: r.pior, primeiroNeg: r.primeiroNeg, semMoveis: r.semMoveis, movidas: r.movidas, recuperaEm: recupera, horizonteAte: ext, voltaNoHorizonte: !!recupera};
   }
 
-  return {parse: parse, iso: iso, addDias: addDias, ultimoDia: ultimoDia, expandir: expandir, simular: simular, analisar: analisar, reorganizar: reorganizar,
+  return {parse: parse, iso: iso, addDias: addDias, diasEntre: diasEntre, ultimoDia: ultimoDia, expandir: expandir, simular: simular, analisar: analisar, reorganizar: reorganizar,
           resumo: resumo, custoNegativo: custoNegativo, cent: cent};
 })();
 
@@ -3359,10 +3359,17 @@ var FLX = (function(){
     var cs = simCartoes();
     if(SIMD.cen.tipo === "parcelada" && !SIMD.cen.data && !SIMD.cen.cartao){
       if(cs.length === 1) SIMD.cen.cartao = cs[0].key;
-      else if(cs.length > 1){ // a 1ª parcela depende do cartão: pergunta antes de calcular
-        box.innerHTML = '<div class="sim-res"><h4>Em qual cartão?</h4><div class="fx-nota">A 1ª parcela depende do dia de fechamento: comprando depois dele, ela só vem na fatura seguinte.</div><div class="sim-cartoes">' +
-          cs.map(function(c){ return '<button type="button" class="btn btn-ghost" data-sim-cartao="' + flxEsc(c.key) + '"><b>' + flxEsc(c.nome) + "</b><small>fecha dia " + c.fechamento + ", vence dia " + c.vencimento + "</small></button>"; }).join("") +
-          '<button type="button" class="btn btn-ghost" data-sim-cartao="estimar"><b>Não sei</b><small>estimar pelas faturas</small></button></div></div>';
+      else if(cs.length > 1){ // a 1ª parcela depende do cartão: mostra o prazo de cada um e deixa a pessoa escolher
+        var hojeC = todayISO(), prazos = cs.map(function(c){ var v = faturaVencimentoPara(hojeC, c.fechamento, c.vencimento); return {c: c, venc: v, dias: FLX.diasEntre(hojeC, v)}; });
+        var maior = prazos.reduce(function(a, b){ return b.dias > a.dias ? b : a; });
+        var empate = prazos.filter(function(x){ return x.dias === maior.dias; }).length > 1;
+        box.innerHTML = '<div class="sim-res"><h4>Em qual cartão?</h4>' +
+          (empate ? "" : '<div class="fx-nota">Comprando hoje, o <b>' + flxEsc(maior.c.nome) + "</b> é o que mais demora a cobrar: a 1ª parcela só vem em <b>" + flxDia(maior.venc) + "</b> (" + maior.dias + " dias). Prazo maior dá mais tempo para o dinheiro entrar antes da 1ª parcela; o valor total é o mesmo.</div>") +
+          '<div class="sim-cartoes">' +
+          prazos.map(function(x){ var c = x.c, melhorDia = c.fechamento >= 28 ? 1 : c.fechamento + 1;
+            return '<button type="button" class="btn btn-ghost" data-sim-cartao="' + flxEsc(c.key) + '">' + (!empate && x === maior ? '<small class="sim-tag">Mais prazo</small>' : "") + "<b>" + flxEsc(c.nome) + "</b><small>1ª parcela em " + flxDia(x.venc) + " · " + x.dias + " dias</small><small>fecha dia " + c.fechamento + " · melhor dia de compra: " + melhorDia + "</small></button>"; }).join("") +
+          '<button type="button" class="btn btn-ghost" data-sim-cartao="estimar"><b>Não sei</b><small>estimar pelas faturas</small></button></div>' +
+          '<div class="fx-nota">O app não sabe o limite disponível nem se há juros em cada cartão: confira antes de passar.</div></div>';
         return;
       }
     }
@@ -3468,7 +3475,7 @@ var FLX = (function(){
       var c = j.cenario || {};
       if(c.tipo === "nao_entendi" || !SIM_TIPOS[c.tipo]){ SIMD.iaMsg = "Não entendi essa simulação. Diga o valor (ex.: \"e se eu comprar uma TV de R$ 3.000 em 10x?\") ou monte no formulário abaixo."; renderSimulador(); return; }
       SIMD.iaMsg = "O copiloto preencheu o formulário a partir da sua pergunta. Confira os campos: a conta é do app.";
-      if(c.tipo === "parcelada") c.cartao = simCartaoNaPergunta(pergunta);
+      if(c.tipo === "parcelada") c.cartao = /\b(qual|que|melhor|quais)\b[^?]{0,20}\bcart(ao|oes)\b/.test(simNorm(pergunta)) ? null : simCartaoNaPergunta(pergunta); // "qual cartão?": mostra a comparação
       SIMD.cen = c; SIMD.daIa = true;
       simPreencher(c); renderSimulador();
       if(SIMD.res && !SIMD.res.vazio) copilotoExplicar("simulacao");
