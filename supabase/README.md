@@ -66,3 +66,17 @@ A resposta deve ser `{ok: true, texto: "...", guardada: false}`; rodando de novo
 ```bash
 node --experimental-strip-types --test supabase/functions/copiloto/regras.test.ts
 ```
+
+## Erros do navegador (diagnóstico)
+
+A migration `20261112000000_erros_navegador.sql` cria o schema `monitor` (fora da API) com
+`monitor.erros_navegador` e a função `public.registrar_erro_navegador(p jsonb)`, a única coisa
+que o app chama. O painel envia no máximo 10 erros por carregamento; o banco aceita até 30 por
+conta e 300 no total por hora, soma repetições do mesmo erro e guarda 90 dias.
+
+```sql
+-- Erros das últimas 24 horas, do mais frequente para o menos
+select mensagem, fonte, linha, versao, sum(repeticoes) as vezes, count(distinct user_id) as contas, max(criado_em) as ultimo
+  from monitor.erros_navegador where criado_em > now() - interval '24 hours'
+ group by 1, 2, 3, 4 order by vezes desc;
+```

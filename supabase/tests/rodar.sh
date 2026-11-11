@@ -8,4 +8,4 @@ createdb "$DB"
 trap 'dropdb "$DB"' EXIT
 psql -q -v ON_ERROR_STOP=1 -d "$DB" -f tests/supabase_minimo.sql
 for f in migrations/*.sql; do psql -q -v ON_ERROR_STOP=1 -d "$DB" -f "$f" 2>&1 | grep -v NOTICE || true; done
-psql -v ON_ERROR_STOP=1 -d "$DB" -f tests/base.sql
+for t in tests/*.sql; do case "$t" in tests/supabase_minimo.sql) ;; *) echo "== $t"; psql -v ON_ERROR_STOP=1 -d "$DB" -f "$t" ;; esac; done
