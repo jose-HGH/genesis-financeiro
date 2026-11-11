@@ -5,7 +5,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.0/dist/umd/supabase.js"></script>
-<meta name="app-version" content="20261111-233000">
+<meta name="app-version" content="20261112-000000">
 <script>
 // Versão do painel: a publicação carimba a meta app-version e grava versao.txt ao lado.
 // Ao abrir: se o servidor já tem versão nova, recarrega na hora (uma vez por versão).
@@ -49,6 +49,34 @@
   conferir(true);
   document.addEventListener("visibilitychange", function(){ if(document.visibilityState === "visible" && Date.now() - ultimaConsulta > 60000) conferir(false); });
   setInterval(function(){ if(document.visibilityState === "visible") conferir(false); }, 600000);
+})();
+</script>
+<script>
+// Registro de erros: guarda os erros de JavaScript desde o primeiro instante; o app envia depois
+// (public.registrar_erro_navegador), quando o cliente do Supabase existe. Só a mensagem técnica,
+// sem dados financeiros; no máximo 10 por carregamento e cada mensagem uma vez.
+(function(){
+  var fila = [], vistos = {}, enviar = null, MAX = 10;
+  var versao = (document.querySelector('meta[name="app-version"]') || {}).content || null;
+  function guardar(tipo, msg, fonte, linha, coluna, pilha){
+    msg = String(msg || "").slice(0, 500); if(!msg || vistos[msg] || MAX <= 0) return;
+    vistos[msg] = true; MAX--;
+    var e = {tipo: tipo, mensagem: msg, fonte: fonte ? String(fonte).split(/[?#]/)[0] : null, linha: linha || null, coluna: coluna || null,
+      pilha: pilha ? String(pilha).slice(0, 2000) : null, versao: versao, pagina: location.pathname, navegador: navigator.userAgent.slice(0, 300)};
+    if(enviar){ try{ enviar(e); }catch(x){} } else fila.push(e);
+  }
+  window.addEventListener("error", function(ev){
+    if(!ev || !ev.message) return; // falha ao carregar imagem/script: não é erro de código
+    guardar("erro", ev.message, ev.filename, ev.lineno, ev.colno, ev.error && ev.error.stack);
+  });
+  window.addEventListener("unhandledrejection", function(ev){
+    var r = ev && ev.reason; guardar("promessa", (r && r.message) || String(r), null, null, null, r && r.stack);
+  });
+  window.__genesisErros = {
+    guardar: guardar,
+    ligarEnvio: function(fn){ enviar = fn; var f = fila; fila = []; f.forEach(function(e){ try{ fn(e); }catch(x){} }); },
+    pendentes: function(){ return fila.slice(); }
+  };
 })();
 </script>
 <style>
@@ -2319,6 +2347,10 @@
   var sb = (typeof window.supabase !== "undefined")
     ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
     : null;
+  // erros de JavaScript vão para o diagnóstico (nunca nos testes automáticos)
+  if(sb && window.__genesisErros && !navigator.webdriver){
+    window.__genesisErros.ligarEnvio(function(e){ sb.rpc("registrar_erro_navegador", {p: e}).then(function(){}, function(){}); });
+  }
 
   var TX_FIELD_MAP = {
     tipo:"tipo", banco:"banco", modalidade:"modalidade", valor:"valor",

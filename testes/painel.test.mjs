@@ -63,3 +63,23 @@ test("mesma versão no servidor: não recarrega; versão nova com a aba aberta m
     assert.doesNotMatch(page.url(), /\?v=/, "com a aba aberta não pode recarregar sozinho");
   } finally { await ctx.close(); }
 });
+
+test("erro de JavaScript é guardado para o diagnóstico (uma vez por mensagem, sem ?parâmetros)", async () => {
+  const { ctx, page } = await abrirPainel(browser, servidor.base);
+  try {
+    await page.evaluate(() => {
+      setTimeout(() => { throw new Error("falha de teste"); }, 0);
+      setTimeout(() => { throw new Error("falha de teste"); }, 0);
+      Promise.reject(new Error("promessa de teste"));
+    });
+    await page.waitForTimeout(300);
+    const fila = await page.evaluate(() => window.__genesisErros.pendentes());
+    const msgs = fila.map((e) => e.mensagem).sort();
+    assert.deepEqual(msgs, ["Uncaught Error: falha de teste", "promessa de teste"]);
+    for (const e of fila) {
+      assert.match(e.versao, /^\d{8}-\d{6}$/);
+      assert.equal(e.pagina, "/index.html");
+      assert.ok(!e.fonte || !/[?#]/.test(e.fonte));
+    }
+  } finally { await ctx.close(); }
+});
