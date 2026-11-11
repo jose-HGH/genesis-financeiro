@@ -5,17 +5,50 @@
 <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.0/dist/umd/supabase.js"></script>
-<meta name="app-version" content="20261111-183000">
+<meta name="app-version" content="20261111-233000">
 <script>
+// Versão do painel: a publicação carimba a meta app-version e grava versao.txt ao lado.
+// Ao abrir: se o servidor já tem versão nova, recarrega na hora (uma vez por versão).
+// Com a aba aberta: ao voltar para ela (e a cada 10 min), confere de novo e mostra "Atualizar",
+// sem recarregar sozinho, para não perder uma importação no meio.
 (function(){
   var m = document.querySelector('meta[name="app-version"]'); var cur = m && m.content; if(!cur) return;
-  fetch(location.pathname + "?_=" + Date.now(), {cache: "no-store"}).then(function(r){ return r.text(); }).then(function(t){
-    var n = /<meta name="app-version" content="([^"]+)"/.exec(t);
-    if(!n || n[1] === cur) return;
-    var key = "genesis-recarregou-" + n[1];
-    try{ if(sessionStorage.getItem(key)) return; sessionStorage.setItem(key, "1"); }catch(e){}
-    location.replace(location.pathname + "?v=" + encodeURIComponent(n[1]) + location.hash);
-  }).catch(function(){});
+  var FORMATO = /^\d{8}-\d{6}$/, ultimaConsulta = 0;
+  function versaoDoServidor(){
+    var q = "?_=" + Date.now();
+    return fetch("versao.txt" + q, {cache: "no-store"}).then(function(r){ return r.ok ? r.text() : ""; }).catch(function(){ return ""; }).then(function(t){
+      t = (t || "").trim();
+      if(FORMATO.test(t)) return t;
+      return fetch(location.pathname + q, {cache: "no-store"}).then(function(r){ return r.text(); }).then(function(h){
+        var n = /<meta name="app-version" content="([^"]+)"/.exec(h); return n ? n[1] : null;
+      });
+    });
+  }
+  function recarregar(v){ location.replace(location.pathname + "?v=" + encodeURIComponent(v) + location.hash); }
+  function aviso(v){
+    if(document.getElementById("genesisNovaVersao") || !document.body) return;
+    var d = document.createElement("div"); d.id = "genesisNovaVersao"; d.setAttribute("role", "status");
+    d.style.cssText = "position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:9999;background:#16281a;color:#fff;padding:10px 14px;border-radius:12px;display:flex;gap:12px;align-items:center;font:500 14px/1.3 system-ui,sans-serif;box-shadow:0 6px 24px rgba(0,0,0,.25);max-width:calc(100vw - 32px)";
+    var t = document.createElement("span"); t.textContent = "Há uma versão nova do painel.";
+    var b = document.createElement("button"); b.type = "button"; b.textContent = "Atualizar";
+    b.style.cssText = "background:#cdee6b;color:#1c2a12;border:0;border-radius:8px;padding:6px 12px;font:600 14px system-ui,sans-serif;cursor:pointer";
+    b.onclick = function(){ recarregar(v); };
+    d.appendChild(t); d.appendChild(b); document.body.appendChild(d);
+  }
+  function conferir(aoAbrir){
+    ultimaConsulta = Date.now();
+    versaoDoServidor().then(function(v){
+      if(!v || v === cur || v < cur) return;
+      if(aoAbrir){
+        var key = "genesis-recarregou-" + v;
+        try{ if(sessionStorage.getItem(key)) return; sessionStorage.setItem(key, "1"); }catch(e){}
+        recarregar(v);
+      } else aviso(v);
+    }).catch(function(){});
+  }
+  conferir(true);
+  document.addEventListener("visibilitychange", function(){ if(document.visibilityState === "visible" && Date.now() - ultimaConsulta > 60000) conferir(false); });
+  setInterval(function(){ if(document.visibilityState === "visible") conferir(false); }, 600000);
 })();
 </script>
 <style>

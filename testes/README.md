@@ -1,6 +1,7 @@
 # Testes do Gênesis
 
-Rodam sozinhos no GitHub (Actions → **Testes**) a cada push e a cada pull request.
+Rodam sozinhos no GitHub (Actions → **Testes**) a cada pull request e, na main, dentro do
+workflow **Publicar**: o site só é publicado se todos passarem.
 Um X vermelho no PR quer dizer que algo quebrou: não faça merge até ficar verde.
 
 ## O que é testado
@@ -9,7 +10,7 @@ Um X vermelho no PR quer dizer que algo quebrou: não faça merge até ficar ver
 |---|---|
 | `painel.test.mjs` | O painel abre sem erro de JavaScript, o leitor de PDF carrega e a versão (`app-version`) existe. |
 | `arquivos.test.mjs` | Cada arquivo da biblioteca `arquivos/` é lido como o `.esperado.json` diz. Com `"reimportar": true`, importa e manda o mesmo arquivo de novo: nenhuma linha pode entrar duas vezes. |
-| Workflow, passo "Versão do site subiu?" | Se o `index.html` mudou no PR, a meta `app-version` tem de mudar também (senão o navegador continua com o código velho). |
+| `painel.test.mjs` (versão) | Versão nova no servidor: ao abrir, recarrega uma vez; com a aba aberta, mostra "Atualizar" sem recarregar sozinho. |
 | Job "Regras do copiloto e banco" | `regras.test.ts` do copiloto e os testes SQL num Postgres descartável. |
 
 ## Cópia isolada do painel
@@ -44,3 +45,12 @@ npm ci --omit=optional
 npx playwright install chromium
 npm test
 ```
+
+## Publicação e versão
+
+O workflow `Publicar` (a cada push na main) roda os testes, monta o site só com `index.html`,
+`privacidade.html`, `termos.html` e `CNAME`, carimba a `app-version` com a hora da publicação
+(UTC) e grava `versao.txt`. Ninguém precisa subir a versão à mão. O painel confere `versao.txt`
+ao abrir, ao voltar para a aba e a cada 10 minutos.
+
+Requisito (uma vez): GitHub → Settings → Pages → Source: **GitHub Actions**.
