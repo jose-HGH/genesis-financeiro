@@ -1,0 +1,55 @@
+{
+  "descricao": "CSV com BOM, separador ';', vírgula decimal, milhar com ponto, 29/02 de ano bissexto e fim de mês.",
+  "reimportar": false,
+  "opcoes": {
+    "banco": "Banco Exemplo"
+  },
+  "leitura": {
+    "meta": {
+      "isExtrato": true,
+      "isFatura": false,
+      "banco": "Banco Exemplo",
+      "cardFinal": null,
+      "vencimento": null,
+      "fechamentoDia": null,
+      "fechamentoFatura": null
+    },
+    "total_linhas": 3,
+    "soma": 3631.11,
+    "linhas": [
+      {
+        "data": "2028-02-29",
+        "dataEfet": "2028-02-29",
+        "valor": 5432.1,
+        "sinal": "+",
+        "descricao": "Salário EXEMPLO",
+        "tipo": "receita",
+        "parcela": null,
+        "final": null,
+        "selecionada": true
+      },
+      {
+        "data": "2028-03-31",
+        "dataEfet": "2028-03-31",
+        "valor": 1800,
+        "sinal": "-",
+        "descricao": "Aluguel EXEMPLO",
+        "tipo": "despesa",
+        "parcela": null,
+        "final": null,
+        "selecionada": true
+      },
+      {
+        "data": "2028-04-01",
+        "dataEfet": "2028-04-01",
+        "valor": 0.99,
+        "sinal": "-",
+        "descricao": "Mercado EXEMPLO",
+        "tipo": "despesa",
+        "parcela": null,
+        "final": null,
+        "selecionada": true
+      }
+    ]
+  }
+}

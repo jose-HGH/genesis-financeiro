@@ -1,0 +1,10 @@
+{
+  "descricao": "CSV com 31/02 no meio: o painel tem de parar e mostrar a linha ilegível, sem importar nada calado.",
+  "reimportar": false,
+  "opcoes": {
+    "banco": "Banco Exemplo"
+  },
+  "leitura": {
+    "erro": "1 linha(s) ilegível(is). Nada foi importado ainda:Linha 3: data ilegível (31/02/2026)Continuar sem essas 1 linha(s)"
+  }
+}

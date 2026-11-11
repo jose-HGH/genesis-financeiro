@@ -1,0 +1,30 @@
+{
+  "descricao": "Fatura estilo BB (fecha 17, vence 26) com 'Fechamento: 17/10'.",
+  "reimportar": false,
+  "leitura": {
+    "meta": {
+      "isExtrato": false,
+      "isFatura": true,
+      "banco": "Banco do Brasil",
+      "cardFinal": null,
+      "vencimento": "2026-10-26",
+      "fechamentoDia": 17,
+      "fechamentoFatura": null
+    },
+    "total_linhas": 1,
+    "soma": 87.5,
+    "linhas": [
+      {
+        "data": "2026-09-12",
+        "dataEfet": "2026-10-26",
+        "valor": 87.5,
+        "sinal": "+",
+        "descricao": "MERCADO EXEMPLO",
+        "tipo": "despesa",
+        "parcela": null,
+        "final": null,
+        "selecionada": true
+      }
+    ]
+  }
+}

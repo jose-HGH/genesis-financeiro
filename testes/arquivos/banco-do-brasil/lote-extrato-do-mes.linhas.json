@@ -1,0 +1,25 @@
+{
+ "linhas": [
+  "Banco do Brasil",
+  "Extrato de Conta Corrente",
+  "Cliente: FULANO DE TAL EXEMPLO",
+  "Período: 01/10/2026 a 31/10/2026 Agência: 9999-9 Conta: 00000-1",
+  "Lançamentos",
+  "Dia Lote Documento Histórico Valor",
+  "01/10/2026 Saldo Anterior 1.000,00 (+)",
+  "Pix - Enviado",
+  "05/10/2026 99008 51234 150,00 (-)",
+  "05/10 14:22 CICRANO EXEMPLO",
+  "Pix - Recebido",
+  "05/10/2026 99008 51235 80,00 (+)",
+  "05/10 18:40 BELTRANA EXEMPLO",
+  "Compra com Cartão",
+  "05/10/2026 99008 51236 32,50 (-)",
+  "05/10 20:01 PADARIA EXEMPLO",
+  "05/10/2026 Saldo do dia 897,50 (+)",
+  "Tarifa Pacote de Serviços",
+  "10/10/2026 13105 91001 15,00 (-)",
+  "10/10/2026 Saldo do dia 882,50 (+)",
+  "31/10/2026 S A L D O 882,50 (+)"
+ ]
+}

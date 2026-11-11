@@ -1,0 +1,67 @@
+{
+  "descricao": "Extrato do MÊS do BB (fictício) com as mesmas 3 linhas do extrato do dia, mas o lote mudou de 2093 para 99008 (caso real do PR #10). Depois de importar o do dia, só a tarifa de 10/10 é nova.",
+  "reimportar": true,
+  "importar_antes": "lote-extrato-do-dia.linhas.json",
+  "novas_depois": [
+    "2026-10-10 -15 Tarifa Pacote de Serviços"
+  ],
+  "leitura": {
+    "meta": {
+      "isExtrato": true,
+      "isFatura": false,
+      "banco": "Banco do Brasil",
+      "cardFinal": null,
+      "vencimento": null,
+      "fechamentoDia": null,
+      "fechamentoFatura": null
+    },
+    "total_linhas": 4,
+    "soma": -117.5,
+    "linhas": [
+      {
+        "data": "2026-10-05",
+        "dataEfet": "2026-10-05",
+        "valor": 150,
+        "sinal": "-",
+        "descricao": "CICRANO EXEMPLO · Pix - Enviado",
+        "tipo": "despesa",
+        "parcela": null,
+        "final": null,
+        "selecionada": true
+      },
+      {
+        "data": "2026-10-05",
+        "dataEfet": "2026-10-05",
+        "valor": 80,
+        "sinal": "+",
+        "descricao": "BELTRANA EXEMPLO · Pix - Recebido",
+        "tipo": "receita",
+        "parcela": null,
+        "final": null,
+        "selecionada": true
+      },
+      {
+        "data": "2026-10-05",
+        "dataEfet": "2026-10-05",
+        "valor": 32.5,
+        "sinal": "-",
+        "descricao": "PADARIA EXEMPLO · Compra com Cartão",
+        "tipo": "despesa",
+        "parcela": null,
+        "final": null,
+        "selecionada": true
+      },
+      {
+        "data": "2026-10-10",
+        "dataEfet": "2026-10-10",
+        "valor": 15,
+        "sinal": "-",
+        "descricao": "Tarifa Pacote de Serviços",
+        "tipo": "despesa",
+        "parcela": null,
+        "final": null,
+        "selecionada": true
+      }
+    ]
+  }
+}

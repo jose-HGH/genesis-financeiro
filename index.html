@@ -5,7 +5,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.0/dist/umd/supabase.js"></script>
-<meta name="app-version" content="20261111-170500">
+<meta name="app-version" content="20261111-183000">
 <script>
 (function(){
   var m = document.querySelector('meta[name="app-version"]'); var cur = m && m.content; if(!cur) return;
@@ -6366,7 +6366,8 @@ var FLX = (function(){
   function detectFechamentoDia(lines){
     var j = impNorm(lines.join(" \n "));
     var m = /PERIODO VIGENTE[:\s]*\d{1,2}\s+[A-Z]{3}\S*\s+A\s+(\d{1,2})\b/.exec(j) ||
-            /FECHAMENTO[^\d\n]{0,40}(\d{1,2})(?:[\/\s]|$)/.exec(j);
+            // "Fechamento: 08/10", "fechamento 08 OUT" ou o número no fim da linha; nunca "fechamento em 11 dias"
+            /FECHAMENTO[^\d\n]{0,40}(\d{1,2})(?!\s*DIAS?\b)(?:\/|\s+(?:DE\s+)?[A-Z]{3}\b|\s*(?:\n|$))/.exec(j);
     var d = m ? +m[1] : null;
     return d && d >= 1 && d <= 31 ? d : null;
   }
@@ -9504,6 +9505,7 @@ var CAIXA = (function(){
       pal.forEach(function(w){ chars += w.t.length; });
       paginas.push({largura: vp.width, altura: vp.height, palavras: pal});
     }
+    if(window.__genesisTeste) window.__genesisTeste.ultimoPdf = {linhas: lines, paginas: paginas}; // só nos testes (gravar arquivos anonimizados)
     if(chars > 0){
       if(CAIXA.reconhece(paginas) && impCaixaAbrir(paginas, false, lines)) return;
       setImportStatus(null);
@@ -10073,6 +10075,24 @@ var CAIXA = (function(){
 
 
 
+
+  // Só para os testes automáticos (testes/): existe apenas quando o navegador é controlado por robô
+  // (navigator.webdriver). Quem usa o painel normalmente nunca vê isto.
+  if(navigator.webdriver){
+    window.__genesisTeste = {
+      limparPrevia: function(){ staging = []; stagingMeta = null; },
+      importarLinhas: function(lines){ impLimpar(); handleParsedLines(lines); },
+      importarPaginas: function(paginas, lines){ impLimpar(); if(!(CAIXA.reconhece(paginas) && impCaixaAbrir(paginas, false, lines))) handleParsedLines(lines); },
+      previa: function(){
+        return {meta: stagingMeta ? {isExtrato: !!stagingMeta.isExtrato, isFatura: !!stagingMeta.isFatura, banco: stagingMeta.banco || null, cardFinal: stagingMeta.cardFinal || null, vencimento: stagingMeta.vencimento || null,
+          fechamentoDia: stagingMeta.fechamentoDia || null, fechamentoFatura: stagingMeta.fechamentoFatura || null} : null,
+          linhas: staging.map(function(r){ return {data: r.data, dataEfet: r.dataEfet || null, valor: r.valor, sinal: r.sinal || (r.negativo ? "-" : "+"), descricao: r.descricao, tipo: r.tipo, categoria: r.categoria,
+            modalidade: r.modalidade || null, parcela: r.parcela || null, final: r.final || null, selecionada: !!r.selected, duplicada: r.dup ? r.dup.level : null}; })};
+      },
+      lancamentos: function(){ return state.transactions.slice(); },
+      cartoes: function(){ return JSON.parse(JSON.stringify(state.cartoes)); }
+    };
+  }
 
   init();
 })();
