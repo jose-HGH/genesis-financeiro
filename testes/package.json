@@ -1,0 +1,14 @@
+{
+  "name": "genesis-testes",
+  "private": true,
+  "description": "Testes automáticos do painel Gênesis (rodam no GitHub a cada mudança).",
+  "type": "module",
+  "scripts": {
+    "test": "node --test --test-concurrency=1 *.test.mjs"
+  },
+  "devDependencies": {
+    "@supabase/supabase-js": "2.117.0",
+    "pdfjs-dist": "3.11.174",
+    "playwright": "1.63.0"
+  }
+}

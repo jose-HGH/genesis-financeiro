@@ -1,0 +1,72 @@
+{
+  "descricao": "CSV fictício da conta Nubank (Data,Valor,Identificador,Descrição). Sem reimportar: o pagamento de fatura pede resposta antes de importar.",
+  "reimportar": false,
+  "leitura": {
+    "meta": {
+      "isExtrato": true,
+      "isFatura": false,
+      "banco": "Nubank",
+      "cardFinal": null,
+      "vencimento": null
+    },
+    "total_linhas": 5,
+    "soma": 854.07,
+    "linhas": [
+      {
+        "data": "2026-10-01",
+        "dataEfet": "2026-10-01",
+        "valor": 2000,
+        "sinal": "+",
+        "descricao": "Transferência recebida pelo Pix - FULANO DE TAL - •••.123.456-•• - BANCO EXEMPLO",
+        "tipo": "receita",
+        "parcela": null,
+        "final": null,
+        "selecionada": true
+      },
+      {
+        "data": "2026-10-03",
+        "dataEfet": "2026-10-03",
+        "valor": 45.9,
+        "sinal": "-",
+        "descricao": "Compra no débito - PADARIA EXEMPLO",
+        "tipo": "despesa",
+        "parcela": null,
+        "final": null,
+        "selecionada": true
+      },
+      {
+        "data": "2026-10-07",
+        "dataEfet": "2026-10-07",
+        "valor": 300,
+        "sinal": "-",
+        "descricao": "Transferência enviada pelo Pix - CICRANO EXEMPLO - •••.654.321-•• - BANCO EXEMPLO",
+        "tipo": "despesa",
+        "parcela": null,
+        "final": null,
+        "selecionada": true
+      },
+      {
+        "data": "2026-10-15",
+        "dataEfet": "2026-10-15",
+        "valor": 812.37,
+        "sinal": "-",
+        "descricao": "Pagamento de fatura",
+        "tipo": "despesa",
+        "parcela": null,
+        "final": null,
+        "selecionada": true
+      },
+      {
+        "data": "2026-10-20",
+        "dataEfet": "2026-10-20",
+        "valor": 12.34,
+        "sinal": "+",
+        "descricao": "Rendimento",
+        "tipo": "receita",
+        "parcela": null,
+        "final": null,
+        "selecionada": true
+      }
+    ]
+  }
+}

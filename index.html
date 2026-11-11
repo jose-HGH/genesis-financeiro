@@ -5,7 +5,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.0/dist/umd/supabase.js"></script>
-<meta name="app-version" content="20261111-170500">
+<meta name="app-version" content="20261111-173000">
 <script>
 (function(){
   var m = document.querySelector('meta[name="app-version"]'); var cur = m && m.content; if(!cur) return;
@@ -10073,6 +10073,22 @@ var CAIXA = (function(){
 
 
 
+
+  // Só para os testes automáticos (testes/): existe apenas quando o navegador é controlado por robô
+  // (navigator.webdriver). Quem usa o painel normalmente nunca vê isto.
+  if(navigator.webdriver){
+    window.__genesisTeste = {
+      importarLinhas: function(lines){ impLimpar(); handleParsedLines(lines); },
+      importarPaginas: function(paginas, lines){ impLimpar(); if(!(CAIXA.reconhece(paginas) && impCaixaAbrir(paginas, false, lines))) handleParsedLines(lines); },
+      previa: function(){
+        return {meta: stagingMeta ? {isExtrato: !!stagingMeta.isExtrato, isFatura: !!stagingMeta.isFatura, banco: stagingMeta.banco || null, cardFinal: stagingMeta.cardFinal || null, vencimento: stagingMeta.vencimento || null} : null,
+          linhas: staging.map(function(r){ return {data: r.data, dataEfet: r.dataEfet || null, valor: r.valor, sinal: r.sinal || (r.negativo ? "-" : "+"), descricao: r.descricao, tipo: r.tipo, categoria: r.categoria,
+            modalidade: r.modalidade || null, parcela: r.parcela || null, final: r.final || null, selecionada: !!r.selected, duplicada: r.dup ? r.dup.level : null}; })};
+      },
+      lancamentos: function(){ return state.transactions.slice(); },
+      cartoes: function(){ return JSON.parse(JSON.stringify(state.cartoes)); }
+    };
+  }
 
   init();
 })();

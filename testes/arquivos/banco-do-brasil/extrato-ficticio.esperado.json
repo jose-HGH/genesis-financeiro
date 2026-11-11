@@ -1,0 +1,72 @@
+{
+  "descricao": "OFX fictício do BB: 1 entrada e 4 saídas, saldo final 2.024,65",
+  "reimportar": true,
+  "leitura": {
+    "meta": {
+      "isExtrato": true,
+      "isFatura": false,
+      "banco": "Banco do Brasil",
+      "cardFinal": null,
+      "vencimento": null
+    },
+    "total_linhas": 5,
+    "soma": 2024.65,
+    "linhas": [
+      {
+        "data": "2026-10-05",
+        "dataEfet": "2026-10-05",
+        "valor": 3500,
+        "sinal": "+",
+        "descricao": "Pix - Recebido FULANO DE TAL",
+        "tipo": "receita",
+        "parcela": null,
+        "final": null,
+        "selecionada": true
+      },
+      {
+        "data": "2026-10-06",
+        "dataEfet": "2026-10-06",
+        "valor": 120.45,
+        "sinal": "-",
+        "descricao": "Compra com Cartao MERCADO EXEMPLO",
+        "tipo": "despesa",
+        "parcela": null,
+        "final": null,
+        "selecionada": true
+      },
+      {
+        "data": "2026-10-10",
+        "dataEfet": "2026-10-10",
+        "valor": 89.9,
+        "sinal": "-",
+        "descricao": "Pagamento de Boleto ENERGIA EXEMPLO",
+        "tipo": "despesa",
+        "parcela": null,
+        "final": null,
+        "selecionada": true
+      },
+      {
+        "data": "2026-10-15",
+        "dataEfet": "2026-10-15",
+        "valor": 1250,
+        "sinal": "-",
+        "descricao": "Pix - Enviado CICRANO EXEMPLO",
+        "tipo": "despesa",
+        "parcela": null,
+        "final": null,
+        "selecionada": true
+      },
+      {
+        "data": "2026-10-20",
+        "dataEfet": "2026-10-20",
+        "valor": 15,
+        "sinal": "-",
+        "descricao": "Tarifa Pacote de Servicos",
+        "tipo": "despesa",
+        "parcela": null,
+        "final": null,
+        "selecionada": true
+      }
+    ]
+  }
+}
