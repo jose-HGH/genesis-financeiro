@@ -1,0 +1,74 @@
+{
+  "descricao": "Valores limite: R$ 0,01, R$ 1.234.567,89 nos dois sentidos, R$ 0,00 e R$ 99.999,99. Hoje o lançamento zerado entra como despesa selecionada (pode virar regra de ignorar).",
+  "reimportar": false,
+  "leitura": {
+    "meta": {
+      "isExtrato": true,
+      "isFatura": false,
+      "banco": "Banco do Brasil",
+      "cardFinal": null,
+      "vencimento": null,
+      "fechamentoDia": null,
+      "fechamentoFatura": null
+    },
+    "total_linhas": 5,
+    "soma": -99999.98,
+    "linhas": [
+      {
+        "data": "2026-10-01",
+        "dataEfet": "2026-10-01",
+        "valor": 0.01,
+        "sinal": "+",
+        "descricao": "Centavo de rendimento",
+        "tipo": "receita",
+        "parcela": null,
+        "final": null,
+        "selecionada": true
+      },
+      {
+        "data": "2026-10-02",
+        "dataEfet": "2026-10-02",
+        "valor": 1234567.89,
+        "sinal": "-",
+        "descricao": "Compra de imovel EXEMPLO",
+        "tipo": "despesa",
+        "parcela": null,
+        "final": null,
+        "selecionada": true
+      },
+      {
+        "data": "2026-10-03",
+        "dataEfet": "2026-10-03",
+        "valor": 1234567.89,
+        "sinal": "+",
+        "descricao": "Venda de imovel EXEMPLO",
+        "tipo": "receita",
+        "parcela": null,
+        "final": null,
+        "selecionada": true
+      },
+      {
+        "data": "2026-10-04",
+        "dataEfet": "2026-10-04",
+        "valor": 0,
+        "sinal": "-",
+        "descricao": "Lancamento zerado",
+        "tipo": "despesa",
+        "parcela": null,
+        "final": null,
+        "selecionada": true
+      },
+      {
+        "data": "2026-10-05",
+        "dataEfet": "2026-10-05",
+        "valor": 99999.99,
+        "sinal": "-",
+        "descricao": "Limite de cinco digitos",
+        "tipo": "despesa",
+        "parcela": null,
+        "final": null,
+        "selecionada": true
+      }
+    ]
+  }
+}

@@ -1,0 +1,52 @@
+{
+  "descricao": "Fatura sem 'Período vigente' e com a frase 'fechamento em 11 dias'. Antes o painel lia fechamento = dia 11 (provável origem do Nubank gravado com 11 em vez de 8). Agora não deve inventar dia.",
+  "reimportar": false,
+  "leitura": {
+    "meta": {
+      "isExtrato": false,
+      "isFatura": true,
+      "banco": "Nubank",
+      "cardFinal": "4051",
+      "vencimento": "2026-10-15",
+      "fechamentoDia": null,
+      "fechamentoFatura": null
+    },
+    "total_linhas": 3,
+    "soma": 265.83,
+    "linhas": [
+      {
+        "data": "2026-09-12",
+        "dataEfet": "2026-10-15",
+        "valor": 87.5,
+        "sinal": "+",
+        "descricao": "Mercado Exemplo",
+        "tipo": "despesa",
+        "parcela": null,
+        "final": "4051",
+        "selecionada": true
+      },
+      {
+        "data": "2026-09-20",
+        "dataEfet": "2026-10-15",
+        "valor": 133.33,
+        "sinal": "+",
+        "descricao": "Loja Exemplo",
+        "tipo": "despesa",
+        "parcela": "2/3",
+        "final": "4051",
+        "selecionada": true
+      },
+      {
+        "data": "2026-10-07",
+        "dataEfet": "2026-10-15",
+        "valor": 45,
+        "sinal": "+",
+        "descricao": "Farmacia Exemplo",
+        "tipo": "despesa",
+        "parcela": null,
+        "final": "4051",
+        "selecionada": true
+      }
+    ]
+  }
+}

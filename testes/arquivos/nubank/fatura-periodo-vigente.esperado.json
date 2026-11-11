@@ -1,0 +1,52 @@
+{
+  "descricao": "Fatura Nubank fictícia (fecha 8, vence 15) com 'Período vigente: 08 SET a 08 OUT': fechamento tem de ser dia 8.",
+  "reimportar": false,
+  "leitura": {
+    "meta": {
+      "isExtrato": false,
+      "isFatura": true,
+      "banco": "Nubank",
+      "cardFinal": "4051",
+      "vencimento": "2026-10-15",
+      "fechamentoDia": 8,
+      "fechamentoFatura": "2026-10-08"
+    },
+    "total_linhas": 3,
+    "soma": 265.83,
+    "linhas": [
+      {
+        "data": "2026-09-12",
+        "dataEfet": "2026-10-15",
+        "valor": 87.5,
+        "sinal": "+",
+        "descricao": "Mercado Exemplo",
+        "tipo": "despesa",
+        "parcela": null,
+        "final": "4051",
+        "selecionada": true
+      },
+      {
+        "data": "2026-09-20",
+        "dataEfet": "2026-10-15",
+        "valor": 133.33,
+        "sinal": "+",
+        "descricao": "Loja Exemplo",
+        "tipo": "despesa",
+        "parcela": "2/3",
+        "final": "4051",
+        "selecionada": true
+      },
+      {
+        "data": "2026-10-07",
+        "dataEfet": "2026-10-15",
+        "valor": 45,
+        "sinal": "+",
+        "descricao": "Farmacia Exemplo",
+        "tipo": "despesa",
+        "parcela": null,
+        "final": "4051",
+        "selecionada": true
+      }
+    ]
+  }
+}

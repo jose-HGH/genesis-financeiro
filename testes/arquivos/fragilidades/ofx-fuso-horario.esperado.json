@@ -1,0 +1,63 @@
+{
+  "descricao": "Datas com fuso: 02h30 UTC de 10/10 é 23h30 de 09/10 em Brasília; 03h UTC de 01/11 é meia-noite de 01/11.",
+  "reimportar": false,
+  "leitura": {
+    "meta": {
+      "isExtrato": true,
+      "isFatura": false,
+      "banco": "Banco do Brasil",
+      "cardFinal": null,
+      "vencimento": null,
+      "fechamentoDia": null,
+      "fechamentoFatura": null
+    },
+    "total_linhas": 4,
+    "soma": -85,
+    "linhas": [
+      {
+        "data": "2026-10-09",
+        "dataEfet": "2026-10-09",
+        "valor": 50,
+        "sinal": "-",
+        "descricao": "Compra 23h30 de 09/10 em Brasilia registrada em UTC",
+        "tipo": "despesa",
+        "parcela": null,
+        "final": null,
+        "selecionada": true
+      },
+      {
+        "data": "2026-10-10",
+        "dataEfet": "2026-10-10",
+        "valor": 20,
+        "sinal": "-",
+        "descricao": "Compra meio-dia BRT",
+        "tipo": "despesa",
+        "parcela": null,
+        "final": null,
+        "selecionada": true
+      },
+      {
+        "data": "2026-10-31",
+        "dataEfet": "2026-10-31",
+        "valor": 10,
+        "sinal": "-",
+        "descricao": "Ultimo dia do mes sem hora",
+        "tipo": "despesa",
+        "parcela": null,
+        "final": null,
+        "selecionada": true
+      },
+      {
+        "data": "2026-11-01",
+        "dataEfet": "2026-11-01",
+        "valor": 5,
+        "sinal": "-",
+        "descricao": "Meia-noite de 01/11 em Brasilia",
+        "tipo": "despesa",
+        "parcela": null,
+        "final": null,
+        "selecionada": true
+      }
+    ]
+  }
+}

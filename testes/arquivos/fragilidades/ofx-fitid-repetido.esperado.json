@@ -1,0 +1,63 @@
+{
+  "descricao": "O mesmo FITID duas vezes (o painel trata como dois lançamentos e avisa 'FITID repetido', porque há bancos que repetem FITID) e duas compras iguais legítimas com FITIDs diferentes.",
+  "reimportar": false,
+  "leitura": {
+    "meta": {
+      "isExtrato": true,
+      "isFatura": false,
+      "banco": "Banco do Brasil",
+      "cardFinal": null,
+      "vencimento": null,
+      "fechamentoDia": null,
+      "fechamentoFatura": null
+    },
+    "total_linhas": 4,
+    "soma": -65,
+    "linhas": [
+      {
+        "data": "2026-10-12",
+        "dataEfet": "2026-10-12",
+        "valor": 25,
+        "sinal": "-",
+        "descricao": "Uber EXEMPLO",
+        "tipo": "despesa",
+        "parcela": null,
+        "final": null,
+        "selecionada": true
+      },
+      {
+        "data": "2026-10-12",
+        "dataEfet": "2026-10-12",
+        "valor": 25,
+        "sinal": "-",
+        "descricao": "Uber EXEMPLO",
+        "tipo": "despesa",
+        "parcela": null,
+        "final": null,
+        "selecionada": true
+      },
+      {
+        "data": "2026-10-13",
+        "dataEfet": "2026-10-13",
+        "valor": 7.5,
+        "sinal": "-",
+        "descricao": "Cafe EXEMPLO",
+        "tipo": "despesa",
+        "parcela": null,
+        "final": null,
+        "selecionada": true
+      },
+      {
+        "data": "2026-10-13",
+        "dataEfet": "2026-10-13",
+        "valor": 7.5,
+        "sinal": "-",
+        "descricao": "Cafe EXEMPLO",
+        "tipo": "despesa",
+        "parcela": null,
+        "final": null,
+        "selecionada": true
+      }
+    ]
+  }
+}

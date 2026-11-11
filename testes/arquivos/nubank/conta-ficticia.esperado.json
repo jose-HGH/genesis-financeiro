@@ -7,7 +7,9 @@
       "isFatura": false,
       "banco": "Nubank",
       "cardFinal": null,
-      "vencimento": null
+      "vencimento": null,
+      "fechamentoDia": null,
+      "fechamentoFatura": null
     },
     "total_linhas": 5,
     "soma": 854.07,

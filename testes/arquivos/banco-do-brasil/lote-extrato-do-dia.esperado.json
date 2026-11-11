@@ -1,0 +1,52 @@
+{
+  "descricao": "Extrato do DIA do BB (fictício), lote 2093. Par do lote-extrato-do-mes.",
+  "reimportar": true,
+  "leitura": {
+    "meta": {
+      "isExtrato": true,
+      "isFatura": false,
+      "banco": "Banco do Brasil",
+      "cardFinal": null,
+      "vencimento": null,
+      "fechamentoDia": null,
+      "fechamentoFatura": null
+    },
+    "total_linhas": 3,
+    "soma": -102.5,
+    "linhas": [
+      {
+        "data": "2026-10-05",
+        "dataEfet": "2026-10-05",
+        "valor": 150,
+        "sinal": "-",
+        "descricao": "CICRANO EXEMPLO · Pix - Enviado",
+        "tipo": "despesa",
+        "parcela": null,
+        "final": null,
+        "selecionada": true
+      },
+      {
+        "data": "2026-10-05",
+        "dataEfet": "2026-10-05",
+        "valor": 80,
+        "sinal": "+",
+        "descricao": "BELTRANA EXEMPLO · Pix - Recebido",
+        "tipo": "receita",
+        "parcela": null,
+        "final": null,
+        "selecionada": true
+      },
+      {
+        "data": "2026-10-05",
+        "dataEfet": "2026-10-05",
+        "valor": 32.5,
+        "sinal": "-",
+        "descricao": "PADARIA EXEMPLO · Compra com Cartão",
+        "tipo": "despesa",
+        "parcela": null,
+        "final": null,
+        "selecionada": true
+      }
+    ]
+  }
+}
