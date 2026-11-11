@@ -7,6 +7,42 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.0/dist/umd/supabase.js"></script>
 <meta name="app-version" content="20261112-000000">
 <script>
+// Modo teste: /?teste=1 abre o painel com dados guardados à parte (prefixo "genesis-teste:" no
+// navegador) e SEM nuvem: não faz login, não lê nem grava na sua conta. Vale para a aba toda até
+// clicar em "Sair do modo teste". Serve para testar à mão e para demonstrar o painel.
+(function(){
+  var q = location.search, ligar = /[?&]teste=1\b/.test(q), desligar = /[?&]teste=0\b/.test(q), ativo = false;
+  try{
+    if(ligar) sessionStorage.setItem("genesis-modo-teste", "1");
+    if(desligar) sessionStorage.removeItem("genesis-modo-teste");
+    ativo = sessionStorage.getItem("genesis-modo-teste") === "1";
+  }catch(e){ ativo = ligar; }
+  window.GENESIS_MODO_TESTE = ativo;
+  if(!ativo) return;
+  var P = "genesis-teste:", S = Storage.prototype, g = S.getItem, st = S.setItem, rm = S.removeItem;
+  function eLocal(o){ try{ return o === window.localStorage; }catch(e){ return false; } }
+  S.getItem = function(k){ return g.call(this, eLocal(this) ? P + k : k); };
+  S.setItem = function(k, v){ return st.call(this, eLocal(this) ? P + k : k, v); };
+  S.removeItem = function(k){ return rm.call(this, eLocal(this) ? P + k : k); };
+  function faixa(){
+    if(document.getElementById("genesisModoTeste")) return;
+    var d = document.createElement("div"); d.id = "genesisModoTeste"; d.setAttribute("role", "status");
+    d.style.cssText = "position:sticky;top:0;z-index:9998;background:#7a2e9e;color:#fff;padding:8px 16px;display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;justify-content:center;font:500 14px/1.3 system-ui,sans-serif";
+    var t = document.createElement("span"); t.textContent = "Modo teste: nada aqui vai para a sua conta nem para a nuvem.";
+    function botao(txt, fn){ var b = document.createElement("button"); b.type = "button"; b.textContent = txt; b.onclick = fn;
+      b.style.cssText = "background:#fff;color:#4a1763;border:0;border-radius:8px;padding:4px 10px;font:600 13px system-ui,sans-serif;cursor:pointer"; return b; }
+    var limpar = botao("Apagar dados de teste", function(){
+      try{ var ks = []; for(var i = 0; i < localStorage.length; i++){ var k = localStorage.key(i); if(k && k.indexOf(P) === 0) ks.push(k); } ks.forEach(function(k){ rm.call(localStorage, k); }); }catch(e){}
+      location.reload();
+    });
+    var sair = botao("Sair do modo teste", function(){ location.replace(location.pathname + "?teste=0"); });
+    d.appendChild(t); d.appendChild(limpar); d.appendChild(sair);
+    document.body.insertBefore(d, document.body.firstChild);
+  }
+  if(document.body) faixa(); else document.addEventListener("DOMContentLoaded", faixa);
+})();
+</script>
+<script>
 // Versão do painel: a publicação carimba a meta app-version e grava versao.txt ao lado.
 // Ao abrir: se o servidor já tem versão nova, recarrega na hora (uma vez por versão).
 // Com a aba aberta: ao voltar para ela (e a cada 10 min), confere de novo e mostra "Atualizar",
@@ -2344,7 +2380,7 @@
   var SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFjbHFkeWZhcmdxZXBxZHZqaXhmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI1Mjc1NDMsImV4cCI6MjEwODEwMzU0M30.AC7EPBDEt1DLmsDBfG_oKu_zLqsdUa0UsMeP4ZO8VHM";
   // Read before the client consumes the link: arriving from a "reset password" e-mail.
   var AUTH_RECOVERY_LINK = /type=recovery/.test(window.location.hash || "") || /type=recovery/.test(window.location.search || "");
-  var sb = (typeof window.supabase !== "undefined")
+  var sb = (typeof window.supabase !== "undefined" && !window.GENESIS_MODO_TESTE) // modo teste: sem nuvem
     ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
     : null;
   // erros de JavaScript vão para o diagnóstico (nunca nos testes automáticos)

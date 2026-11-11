@@ -54,3 +54,10 @@ O workflow `Publicar` (a cada push na main) roda os testes, monta o site só com
 ao abrir, ao voltar para a aba e a cada 10 minutos.
 
 Requisito (uma vez): GitHub → Settings → Pages → Source: **GitHub Actions**.
+
+## Modo teste (testar à mão)
+
+Abra `https://xn--finanashgh-s6a.com/?teste=1`. Aparece uma faixa roxa "Modo teste": os dados
+ficam guardados à parte no navegador (prefixo `genesis-teste:`) e o painel não usa a nuvem
+(sem login, não lê nem grava na conta). "Apagar dados de teste" recomeça do zero e
+"Sair do modo teste" volta ao painel normal com os dados de sempre.
