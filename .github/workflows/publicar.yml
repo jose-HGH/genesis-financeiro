@@ -1,0 +1,51 @@
+# Publica o site (GitHub Pages) a cada mudança na main, SÓ se todos os testes passarem.
+# A versão (meta app-version) é carimbada aqui, na hora da publicação: ninguém precisa
+# lembrar de subir o número, e o navegador sempre percebe que existe código novo.
+#
+# Uma vez só: GitHub → Settings → Pages → Build and deployment → Source: "GitHub Actions".
+name: Publicar
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: publicar
+  cancel-in-progress: false
+
+jobs:
+  testes:
+    uses: ./.github/workflows/testes.yml
+
+  publicar:
+    name: Publicar o site
+    needs: testes
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Montar o site (só o que é público) e carimbar a versão
+        run: |
+          versao=$(TZ=UTC date +%Y%m%d-%H%M%S)
+          mkdir _site
+          cp index.html privacidade.html termos.html CNAME _site/
+          sed -i -E "s/(<meta name=\"app-version\" content=\")[^\"]*(\">)/\1${versao}\2/" _site/index.html
+          grep -q "content=\"${versao}\"" _site/index.html || { echo "::error::Não consegui carimbar a versão no index.html"; exit 1; }
+          echo "${versao}" > _site/versao.txt
+          echo "Versão publicada: ${versao} (commit ${GITHUB_SHA::7})" >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - id: deploy
+        uses: actions/deploy-pages@v4

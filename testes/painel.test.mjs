@@ -32,3 +32,34 @@ test("sem dados salvos, o painel começa sem lançamentos importados", async () 
     assert.equal(previa.linhas.length, 0);
   } finally { await ctx.close(); }
 });
+
+test("versão nova no servidor: ao abrir, o painel recarrega sozinho uma vez", async () => {
+  const ctx = await browser.newContext();
+  try {
+    await ctx.route("**/versao.txt*", (r) => r.fulfill({ status: 200, contentType: "text/plain", body: "29991231-235959\n" }));
+    await ctx.route(/^https?:\/\/(?!127\.0\.0\.1)/, (r) => r.abort("blockedbyclient"));
+    const page = await ctx.newPage();
+    await page.goto(`${servidor.base}/index.html`);
+    await page.waitForURL(/\?v=29991231-235959/, { timeout: 10000 });
+    await page.waitForTimeout(1500);
+    assert.match(page.url(), /\?v=29991231-235959/); // não entra em laço de recarregar
+  } finally { await ctx.close(); }
+});
+
+test("mesma versão no servidor: não recarrega; versão nova com a aba aberta mostra 'Atualizar'", async () => {
+  const ctx = await browser.newContext();
+  try {
+    let versao = null;
+    await ctx.route("**/versao.txt*", (r) => r.fulfill({ status: 200, contentType: "text/plain", body: versao || "x" }));
+    await ctx.route(/^https?:\/\/(?!127\.0\.0\.1)/, (r) => r.abort("blockedbyclient"));
+    const page = await ctx.newPage();
+    await page.goto(`${servidor.base}/index.html`);
+    versao = await page.evaluate(() => document.querySelector('meta[name="app-version"]').content);
+    await page.waitForTimeout(1000);
+    assert.doesNotMatch(page.url(), /\?v=/);
+    versao = "29991231-235959";
+    await page.evaluate(() => { Date.now = ((n) => () => n() + 120000)(Date.now.bind(Date)); document.dispatchEvent(new Event("visibilitychange")); });
+    await page.waitForSelector("#genesisNovaVersao", { timeout: 5000 });
+    assert.doesNotMatch(page.url(), /\?v=/, "com a aba aberta não pode recarregar sozinho");
+  } finally { await ctx.close(); }
+});

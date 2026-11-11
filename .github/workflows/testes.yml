@@ -1,18 +1,17 @@
-# Testes automáticos do Gênesis. Rodam sozinhos a cada push e a cada pull request.
-# Se algum falhar, o PR fica com um X vermelho e não deve ser mergeado.
+# Testes automáticos do Gênesis. Rodam sozinhos a cada pull request e, na main, antes de
+# publicar o site (o workflow "Publicar" chama este). Se algum falhar, nada é publicado.
 name: Testes
 
 on:
-  push:
-    branches: [main]
   pull_request:
   workflow_dispatch:
+  workflow_call:
 
 permissions:
   contents: read
 
 concurrency:
-  group: testes-${{ github.ref }}
+  group: testes-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -22,27 +21,12 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
           cache-dependency-path: testes/package-lock.json
-
-      - name: Versão do site subiu? (evita o cache servir código velho)
-        if: github.event_name == 'pull_request'
-        run: |
-          base="${{ github.event.pull_request.base.sha }}"
-          if git diff --quiet "$base" HEAD -- index.html; then echo "index.html não mudou."; exit 0; fi
-          antes=$(git show "$base:index.html" | grep -o 'name="app-version" content="[^"]*"' || true)
-          agora=$(grep -o 'name="app-version" content="[^"]*"' index.html || true)
-          echo "antes: $antes"; echo "agora: $agora"
-          if [ "$antes" = "$agora" ]; then
-            echo "::error file=index.html::O index.html mudou mas a meta app-version continua igual. Suba a versão (AAAAMMDD-HHMMSS) para os navegadores baixarem o código novo."
-            exit 1
-          fi
 
       - name: Instalar dependências dos testes
         working-directory: testes
