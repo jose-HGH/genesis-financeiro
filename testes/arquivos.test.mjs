@@ -5,7 +5,7 @@ import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
-import { iniciarServidor, abrirNavegador, abrirPainel, importarArquivo } from "./ambiente.mjs";
+import { iniciarServidor, abrirNavegador, abrirPainel, importarArquivo, responderAvisos } from "./ambiente.mjs";
 import { listarArquivos, resumir } from "./biblioteca.mjs";
 
 let servidor, browser;
@@ -54,6 +54,7 @@ for (const arquivo of listarArquivos()) {
 
 // Clica em "Importar selecionados" e devolve quantos lançamentos entraram (o painel novo já traz exemplos).
 async function confirmar(page) {
+  await responderAvisos(page);
   const inicio = await page.evaluate(() => window.__genesisTeste.lancamentos().length);
   await page.click("#btnConfirmStaging");
   await page.waitForFunction((n) => window.__genesisTeste.lancamentos().length > n, inicio, { timeout: 10000 });

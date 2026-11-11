@@ -23,6 +23,7 @@ try {
   const saida = arquivo.replace(/(\.linhas\.json|\.[a-z]+)$/i, ".esperado.json");
   const anterior = fs.existsSync(saida) ? JSON.parse(fs.readFileSync(saida, "utf8")) : {};
   const doc = {
+    ...anterior, // mantém importar_antes, novas_depois e o que mais já estiver escrito à mão
     descricao: di >= 0 ? args[di + 1] : (anterior.descricao || ""),
     reimportar: args.includes("--reimportar") || !!anterior.reimportar,
     ...(Object.keys(opcoes).length ? { opcoes } : {}),

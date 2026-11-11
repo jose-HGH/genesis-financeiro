@@ -5,7 +5,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.0/dist/umd/supabase.js"></script>
-<meta name="app-version" content="20261111-180000">
+<meta name="app-version" content="20261111-183000">
 <script>
 (function(){
   var m = document.querySelector('meta[name="app-version"]'); var cur = m && m.content; if(!cur) return;
@@ -9505,6 +9505,7 @@ var CAIXA = (function(){
       pal.forEach(function(w){ chars += w.t.length; });
       paginas.push({largura: vp.width, altura: vp.height, palavras: pal});
     }
+    if(window.__genesisTeste) window.__genesisTeste.ultimoPdf = {linhas: lines, paginas: paginas}; // só nos testes (gravar arquivos anonimizados)
     if(chars > 0){
       if(CAIXA.reconhece(paginas) && impCaixaAbrir(paginas, false, lines)) return;
       setImportStatus(null);
@@ -10079,6 +10080,7 @@ var CAIXA = (function(){
   // (navigator.webdriver). Quem usa o painel normalmente nunca vê isto.
   if(navigator.webdriver){
     window.__genesisTeste = {
+      limparPrevia: function(){ staging = []; stagingMeta = null; },
       importarLinhas: function(lines){ impLimpar(); handleParsedLines(lines); },
       importarPaginas: function(paginas, lines){ impLimpar(); if(!(CAIXA.reconhece(paginas) && impCaixaAbrir(paginas, false, lines))) handleParsedLines(lines); },
       previa: function(){

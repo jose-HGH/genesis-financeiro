@@ -1,6 +1,10 @@
 {
   "descricao": "Extrato do MÊS do BB (fictício) com as mesmas 3 linhas do extrato do dia, mas o lote mudou de 2093 para 99008 (caso real do PR #10). Depois de importar o do dia, só a tarifa de 10/10 é nova.",
   "reimportar": true,
+  "importar_antes": "lote-extrato-do-dia.linhas.json",
+  "novas_depois": [
+    "2026-10-10 -15 Tarifa Pacote de Serviços"
+  ],
   "leitura": {
     "meta": {
       "isExtrato": true,

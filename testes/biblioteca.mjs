@@ -16,8 +16,9 @@ export function listarArquivos(dir = PASTA) {
 const centavos = (v) => Math.round(v * 100);
 
 // O que conferimos de cada leitura: tipo, banco, totais e cada linha com data, valor, sinal e tipo.
-export function resumir({ erroTela, previa }) {
+export function resumir({ erroTela, soSaldo, previa }) {
   if (erroTela) return { erro: erroTela };
+  if (soSaldo) return { so_saldo: soSaldo };
   const linhas = previa.linhas.map((l) => ({
     data: l.data, dataEfet: l.dataEfet, valor: l.valor, sinal: l.sinal, descricao: l.descricao,
     tipo: l.tipo, parcela: l.parcela, final: l.final, selecionada: l.selecionada,

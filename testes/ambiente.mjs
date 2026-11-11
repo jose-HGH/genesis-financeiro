@@ -73,6 +73,7 @@ const NOMES_BANCO = { "banco-do-brasil": "Banco do Brasil", nubank: "Nubank", ca
 export async function importarArquivo(page, arquivo, opcoes = {}) {
   await page.evaluate(() => { if (location.hash !== "#importar") location.hash = "#importar"; });
   await page.waitForSelector("#pdfDropzone", { state: "visible" });
+  await page.evaluate(() => window.__genesisTeste.limparPrevia()); // senão a prévia anterior parece a nova
   if (arquivo.endsWith(".linhas.json")) {
     const dados = JSON.parse(fs.readFileSync(arquivo, "utf8"));
     await page.evaluate((d) => d.paginas ? window.__genesisTeste.importarPaginas(d.paginas, d.linhas) : window.__genesisTeste.importarLinhas(d.linhas), dados);
@@ -82,9 +83,14 @@ export async function importarArquivo(page, arquivo, opcoes = {}) {
   // espera a prévia, uma mensagem de erro ou a tela "quais colunas são o quê" (CSV/Excel)
   const pronto = () => {
     const e = document.getElementById("importErro");
-    return (e && !e.hidden && e.textContent.trim()) || window.__genesisTeste.previa().linhas.length > 0 || !!document.getElementById("mapLer");
+    return (e && !e.hidden && e.textContent.trim()) || window.__genesisTeste.previa().linhas.length > 0 || !!document.getElementById("mapLer") || !!document.getElementById("ofxSaldoOk");
   };
   await page.waitForFunction(pronto, null, { timeout: 30000 });
+  if (await page.$("#ofxSaldoOk")) {
+    // OFX sem lançamentos: o painel oferece registrar só o saldo
+    const soSaldo = await page.evaluate(() => document.querySelector("#importMapa p")?.textContent.trim() || "");
+    return { erroTela: null, soSaldo, previa: await page.evaluate(() => window.__genesisTeste.previa()) };
+  }
   if (await page.$("#mapLer")) {
     // CSV/Excel: aceita as colunas que o painel sugeriu, como a pessoa faria; só preenche o banco se vier vazio
     const banco = opcoes.banco || NOMES_BANCO[path.basename(path.dirname(arquivo))] || path.basename(path.dirname(arquivo));
@@ -101,4 +107,14 @@ export async function importarArquivo(page, arquivo, opcoes = {}) {
   const erroTela = await page.evaluate(() => { const e = document.getElementById("importErro"); return e && !e.hidden ? e.textContent.trim() : null; });
   const previa = await page.evaluate(() => window.__genesisTeste.previa());
   return { erroTela, previa };
+}
+
+// Responde os avisos da prévia como a pessoa costuma responder: transferência para o próprio nome = sim,
+// "é pagamento de fatura?" = não (não há fatura no painel de teste).
+export async function responderAvisos(page) {
+  for (let i = 0; i < 100; i++) {
+    const b = await page.$('[data-act="prop-ok"], [data-act="pag-no"]');
+    if (!b) return;
+    await b.click();
+  }
 }
