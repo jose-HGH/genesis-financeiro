@@ -386,7 +386,8 @@ export function validarResumoChat(r: ResumoBase): string | null {
 
 export const FERRAMENTAS = ["gastos", "receitas", "resultado_mes", "maiores_gastos", "parcelas", "faturas", "previsao"] as const;
 export type Ferramenta = typeof FERRAMENTAS[number];
-export const TIPOS_CONSULTA = ["consultar", "fora_do_assunto", "nao_entendi"] as const;
+// "simular": um "e se" com conta nova (gastar mais, comprar parcelado). O app manda a pergunta para o simulador.
+export const TIPOS_CONSULTA = ["consultar", "simular", "fora_do_assunto", "nao_entendi"] as const;
 const AGRUPAR = ["nenhum", "mes", "categoria"] as const;
 const MAX_CONSULTAS = 3;
 
