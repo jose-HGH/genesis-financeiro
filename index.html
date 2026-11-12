@@ -471,6 +471,20 @@
   .sim-aviso{padding:10px 12px; border-radius:12px; background:var(--neg-wash, rgba(220,38,38,.08)); border:1px solid rgba(220,38,38,.25); font-size:13.5px; line-height:1.45;}
   .sim-mais summary{cursor:pointer; font-size:12.5px; color:var(--ink-2);} .sim-mais ul{list-style:none; margin:8px 0 4px; padding:0; font-size:13px;}
   .sim-mais li{display:flex; justify-content:space-between; padding:3px 0; border-bottom:1px solid var(--line);} .sim-tab th, .sim-tab td{text-align:right; padding:6px 8px;} .sim-tab th:first-child{text-align:left; font-weight:500;}
+  #chatCorpo input{font-family:var(--font-ui); font-size:14px; border:1px solid var(--border-strong); border-radius:9px; padding:9px 10px; background:var(--surface-alt); color:var(--ink); min-width:0; width:100%; box-sizing:border-box;}
+  .chat-lista{display:flex; flex-direction:column; gap:12px; max-height:520px; overflow-y:auto; margin-bottom:10px;}
+  .chat-lista:empty{display:none;}
+  .chat-eu{align-self:flex-end; margin-left:auto; max-width:85%; width:fit-content; padding:8px 12px; border-radius:14px 14px 4px 14px; background:var(--accent-soft); font-size:14px; margin-bottom:6px;}
+  .chat-turno{display:flex; flex-direction:column;}
+  .chat-espera{color:var(--ink-2);}
+  .chat-dicas{display:flex; flex-wrap:wrap; gap:8px; margin-bottom:10px;} .chat-dicas .btn{height:auto; padding:6px 12px; font-size:12.5px; border-radius:999px; text-align:left;}
+  .chat-numeros{margin:4px 0 8px;} .chat-numeros > summary{cursor:pointer; font-size:12.5px; color:var(--ink-2);}
+  .chat-num{margin-top:8px; font-size:13px;} .chat-num-t{font-weight:600; font-size:12.5px; margin-bottom:2px;}
+  .chat-num ul, .chat-itens{list-style:none; margin:4px 0; padding:0;}
+  .chat-num li{display:flex; justify-content:space-between; gap:12px; padding:3px 0; border-bottom:1px solid var(--line); font-variant-numeric:tabular-nums;}
+  .chat-itens{counter-reset:chatn;} .chat-itens li{counter-increment:chatn;} .chat-itens li span::before{content:counter(chatn) ". "; color:var(--ink-2);}
+  .chat-num small{color:var(--ink-2); font-size:11.5px;}
+  .chat-pe{display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; font-size:12px; color:var(--ink-2);}
   .ia-btn{display:inline-flex; align-items:center; gap:6px; height:32px; padding:0 14px; border-radius:999px; border:1px solid var(--line); background:var(--accent-soft); color:var(--ink); font:inherit; font-size:13px; font-weight:600; cursor:pointer;}
   .ia-btn:hover{border-color:var(--ink-2);}
   .ia-btn:disabled{opacity:.6; cursor:progress;}
@@ -1330,6 +1344,11 @@
     <div id="fxCorpo"></div>
   </section>
 
+  <section class="card" id="chatCard" aria-labelledby="chatT" hidden>
+    <div class="card-head"><h2 id="chatT">Pergunte sobre suas finanças</h2><span class="hint">O app faz as contas; o copiloto explica. Ele não vê descrições nem nomes.</span></div>
+    <div id="chatCorpo"></div>
+  </section>
+
   <section class="card" id="simCard" aria-labelledby="simT">
     <div class="card-head"><h2 id="simT">Simulador "e se"</h2><span class="hint">Teste uma mudança antes de fazer. Nada é salvo nem aplicado.</span></div>
     <div id="simCorpo"></div>
@@ -1851,6 +1870,7 @@
   var stats = el("div", {"class": "v5-stats", id: "v5Stats"});
   put("inicio", document.querySelector(".hero-review-grid"));
   put("inicio", stats);
+  put("inicio", $("chatCard"));
   put("inicio", $("accountTiles"));
   put("inicio", row(flex(cardOf("upcomingList"), "v5-w"), flex(cardOf("cashflowSvg"), "v5-n")));
   put("inicio", cardOf("faturasList"));
@@ -3543,15 +3563,18 @@ var FLX = (function(){
   // O app recebe só o texto; quando a pessoa para de falar, a pergunta segue sozinha para o simulador.
   var SIMVOZ = {rec: null, ouvindo: false};
   function simVozDisponivel(){ return !!(window.SpeechRecognition || window.webkitSpeechRecognition); }
-  function simVozMarcar(on){
+  function simVozMarcar(on, botao){
     SIMVOZ.ouvindo = on;
-    var b = document.getElementById("simMic"); if(b){ b.setAttribute("aria-pressed", String(on)); b.classList.toggle("ouvindo", on); }
+    var b = document.getElementById(botao || SIMVOZ.botao || "simMic"); if(b){ b.setAttribute("aria-pressed", String(on)); b.classList.toggle("ouvindo", on); }
   }
-  function simVoz(){
+  // op (opcional): {campo, msg, botao, enviar}; sem op, é o microfone do simulador. O chat usa o mesmo.
+  function simVoz(op){
     if(SIMVOZ.ouvindo && SIMVOZ.rec){ SIMVOZ.rec.stop(); return; }
     var R = window.SpeechRecognition || window.webkitSpeechRecognition; if(!R) return;
+    op = op || {campo: "simPergunta", msg: "simIaMsg", botao: "simMic", enviar: simPerguntar};
+    SIMVOZ.botao = op.botao;
     var rec = new R(), final = "", erro = null;
-    var campo = function(){ return document.getElementById("simPergunta"); }; // a tela pode ser redesenhada enquanto a pessoa fala
+    var campo = function(){ return document.getElementById(op.campo); }; // a tela pode ser redesenhada enquanto a pessoa fala
     rec.lang = "pt-BR"; rec.interimResults = true; rec.continuous = false; rec.maxAlternatives = 1;
     rec.onresult = function(ev){
       var parcial = ""; final = "";
@@ -3561,13 +3584,13 @@ var FLX = (function(){
     rec.onerror = function(ev){ erro = ev.error; };
     rec.onend = function(){
       simVozMarcar(false); SIMVOZ.rec = null;
-      var msg = document.getElementById("simIaMsg");
+      var msg = document.getElementById(op.msg);
       if(erro === "not-allowed" || erro === "service-not-allowed"){ if(msg) msg.textContent = "Sem permissão para o microfone. Libere o microfone para este site nas configurações do navegador, ou escreva a pergunta."; return; }
       if(erro && erro !== "no-speech" && erro !== "aborted"){ if(msg) msg.textContent = "Não consegui ouvir agora. Tente de novo ou escreva a pergunta."; return; }
-      if(final.trim()){ if(campo()) campo().value = final.trim().slice(0, 300); simPerguntar(final.trim().slice(0, 300)); }
+      if(final.trim()){ if(campo()) campo().value = final.trim().slice(0, 300); op.enviar(final.trim().slice(0, 300)); }
       else if(msg && !erro) msg.textContent = "Não ouvi nada. Toque no microfone e fale a pergunta.";
     };
-    try{ rec.start(); SIMVOZ.rec = rec; simVozMarcar(true); var m = document.getElementById("simIaMsg"); if(m) m.textContent = "Ouvindo… fale a sua pergunta."; }
+    try{ rec.start(); SIMVOZ.rec = rec; simVozMarcar(true); var m = document.getElementById(op.msg); if(m) m.textContent = "Ouvindo… fale a sua pergunta."; }
     catch(e){ simVozMarcar(false); }
   }
   function simPerguntar(texto){
@@ -5612,6 +5635,7 @@ var FLX = (function(){
     renderTrash();
     try{ renderFluxo(); }catch(e){ if(window.console) console.error(e); }
     try{ renderSimulador(); }catch(e){ if(window.console) console.error(e); }
+    try{ renderChat(); }catch(e){ if(window.console) console.error(e); }
     try{ lemRender(); }catch(e){ if(window.console) console.error(e); }
     if(window.__v5ui){ try{ window.__v5ui.after(ref); }catch(e){} }
   }
@@ -10027,8 +10051,8 @@ var CAIXA = (function(){
     var ok = !!(st && st.testador === "ativo" && st.liberado && st.aceites_em_dia);
     var mudou = ok !== COPI.ok || uid !== COPI.uid;
     COPI.ok = ok; COPI.uid = uid;
-    if(!ok) COPI.resp = {};
-    if(mudou){ try{ renderHero(refISO()); renderFluxo(); renderConciliacao(); renderSimulador(); }catch(e){ if(window.console) console.error(e); } }
+    if(!ok){ COPI.resp = {}; if(typeof CHATD !== "undefined") CHATD.turnos = []; }
+    if(mudou){ try{ renderHero(refISO()); renderFluxo(); renderConciliacao(); renderSimulador(); renderChat(); }catch(e){ if(window.console) console.error(e); } }
   }
   function copilotoCarregarStatus(){
     if(!sb || state.mode !== "db") return;
@@ -10114,6 +10138,207 @@ var CAIXA = (function(){
     if(b.dataset.iaExplicar){ copilotoExplicar(b.dataset.iaExplicar); return; }
     var ch = b.dataset.iaFechar; delete COPI.resp[ch]; copilotoRedesenhar(ch);
   }, true);
+
+  // ---------- Copiloto: chat nível 1 (passo 7) ----------
+  // O sistema calcula, a IA escolhe e explica. Duas etapas por pergunta:
+  //   1. recurso "chat": a IA lê a pergunta e devolve só QUAIS consultas fazer (ferramenta, período, categoria, termos);
+  //   2. o app calcula cada consulta aqui no navegador (chatCalcular), com os lançamentos da pessoa;
+  //   3. recurso "chat_resposta": a IA recebe só os resultados (números, datas, categorias) e escreve a resposta.
+  // Descrições de lançamento nunca vão para a IA: nas listas (maiores gastos, parcelas) ela vê só a posição, e a
+  // descrição aparece na tela, abaixo da resposta, junto com os números do app.
+  var CHATD = {turnos: [], carregando: false, msg: null};
+  var CHAT_MAX_TURNOS = 6;
+  var CHAT_FERR = {gastos: "Gastos", receitas: "Receitas", resultado_mes: "Resultado do mês", maiores_gastos: "Maiores gastos",
+    parcelas: "Parcelas a vencer", faturas: "Faturas do cartão", previsao: "Previsão do mês"};
+  var CHAT_MESES_CURTOS = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
+  function chatFalso(){ return window.__genesisTeste && typeof window.__genesisTeste.copilotoFalso === "function" ? window.__genesisTeste.copilotoFalso : null; }
+  function chatDisponivel(){ return !!(COPI.ok && sb && state.mode === "db") || !!chatFalso(); }
+  function chatInvocar(corpo){
+    var falso = chatFalso();
+    if(falso) return Promise.resolve().then(function(){ return falso(JSON.parse(JSON.stringify(corpo))); });
+    return sb.functions.invoke("copiloto", {body: corpo}).then(function(r){
+      if(r.error && r.error.context && typeof r.error.context.json === "function") return r.error.context.json().catch(function(){ return {ok: false}; });
+      return r.error ? {ok: false} : r.data;
+    }).catch(function(){ return {ok: false}; });
+  }
+  function chatMesRot(ym){ return CHAT_MESES_CURTOS[+ym.slice(5, 7) - 1] + "/" + ym.slice(0, 4); }
+  function chatMeses(de, ate){ var out = [], m = de; while(m <= ate && out.length < 12){ out.push(m); m = shiftMonthKey(m, 1); } return out; }
+  // Todas as categorias (de gasto e de receita) entram no resumo: com 0 as que não têm consumo neste mês.
+  // Assim a IA só escolhe nomes que existem, e o servidor confere que a categoria de um resultado está na lista.
+  function chatResumoBase(){
+    var r = copilotoResumo(todayISO()), meses = {};
+    state.transactions.forEach(function(t){
+      if(t.deletedAt) return;
+      if((isConsumo(t) || t.tipo === "receita") && !(String(t.categoria || "Sem categoria") in r.categorias)) r.categorias[t.categoria || "Sem categoria"] = 0;
+      if(/^\d{4}-\d{2}/.test(t.dataEfet || "")) meses[monthKey(t.dataEfet)] = 1;
+    });
+    r.hoje = todayISO();
+    r.meses_com_dados = Object.keys(meses).sort().slice(-36);
+    return r;
+  }
+  function chatBate(t, c, termos){
+    if(c.categoria && (t.categoria || "Sem categoria") !== c.categoria) return false;
+    if(termos.length){ var d = simNorm(t.descricao); if(!termos.some(function(x){ return d.indexOf(x) !== -1; })) return false; }
+    return true;
+  }
+  function chatTop(obj, n){
+    return Object.keys(obj).map(function(k){ return {categoria: k, valor: simC2(obj[k])}; })
+      .filter(function(x){ return x.valor !== 0; }).sort(function(a, b){ return b.valor - a.valor; }).slice(0, n);
+  }
+  // Calcula uma consulta. Devolve {dados} (o que vai para a IA) e {local} (o que só aparece na tela, com descrições).
+  function chatCalcular(c){
+    var hoje = todayISO(), meses = chatMeses(c.de, c.ate), termos = (c.termos || []).map(simNorm).filter(Boolean);
+    var d = {ferramenta: c.ferramenta, de: c.de, ate: c.ate}, local = {itens: []};
+    if(c.categoria) d.categoria = c.categoria;
+    if(termos.length) d.termos = termos.join(", ").slice(0, 80);
+    var noPeriodo = function(t){ return !t.deletedAt && /^\d{4}-\d{2}/.test(t.dataEfet || "") && meses.indexOf(monthKey(t.dataEfet)) !== -1; };
+    if(c.ferramenta === "gastos" || c.ferramenta === "receitas"){
+      var rec = c.ferramenta === "receitas", porMes = {}, porCat = {}, tot = 0, n = 0;
+      meses.forEach(function(m){ porMes[m] = 0; });
+      state.transactions.forEach(function(t){
+        if(!noPeriodo(t) || isPrevista(t)) return;
+        if(rec ? t.tipo !== "receita" : !isConsumo(t)) return;
+        if(!chatBate(t, c, termos)) return;
+        var v = rec ? t.valor : despVal(t), cat = t.categoria || "Sem categoria";
+        porMes[monthKey(t.dataEfet)] += v; tot += v; n++; porCat[cat] = (porCat[cat] || 0) + v;
+      });
+      d.total = simC2(tot); d.lancamentos = n;
+      if(meses.length > 1){ d.media_por_mes = simC2(tot / meses.length); d.por_mes = meses.map(function(m){ return {mes: m, valor: simC2(porMes[m])}; }); }
+      if(c.agrupar === "categoria" || (!c.categoria && !termos.length)) d.por_categoria = chatTop(porCat, 8);
+    } else if(c.ferramenta === "resultado_mes"){
+      d.meses = meses.map(function(m){ var r = computeTotals(m + "-15"); return {mes: m, receitas: simC2(r.recTotal), despesas: simC2(r.despTotal), resultado: simC2(r.recTotal - r.despTotal)}; });
+    } else if(c.ferramenta === "maiores_gastos"){
+      var lista = [], porCat2 = {};
+      state.transactions.forEach(function(t){
+        if(!noPeriodo(t) || isPrevista(t) || !isConsumo(t) || !chatBate(t, c, termos)) return;
+        var v = despVal(t), cat = t.categoria || "Sem categoria";
+        porCat2[cat] = (porCat2[cat] || 0) + v;
+        if(v > 0) lista.push(t);
+      });
+      lista.sort(function(a, b){ return despVal(b) - despVal(a) || (a.dataEfet < b.dataEfet ? -1 : 1); });
+      d.itens = lista.slice(0, 5).map(function(t, i){ return {n: i + 1, data: t.dataEfet, valor: simC2(despVal(t)), categoria: t.categoria || "Sem categoria"}; });
+      local.itens = lista.slice(0, 5).map(function(t, i){ return {n: i + 1, texto: t.descricao || "(sem descrição)", data: t.dataEfet, valor: despVal(t)}; });
+      if(c.agrupar === "categoria") d.por_categoria = chatTop(porCat2, 8);
+    } else if(c.ferramenta === "parcelas"){
+      // Parcelas com data depois de hoje: as previstas que o app lançou e as que a fatura já trouxe com data futura.
+      var grupos = {}, porMes3 = {}, total = 0, ultima = null;
+      state.transactions.forEach(function(t){
+        if(t.deletedAt || !hasParcela(t) || !(t.dataEfet > hoje) || !isConsumo(t) || !chatBate(t, c, termos)) return;
+        var g = t.idCompra || t.seriesId || (simNorm(t.descricao) + "|" + t.valor), m = monthKey(t.dataEfet), v = despVal(t);
+        var x = grupos[g] || (grupos[g] = {texto: t.descricao || "(sem descrição)", valor: v, restantes: 0, termina: m});
+        x.restantes++; if(m > x.termina) x.termina = m;
+        porMes3[m] = (porMes3[m] || 0) + v; total += v; if(!ultima || m > ultima) ultima = m;
+      });
+      var gs = Object.keys(grupos).map(function(k){ return grupos[k]; }).sort(function(a, b){ return b.valor - a.valor || (a.termina < b.termina ? 1 : -1); });
+      d.compras = gs.length; d.total_a_vencer = simC2(total); d.ultima_parcela = ultima;
+      d.por_mes = Object.keys(porMes3).sort().slice(0, 12).map(function(m){ return {mes: m, valor: simC2(porMes3[m])}; });
+      d.itens = gs.slice(0, 5).map(function(x, i){ return {n: i + 1, valor_parcela: simC2(x.valor), parcelas_restantes: x.restantes, termina: x.termina}; });
+      local.itens = gs.slice(0, 5).map(function(x, i){ return {n: i + 1, texto: x.texto, valor: x.valor, extra: x.restantes + "x até " + chatMesRot(x.termina)}; });
+      delete d.de; delete d.ate;
+    } else if(c.ferramenta === "faturas"){
+      d.por_mes = meses.map(function(m){ return {mes: m, valor: simFaturaDoMes(m)}; });
+    } else if(c.ferramenta === "previsao"){
+      var pv = COPI.dados.previsao, fx = COPI.dados.fluxo;
+      var okPv = pv && pv.dados && monthKey(pv.ref) === monthKey(hoje);
+      if(!okPv && !(fx && fx.dados)) d.indisponivel = true;
+      if(okPv) d.previsao = pv.dados;
+      if(fx && fx.dados) d.fluxo = fx.dados;
+      delete d.de; delete d.ate; delete d.categoria; delete d.termos;
+    }
+    return {dados: d, local: local};
+  }
+
+  function chatPeriodoRot(d){
+    if(!d.de) return "";
+    return d.de === d.ate ? chatMesRot(d.de) : chatMesRot(d.de) + " a " + chatMesRot(d.ate);
+  }
+  // Os números do app, abaixo da resposta: valem mesmo se a IA não conseguir escrever o texto.
+  function chatNumerosHtml(res){
+    return res.map(function(r){
+      var d = r.dados, h = '<div class="chat-num"><div class="chat-num-t">' + flxEsc([CHAT_FERR[d.ferramenta], d.categoria, d.termos ? "“" + d.termos + "”" : "", chatPeriodoRot(d)].filter(Boolean).join(" · ")) + "</div>";
+      var linha = function(a, b){ return '<li><span>' + flxEsc(a) + "</span><b>" + b + "</b></li>"; }, li = [];
+      if(d.total !== undefined){ li.push(linha("Total", fmt(d.total))); li.push(linha("Lançamentos", String(d.lancamentos))); if(d.media_por_mes !== undefined) li.push(linha("Média por mês", fmt(d.media_por_mes))); }
+      if(d.meses) d.meses.forEach(function(m){ li.push(linha(chatMesRot(m.mes), fmt(m.receitas) + " − " + fmt(m.despesas) + " = " + fmt(m.resultado))); });
+      if(d.ferramenta === "parcelas"){ li.push(linha("Compras com parcelas a vencer", String(d.compras))); li.push(linha("Total a vencer", fmt(d.total_a_vencer))); }
+      if(d.por_mes && d.ferramenta !== "gastos" && d.ferramenta !== "receitas") d.por_mes.slice(0, 6).forEach(function(m){ li.push(linha(chatMesRot(m.mes), fmt(m.valor))); });
+      if(d.ferramenta === "previsao"){
+        if(d.indisponivel) li.push(linha("Previsão", "abra o Início para calcular"));
+        if(d.previsao && d.previsao.previsao !== undefined) li.push(linha("Previsão para o fim do mês", fmt(d.previsao.previsao)));
+        if(d.fluxo){ li.push(linha("Menor saldo até o fim do mês", fmt(d.fluxo.menor_saldo))); li.push(linha("Dias negativos", String(d.fluxo.dias_negativos))); }
+      }
+      if(li.length) h += "<ul>" + li.join("") + "</ul>";
+      if(r.local.itens.length) h += '<ol class="chat-itens">' + r.local.itens.map(function(x){
+        return "<li><span>" + flxEsc(x.texto) + (x.data ? " <small>" + flxEsc(flxDia(x.data)) + "</small>" : "") + (x.extra ? " <small>" + flxEsc(x.extra) + "</small>" : "") + "</span><b>" + fmt(x.valor) + "</b></li>";
+      }).join("") + "</ol>";
+      if(d.por_mes && (d.ferramenta === "gastos" || d.ferramenta === "receitas")) h += '<details class="sim-mais"><summary>Mês a mês</summary><ul>' + d.por_mes.map(function(m){ return linha(chatMesRot(m.mes), fmt(m.valor)); }).join("") + "</ul></details>";
+      if(d.por_categoria && d.por_categoria.length) h += '<details class="sim-mais"><summary>Por categoria</summary><ul>' + d.por_categoria.map(function(x){ return linha(x.categoria, fmt(x.valor)); }).join("") + "</ul></details>";
+      return h + "</div>";
+    }).join("");
+  }
+  function chatTurnoHtml(t){
+    var corpo = t.carregando ? '<p class="chat-espera">Calculando…</p>'
+      : (window.__v5hide && t.res ? "<p>Os valores estão ocultos. Mostre os valores para ler a resposta.</p>"
+        : String(t.texto || "").split(/\n\s*\n/).map(function(p){ return "<p>" + escapeAttr(p.trim()).replace(/\n/g, "<br>") + "</p>"; }).join(""));
+    var nums = !t.carregando && t.res && t.res.length && !window.__v5hide ? '<details class="chat-numeros"' + (t.erro ? " open" : "") + '><summary>Números do app</summary>' + chatNumerosHtml(t.res) + "</details>" : "";
+    return '<div class="chat-turno"><div class="chat-eu">' + escapeAttr(t.pergunta) + '</div><div class="ia-caixa' + (t.erro ? " ia-erro" : "") + '">' + corpo + nums +
+      (t.carregando ? "" : '<div class="ia-rodape"><span>' + (t.res && t.res.length ? (t.erro ? "Os números acima são do app." : "Texto escrito por IA a partir dos números do app.") : "") + "</span></div>") + "</div></div>";
+  }
+  function renderChat(){
+    var card = document.getElementById("chatCard"), box = document.getElementById("chatCorpo");
+    if(!card || !box || typeof CHATD === "undefined") return;
+    card.hidden = !chatDisponivel();
+    if(card.hidden) return;
+    var foco = document.activeElement && document.activeElement.id === "chatPergunta", valor = document.getElementById("chatPergunta") ? document.getElementById("chatPergunta").value : "";
+    var h = '<div class="chat-lista" id="chatLista">' + CHATD.turnos.map(chatTurnoHtml).join("") + "</div>";
+    if(!CHATD.turnos.length) h += '<div class="chat-dicas">' + ["Quanto gastei com mercado este mês?", "Quais foram meus maiores gastos em " + MESES_LEM[+shiftMonthKey(monthKey(todayISO()), -1).slice(5, 7) - 1] + "?", "Quanto ainda falta pagar de parcelas?"]
+      .map(function(q){ return '<button type="button" class="btn btn-ghost" data-chat-dica="' + escapeAttr(q) + '">' + escapeAttr(q) + "</button>"; }).join("") + "</div>";
+    h += '<div class="sim-linha chat-linha"><input id="chatPergunta" maxlength="300" placeholder="Pergunte sobre os seus números" autocomplete="off"' + (CHATD.carregando ? " disabled" : "") + ">" +
+      (simVozDisponivel() ? '<button type="button" class="btn btn-ghost sim-mic" id="chatMic" aria-label="Falar a pergunta" aria-pressed="false"' + (CHATD.carregando ? " disabled" : "") + '><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button>' : "") +
+      '<button type="button" class="btn btn-primary" id="chatEnviar"' + (CHATD.carregando ? " disabled" : "") + ">Perguntar</button></div>" +
+      '<div class="sim-msg" id="chatMsg" role="status">' + escapeAttr(CHATD.msg || "") + "</div>" +
+      (CHATD.turnos.length ? '<div class="chat-pe"><span>O copiloto só lê os seus números. Ele não muda nada.</span><button type="button" class="resumo-link" id="chatLimpar">Limpar conversa</button></div>' : "");
+    box.innerHTML = h;
+    var inp = document.getElementById("chatPergunta"); if(inp){ inp.value = CHATD.carregando ? "" : valor; if(foco && !CHATD.carregando) inp.focus(); }
+    var lista = document.getElementById("chatLista"); if(lista) lista.scrollTop = lista.scrollHeight;
+  }
+  function chatPerguntar(texto){
+    var campo = document.getElementById("chatPergunta"), pergunta = String(typeof texto === "string" ? texto : (campo ? campo.value : "")).trim().slice(0, 300);
+    if(!pergunta || CHATD.carregando || !chatDisponivel()) return;
+    var ant = CHATD.turnos.length ? CHATD.turnos[CHATD.turnos.length - 1].pergunta : "";
+    var turno = {pergunta: pergunta, carregando: true};
+    CHATD.turnos.push(turno); if(CHATD.turnos.length > CHAT_MAX_TURNOS) CHATD.turnos.shift();
+    CHATD.carregando = true; CHATD.msg = null; if(campo) campo.value = ""; renderChat();
+    var fim = function(t){ Object.assign(turno, {carregando: false}, t); CHATD.carregando = false; renderChat(); };
+    var base = chatResumoBase();
+    chatInvocar({recurso: "chat", resumo: base, pergunta: pergunta, anterior: ant}).then(function(j){
+      j = j || {};
+      if(!j.ok) return fim({texto: j.mensagem || "O copiloto não respondeu agora. Tente de novo em instantes.", erro: true});
+      var q = j.consulta || {};
+      if(q.tipo === "fora_do_assunto") return fim({texto: "Eu respondo só sobre os seus números aqui no app: gastos, receitas, resultado do mês, maiores gastos, parcelas, faturas e a previsão do mês. Não dou recomendação de investimento nem mexo em lançamentos.", erro: true});
+      if(q.tipo !== "consultar" || !Array.isArray(q.consultas) || !q.consultas.length) return fim({texto: "Não entendi a pergunta. Tente de outro jeito, por exemplo: \"quanto gastei com mercado em outubro?\".", erro: true});
+      var res;
+      try{ res = q.consultas.slice(0, 3).filter(function(c){ return CHAT_FERR[c.ferramenta]; }).map(chatCalcular); }
+      catch(e){ if(window.console) console.error(e); return fim({texto: "Não consegui calcular essa consulta agora.", erro: true}); }
+      if(!res.length) return fim({texto: "Não entendi a pergunta. Tente de outro jeito.", erro: true});
+      var resumo = chatResumoBase(); delete resumo.meses_com_dados;
+      resumo.consultas = res.map(function(r){ return r.dados; });
+      return chatInvocar({recurso: "chat_resposta", resumo: resumo, pergunta: pergunta, anterior: ant}).then(function(k){
+        k = k || {};
+        if(k.ok) return fim({texto: k.texto, res: res});
+        fim({texto: k.motivo === "numeros_reprovados" ? "Não consegui escrever a resposta com segurança. Os números que o app calculou estão abaixo." : (k.mensagem || "O copiloto não respondeu agora. Os números que o app calculou estão abaixo."), res: res, erro: true});
+      });
+    });
+  }
+  (function chatLigar(){
+    document.addEventListener("click", function(ev){
+      var t = ev.target && ev.target.closest ? ev.target : null; if(!t) return;
+      if(t.closest("#chatEnviar")){ chatPerguntar(); return; }
+      var dica = t.closest("[data-chat-dica]"); if(dica){ chatPerguntar(dica.dataset.chatDica); return; }
+      if(t.closest("#chatLimpar")){ CHATD.turnos = []; CHATD.msg = null; renderChat(); return; }
+      if(t.closest("#chatMic")) simVoz({campo: "chatPergunta", msg: "chatMsg", botao: "chatMic", enviar: chatPerguntar});
+    });
+    document.addEventListener("keydown", function(ev){ if(ev.key === "Enter" && ev.target && ev.target.id === "chatPergunta"){ ev.preventDefault(); chatPerguntar(); } });
+  })();
 
   // Prova das travas de ponta a ponta. No console do navegador, logado:
   //   await genesisCopilotoTeste()
@@ -10212,6 +10437,12 @@ var CAIXA = (function(){
             modalidade: r.modalidade || null, parcela: r.parcela || null, final: r.final || null, selecionada: !!r.selected, duplicada: r.dup ? r.dup.level : null}; })};
       },
       lancamentos: function(){ return state.transactions.slice(); },
+      // chat do copiloto sem nuvem: o teste troca a Edge Function por uma função (copiloto: corpo do pedido → resposta)
+      copilotoFalso: null,
+      ligarChat: function(fn){ window.__genesisTeste.copilotoFalso = fn; renderChat(); },
+      chatCalcular: function(c){ return chatCalcular(c); },
+      chatResumoBase: function(){ return chatResumoBase(); },
+      definirLancamentos: function(lista){ state.transactions = lista.map(function(t, i){ return Object.assign({id: "t" + i}, t); }); renderAll(); },
       cartoes: function(){ return JSON.parse(JSON.stringify(state.cartoes)); }
     };
   }

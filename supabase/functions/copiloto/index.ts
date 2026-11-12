@@ -11,7 +11,9 @@
 //   7. chamada à Anthropic (chave só no servidor), na ordem que aproveita o cache
 //   8. verificação de números (1 nova tentativa); recusa do modelo tratada.
 //      No simulador, a resposta é o JSON do formulário: confere o esquema e os
-//      campos (validarCenario) em vez dos números.
+//      campos (validarCenario) em vez dos números. No chat, a 1ª etapa devolve
+//      as consultas que o app calcula (validarConsulta) e a 2ª ("chat_resposta")
+//      explica os resultados, com a mesma verificação de números.
 //   9. acerta a cota com o custo real, guarda a resposta e registra sem dados pessoais
 //
 // Secrets (Painel do Supabase → Edge Functions → Secrets):
@@ -24,9 +26,9 @@ import { createClient } from "npm:@supabase/supabase-js@2.117.0";
 import postgres from "npm:postgres@3.4.5";
 import { MENSAGENS, RECURSOS, SISTEMA_FIXO } from "./recursos.ts";
 import {
-  custoMaximoUsd, custoUsd, divergencias, ESQUEMA_CENARIO, estimarTokens, impressaoDigital,
-  type ResumoBase, type Uso, validarCardExplicar, validarCenario, validarResumo, validarResumoSimulador,
-  valoresInventados,
+  custoMaximoUsd, custoUsd, divergencias, ESQUEMA_CENARIO, ESQUEMA_CONSULTA, estimarTokens, impressaoDigital,
+  type ResumoBase, type Uso, validarCardExplicar, validarCenario, validarConsulta, validarResumo, validarResumoChat,
+  validarResumoChatResposta, validarResumoSimulador, valoresInventados,
 } from "./regras.ts";
 
 const ORIGENS = (Deno.env.get("ORIGENS_PERMITIDAS") ??
@@ -34,6 +36,7 @@ const ORIGENS = (Deno.env.get("ORIGENS_PERMITIDAS") ??
   .split(",").map((s) => s.trim()).filter(Boolean);
 const MAX_CORPO_BYTES = 64 * 1024;
 const MAX_PERGUNTA_CHARS = 500;
+const MAX_ANTERIOR_CHARS = 300; // chat: a pergunta anterior, para entender "e em outubro?"
 
 const sql = postgres(Deno.env.get("SUPABASE_DB_URL")!, { prepare: false, max: 3 });
 const auth = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_ANON_KEY")!, {
@@ -98,7 +101,7 @@ Deno.serve(async (req) => {
   const userId = quem.user.id;
 
   // 3. Recurso e resumo
-  let corpo: { recurso?: unknown; resumo?: unknown; pergunta?: unknown };
+  let corpo: { recurso?: unknown; resumo?: unknown; pergunta?: unknown; anterior?: unknown };
   try { corpo = JSON.parse(bruto); } catch { return recusar(origem, 400, "resumo_invalido"); }
   const nomeRecurso = typeof corpo.recurso === "string" ? corpo.recurso : "";
   const recurso = RECURSOS[nomeRecurso];
@@ -110,11 +113,18 @@ Deno.serve(async (req) => {
   // Simulador: só categorias e a data de hoje, além da pergunta.
   const modoCenario = recurso.saida === "cenario";
   if (modoCenario && validarResumoSimulador(resumo) !== null) return recusar(origem, 400, "resumo_invalido");
+  // Chat: na 1ª etapa só categorias, hoje e os meses com dados; na 2ª, os resultados das consultas.
+  const modoConsulta = recurso.saida === "consulta";
+  if (modoConsulta && validarResumoChat(resumo) !== null) return recusar(origem, 400, "resumo_invalido");
+  if (nomeRecurso === "chat_resposta" && validarResumoChatResposta(resumo) !== null) return recusar(origem, 400, "resumo_invalido");
+  const modoJson = modoCenario || modoConsulta;
   const instrucao = recurso.instrucao +
     (recurso.instrucaoPorCard ? "\n\n" + (recurso.instrucaoPorCard[String(resumo.card)] ?? "") : "");
   const pergunta = recurso.aceitaPergunta && typeof corpo.pergunta === "string"
     ? corpo.pergunta.trim().slice(0, MAX_PERGUNTA_CHARS) : "";
   if (recurso.aceitaPergunta && !pergunta) return recusar(origem, 400, "resumo_invalido");
+  const anterior = nomeRecurso.startsWith("chat") && typeof corpo.anterior === "string"
+    ? corpo.anterior.trim().slice(0, MAX_ANTERIOR_CHARS) : "";
 
   let cfg: Record<string, unknown>;
   try { cfg = await lerConfig(); } catch (e) {
@@ -133,7 +143,7 @@ Deno.serve(async (req) => {
 
   // 5. Resposta guardada
   const impressao = await impressaoDigital({
-    u: userId, r: nomeRecurso, s: resumo, p: pergunta, v: recurso.versaoPrompt, m: recurso.modelo,
+    u: userId, r: nomeRecurso, s: resumo, p: pergunta, a: anterior || undefined, v: recurso.versaoPrompt, m: recurso.modelo,
   });
   const [guardada] = await sql<{ texto: string }[]>`
     update copiloto.respostas set usos = usos + 1 where impressao = ${impressao} and user_id = ${userId}::uuid
@@ -142,11 +152,12 @@ Deno.serve(async (req) => {
     await sql`insert into copiloto.pedidos (user_id, recurso, modelo, versao_prompt, status, concluido_em)
               values (${userId}::uuid, ${nomeRecurso}, ${recurso.modelo}, ${recurso.versaoPrompt}, 'cache', now())`;
     if (modoCenario) return responder(origem, 200, { ok: true, cenario: JSON.parse(guardada.texto), guardada: true });
+    if (modoConsulta) return responder(origem, 200, { ok: true, consulta: JSON.parse(guardada.texto), guardada: true });
     return responder(origem, 200, { ok: true, texto: guardada.texto, guardada: true });
   }
 
   // 6. Reserva: o pior caso de duas chamadas (a original e uma nova tentativa)
-  const tokensEntrada = estimarTokens(SISTEMA_FIXO + resumoJson + instrucao + pergunta);
+  const tokensEntrada = estimarTokens(SISTEMA_FIXO + resumoJson + instrucao + pergunta + anterior);
   const reserva = 2 * custoMaximoUsd(recurso.modelo, tokensEntrada, recurso.maxTokensSaida);
   const [r] = await sql<{ pedido_id: string | null; motivo: string | null }[]>`
     select * from copiloto.reservar(${userId}::uuid, ${nomeRecurso}, ${recurso.modelo}, ${recurso.versaoPrompt}, ${reserva})`;
@@ -173,6 +184,7 @@ Deno.serve(async (req) => {
         output_config: {
           effort: recurso.esforco,
           ...(modoCenario ? { format: { type: "json_schema" as const, schema: ESQUEMA_CENARIO } } : {}),
+          ...(modoConsulta ? { format: { type: "json_schema" as const, schema: ESQUEMA_CONSULTA } } : {}),
         },
         ...(recurso.semPensamento ? { thinking: { type: "disabled" as const } } : {}),
         // Ordem fixa para o cache: instruções iguais para todos → resumo da pessoa → pedido.
@@ -183,8 +195,9 @@ Deno.serve(async (req) => {
             { type: "text" as const, text: "RESUMO:\n" + resumoJson, cache_control: { type: "ephemeral" as const } },
             {
               type: "text" as const,
-              text: instrucao + (pergunta ? "\n\nPERGUNTA DA PESSOA:\n" + pergunta : "") +
-                (tentativa > 1 ? (modoCenario
+              text: instrucao + (anterior ? "\n\nPERGUNTA ANTERIOR:\n" + anterior : "") +
+                (pergunta ? "\n\nPERGUNTA DA PESSOA:\n" + pergunta : "") +
+                (tentativa > 1 ? (modoJson
                   ? "\n\nAtenção: o formulário anterior não passou na conferência do app (" + (erroCenario ?? "campos inválidos") + "). Preencha de novo seguindo as regras dos campos."
                   : "\n\nAtenção: a resposta anterior citou valores que não estão no RESUMO. Cite só valores do RESUMO.") : ""),
             },
@@ -209,6 +222,14 @@ Deno.serve(async (req) => {
       }
       const candidato = textoDaResposta(msg as { content: Array<{ type: string; text?: string }> });
       if (!candidato) { motivo = msg.stop_reason === "max_tokens" ? "limite_de_saida" : "resposta_vazia"; continue; }
+      if (modoConsulta) {
+        let bruto: unknown = null;
+        try { bruto = JSON.parse(candidato); } catch { /* conferido abaixo */ }
+        const conf = validarConsulta(bruto, resumo.categorias, String(resumo.hoje));
+        if ("pedido" in conf) { texto = JSON.stringify(conf.pedido); status = "ok"; motivo = null; }
+        else { status = "ok"; motivo = "consulta_invalida"; erroCenario = conf.erro; }
+        continue;
+      }
       if (modoCenario) {
         let bruto: unknown = null;
         try { bruto = JSON.parse(candidato); } catch { /* conferido abaixo */ }
@@ -240,9 +261,11 @@ Deno.serve(async (req) => {
               values (${impressao}, ${userId}::uuid, ${nomeRecurso}, ${recurso.modelo}, ${recurso.versaoPrompt}, ${texto})
               on conflict (impressao) do nothing`;
     if (modoCenario) return responder(origem, 200, { ok: true, cenario: JSON.parse(texto), guardada: false });
+    if (modoConsulta) return responder(origem, 200, { ok: true, consulta: JSON.parse(texto), guardada: false });
     return responder(origem, 200, { ok: true, texto, guardada: false });
   }
   if (motivo === "cenario_invalido") return recusar(origem, 200, "cenario_invalido");
+  if (motivo === "consulta_invalida") return recusar(origem, 200, "consulta_invalida");
   if (status === "recusado") return recusar(origem, 200, "recusado");
   if (motivo === "numeros_reprovados") return recusar(origem, 200, "numeros_reprovados");
   return recusar(origem, 502, "erro");

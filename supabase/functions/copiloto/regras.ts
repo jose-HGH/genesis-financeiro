@@ -355,3 +355,173 @@ export function validarCenario(
   if (parcelas === null && valor === null) return { erro: "comparar parcelas precisa do valor total" };
   return { cenario: { ...vazio, tipo, parcelas, valor: valorParcela === null ? valor : null, valor_parcela: valorParcela, data } };
 }
+
+// ---------------------------------------------------------------------
+// Chat nível 1 (passo 7): duas etapas, sem a IA ver nenhum lançamento.
+//   1. "chat": a IA transforma a pergunta em até 3 consultas às ferramentas
+//      do app (JSON com esquema fixo, conferido por validarConsulta).
+//   2. o app calcula cada consulta no navegador, com os dados conciliados.
+//   3. "chat_resposta": a IA recebe só os resultados (números, datas,
+//      categorias) e escreve a resposta; os valores em R$ são conferidos.
+// ---------------------------------------------------------------------
+
+const MES_ISO = /^\d{4}-(0[1-9]|1[0-2])$/;
+
+function mesesEntre(a: string, b: string): number {
+  return (+b.slice(0, 4) - +a.slice(0, 4)) * 12 + (+b.slice(5, 7) - +a.slice(5, 7));
+}
+
+/** Resumo da 1ª etapa: o resumo base, "hoje" e os meses que têm dados. */
+export function validarResumoChat(r: ResumoBase): string | null {
+  const extras = Object.keys(r).filter((k) => !["versao", "mes", "categorias", "hoje", "meses_com_dados"].includes(k));
+  if (extras.length) return `campo inesperado: ${extras[0]}`;
+  if (typeof r.hoje !== "string" || !DATA_ISO.test(r.hoje)) return "hoje precisa ser AAAA-MM-DD";
+  if (Object.keys(r.categorias).length > 60) return "categorias demais";
+  const m = r.meses_com_dados;
+  if (m !== undefined && (!Array.isArray(m) || m.length > 60 || m.some((x) => typeof x !== "string" || !MES_ISO.test(x)))) {
+    return "meses_com_dados inválido";
+  }
+  return null;
+}
+
+export const FERRAMENTAS = ["gastos", "receitas", "resultado_mes", "maiores_gastos", "parcelas", "faturas", "previsao"] as const;
+export type Ferramenta = typeof FERRAMENTAS[number];
+export const TIPOS_CONSULTA = ["consultar", "fora_do_assunto", "nao_entendi"] as const;
+const AGRUPAR = ["nenhum", "mes", "categoria"] as const;
+const MAX_CONSULTAS = 3;
+
+export interface Consulta {
+  ferramenta: Ferramenta;
+  de: string | null; // AAAA-MM
+  ate: string | null; // AAAA-MM
+  categoria: string | null;
+  termos: string[];
+  agrupar: typeof AGRUPAR[number];
+}
+export interface PedidoConsulta {
+  tipo: typeof TIPOS_CONSULTA[number];
+  consultas: Consulta[];
+}
+
+/** Esquema da saída estruturada da 1ª etapa. */
+export const ESQUEMA_CONSULTA = {
+  type: "object",
+  additionalProperties: false,
+  required: ["tipo", "consultas"],
+  properties: {
+    tipo: { type: "string", enum: [...TIPOS_CONSULTA] },
+    consultas: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["ferramenta", "de", "ate", "categoria", "termos", "agrupar"],
+        properties: {
+          ferramenta: { type: "string", enum: [...FERRAMENTAS] },
+          de: anulavel({ type: "string" }),
+          ate: anulavel({ type: "string" }),
+          categoria: anulavel({ type: "string" }),
+          termos: { type: "array", items: { type: "string" } },
+          agrupar: { type: "string", enum: [...AGRUPAR] },
+        },
+      },
+    },
+  },
+} as const;
+
+/**
+ * Confere e normaliza as consultas que a IA devolveu. Período: de 3 anos atrás
+ * até 1 ano à frente, no máximo 12 meses por consulta; sem período = mês de hoje.
+ * Categoria só das que o resumo traz; termos como no simulador.
+ */
+export function validarConsulta(
+  bruto: unknown, categorias: Record<string, number>, hoje: string,
+): { pedido: PedidoConsulta } | { erro: string } {
+  if (!bruto || typeof bruto !== "object" || Array.isArray(bruto)) return { erro: "não é objeto" };
+  const o = bruto as Record<string, unknown>;
+  const tipo = o.tipo as PedidoConsulta["tipo"];
+  if (!(TIPOS_CONSULTA as readonly string[]).includes(tipo)) return { erro: "tipo desconhecido" };
+  if (tipo !== "consultar") return { pedido: { tipo, consultas: [] } };
+  if (!Array.isArray(o.consultas) || !o.consultas.length) return { erro: "consultar sem consultas" };
+  if (o.consultas.length > MAX_CONSULTAS) return { erro: `mais de ${MAX_CONSULTAS} consultas` };
+  const mesHoje = hoje.slice(0, 7);
+  const consultas: Consulta[] = [];
+  for (const c of o.consultas as unknown[]) {
+    if (!c || typeof c !== "object" || Array.isArray(c)) return { erro: "consulta não é objeto" };
+    const x = c as Record<string, unknown>;
+    const ferramenta = x.ferramenta as Ferramenta;
+    if (!(FERRAMENTAS as readonly string[]).includes(ferramenta)) return { erro: "ferramenta desconhecida" };
+    const mes = (v: unknown): string | null | false =>
+      v === null || v === undefined || v === "" ? null : typeof v === "string" && MES_ISO.test(v) ? v : false;
+    let de = mes(x.de), ate = mes(x.ate);
+    if (de === false || ate === false) return { erro: "mês precisa ser AAAA-MM" };
+    if (!de && !ate) { de = mesHoje; ate = mesHoje; }
+    else if (!de) de = ate;
+    else if (!ate) ate = de;
+    if (mesesEntre(de!, ate!) < 0) return { erro: "período invertido" };
+    if (mesesEntre(de!, ate!) > 11) return { erro: "período maior que 12 meses" };
+    if (mesesEntre(de!, mesHoje) > 36 || mesesEntre(mesHoje, ate!) > 12) return { erro: "período fora de 3 anos atrás até 1 ano à frente" };
+    let categoria: string | null = null;
+    if (typeof x.categoria === "string" && x.categoria.trim()) {
+      if (!Object.prototype.hasOwnProperty.call(categorias, x.categoria)) return { erro: "categoria fora da lista" };
+      categoria = x.categoria;
+    }
+    const termos = Array.isArray(x.termos)
+      ? [...new Set(x.termos.filter((t) => typeof t === "string").map((t) => normalizarTermo(t as string))
+        .filter((t) => t.length >= 2 && t.length <= 24 && TERMO_OK.test(t)))].slice(0, 6)
+      : [];
+    const agrupar = (AGRUPAR as readonly string[]).includes(x.agrupar as string) ? x.agrupar as Consulta["agrupar"] : "nenhum";
+    consultas.push({ ferramenta, de: de!, ate: ate!, categoria, termos, agrupar });
+  }
+  return { pedido: { tipo, consultas } };
+}
+
+/**
+ * Resumo da 2ª etapa: o resumo base, "hoje" e "consultas", a lista dos
+ * resultados que o app calculou. Nos resultados só entram números,
+ * verdadeiro/falso, datas, rótulos curtos, nomes de categoria que o resumo
+ * já traz e os termos de busca. Nada de descrição de lançamento.
+ */
+export function validarResumoChatResposta(r: ResumoBase): string | null {
+  const extras = Object.keys(r).filter((k) => !["versao", "mes", "categorias", "hoje", "consultas"].includes(k));
+  if (extras.length) return `campo inesperado: ${extras[0]}`;
+  if (typeof r.hoje !== "string" || !DATA_ISO.test(r.hoje)) return "hoje precisa ser AAAA-MM-DD";
+  if (Object.keys(r.categorias).length > 60) return "categorias demais";
+  const lista = r.consultas;
+  if (!Array.isArray(lista) || !lista.length || lista.length > MAX_CONSULTAS) return "consultas ausentes";
+  let campos = 0;
+  const textoOk = (chave: string, v: string): boolean =>
+    TEXTO_OK.test(v) ||
+    (chave === "categoria" && Object.prototype.hasOwnProperty.call(r.categorias, v)) ||
+    (chave === "termos" && v.length <= 80 && /^[a-z0-9]+( [a-z0-9]+)*(, [a-z0-9]+( [a-z0-9]+)*){0,5}$/.test(v));
+  const visitar = (v: unknown, nivel: number, chave: string): string | null => {
+    if (v === null || typeof v === "boolean") return null;
+    if (typeof v === "number") return Number.isFinite(v) ? null : "número inválido";
+    if (typeof v === "string") return textoOk(chave, v) ? null : "texto não permitido";
+    if (nivel > 4) return "níveis demais";
+    if (Array.isArray(v)) {
+      if (v.length > 24) return "lista longa demais";
+      for (const x of v) {
+        if (++campos > 400) return "campos demais";
+        const e = visitar(x, nivel + 1, chave);
+        if (e) return e;
+      }
+      return null;
+    }
+    if (typeof v !== "object") return "tipo não permitido";
+    for (const [k, x] of Object.entries(v as Record<string, unknown>)) {
+      if (!CHAVE_OK.test(k)) return `nome de campo inválido: ${k}`;
+      if (++campos > 400) return "campos demais";
+      const e = visitar(x, nivel + 1, k);
+      if (e) return e;
+    }
+    return null;
+  };
+  for (const c of lista) {
+    if (!c || typeof c !== "object" || Array.isArray(c)) return "consulta não é objeto";
+    if (!(FERRAMENTAS as readonly string[]).includes((c as Record<string, unknown>).ferramenta as string)) return "ferramenta desconhecida";
+    const e = visitar(c, 1, "");
+    if (e) return e;
+  }
+  return null;
+}

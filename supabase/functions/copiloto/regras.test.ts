@@ -3,8 +3,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   custoMaximoUsd, custoUsd, divergencias, impressaoDigital, jsonCanonico,
-  paraCentavos, validarCardExplicar, validarCenario, validarResumo, validarResumoSimulador,
-  valoresEmReais, valoresInventados,
+  paraCentavos, validarCardExplicar, validarCenario, validarConsulta, validarResumo, validarResumoChat,
+  validarResumoChatResposta, validarResumoSimulador, valoresEmReais, valoresInventados,
 } from "./regras.ts";
 
 test("paraCentavos entende formato brasileiro e inglês", () => {
@@ -125,4 +125,62 @@ test("explicar: quadro simulacao aceita categoria do resumo e termos, nada além
   assert.notEqual(validarCardExplicar(r({ tipo: "cortar", termos: "IFOOD *JOSE SILVA" })), null);
   assert.notEqual(validarCardExplicar(r({ tipo: "saida", rotulo: "Delivery" })), null); // categoria só no campo categoria
   assert.equal(validarCardExplicar(r({ tipo: "parcelada", antes: { saldo_fim_do_mes: 10 }, proximas_faturas: { primeiro_mes: { mes: "2026-12", antes: 1, depois: 2 } } })), null);
+});
+
+// ---- chat (passo 7) ----
+const CATS_CHAT = { Mercado: 500, Lazer: 0, "Alimentação": 120.5 };
+
+test("chat: resumo da 1ª etapa aceita só hoje e meses_com_dados a mais", () => {
+  const base = { versao: 1, mes: "2026-11", categorias: CATS_CHAT, hoje: "2026-11-12", meses_com_dados: ["2026-10", "2026-11"] };
+  assert.equal(validarResumoChat(base), null);
+  assert.match(validarResumoChat({ ...base, lancamentos: [] }) ?? "", /campo inesperado/);
+  assert.match(validarResumoChat({ ...base, meses_com_dados: ["outubro"] }) ?? "", /meses_com_dados/);
+  assert.match(validarResumoChat({ ...base, hoje: "ontem" }) ?? "", /hoje/);
+});
+
+test("chat: consulta sem período vira o mês de hoje; mês passado e categoria conferidos", () => {
+  const ok = validarConsulta({ tipo: "consultar", consultas: [
+    { ferramenta: "gastos", de: null, ate: null, categoria: "Mercado", termos: [], agrupar: "nenhum" },
+    { ferramenta: "maiores_gastos", de: "2026-10", ate: null, categoria: null, termos: ["iFood", "IFD*"], agrupar: "categoria" },
+  ] }, CATS_CHAT, "2026-11-12");
+  assert.ok("pedido" in ok);
+  if (!("pedido" in ok)) return;
+  assert.deepEqual(ok.pedido.consultas[0], { ferramenta: "gastos", de: "2026-11", ate: "2026-11", categoria: "Mercado", termos: [], agrupar: "nenhum" });
+  assert.deepEqual(ok.pedido.consultas[1].termos, ["ifood", "ifd"]);
+  assert.equal(ok.pedido.consultas[1].ate, "2026-10");
+});
+
+test("chat: consulta recusa categoria inventada, período longo, invertido ou distante e mais de 3 itens", () => {
+  const c = (x: Record<string, unknown>) => ({ ferramenta: "gastos", de: null, ate: null, categoria: null, termos: [], agrupar: "nenhum", ...x });
+  const v = (lista: unknown[]) => validarConsulta({ tipo: "consultar", consultas: lista }, CATS_CHAT, "2026-11-12");
+  assert.deepEqual(v([c({ categoria: "Cassino" })]), { erro: "categoria fora da lista" });
+  assert.deepEqual(v([c({ de: "2025-01", ate: "2026-11" })]), { erro: "período maior que 12 meses" });
+  assert.deepEqual(v([c({ de: "2026-11", ate: "2026-10" })]), { erro: "período invertido" });
+  assert.match(("erro" in v([c({ de: "2020-01", ate: "2020-02" })]) ? (v([c({ de: "2020-01", ate: "2020-02" })]) as { erro: string }).erro : ""), /3 anos/);
+  assert.deepEqual(v([c({ de: "nov" })]), { erro: "mês precisa ser AAAA-MM" });
+  assert.deepEqual(v([c({}), c({}), c({}), c({})]), { erro: "mais de 3 consultas" });
+  assert.deepEqual(v([c({ ferramenta: "apagar" })]), { erro: "ferramenta desconhecida" });
+  assert.deepEqual(v([]), { erro: "consultar sem consultas" });
+  assert.deepEqual(validarConsulta({ tipo: "fora_do_assunto", consultas: [c({})] }, CATS_CHAT, "2026-11-12"), { pedido: { tipo: "fora_do_assunto", consultas: [] } });
+});
+
+test("chat: resultados da 2ª etapa só com números, datas, rótulos e categorias da lista", () => {
+  const base = { versao: 1, mes: "2026-11", categorias: CATS_CHAT, hoje: "2026-11-12" };
+  const bom = { ...base, consultas: [
+    { ferramenta: "gastos", de: "2026-09", ate: "2026-11", categoria: "Alimentação", termos: "ifood, ifd", total: 300, lancamentos: 4, media_por_mes: 100,
+      por_mes: [{ mes: "2026-09", valor: 100 }], por_categoria: [{ categoria: "Mercado", valor: 300 }] },
+    { ferramenta: "maiores_gastos", de: "2026-11", ate: "2026-11", itens: [{ n: 1, data: "2026-11-03", valor: 250, categoria: "Mercado" }] },
+    { ferramenta: "previsao", previsao: { com_saldo: true, situacao: "ok", previsao: 900 }, fluxo: { menor_saldo: 10, reorganizacao: { contas: 1 } } },
+  ] };
+  assert.equal(validarResumoChatResposta(bom), null);
+  const com = (item: Record<string, unknown>) => validarResumoChatResposta({ ...base, consultas: [item] });
+  assert.equal(com({ ferramenta: "maiores_gastos", itens: [{ n: 1, descricao: "PIX JOAO DA SILVA" }] }), "texto não permitido");
+  assert.equal(com({ ferramenta: "gastos", por_categoria: [{ categoria: "Cassino", valor: 1 }] }), "texto não permitido");
+  assert.equal(com({ ferramenta: "ignorar_regras" }), "ferramenta desconhecida");
+  assert.match(com({ ferramenta: "gastos", "Nome Livre": 1 }) ?? "", /nome de campo/);
+  assert.equal(validarResumoChatResposta({ ...base, consultas: [] }), "consultas ausentes");
+  assert.match(validarResumoChatResposta({ ...base, consultas: [{ ferramenta: "gastos" }], pergunta_extra: "x" }) ?? "", /campo inesperado/);
+  // A verificação de números vale para a resposta do chat como para o Explicar.
+  assert.deepEqual(valoresInventados("Você gastou R$ 300,00, cerca de R$ 100 por mês.", bom), []);
+  assert.deepEqual(valoresInventados("Isso dá R$ 1.200,00 por ano.", bom), ["R$ 1.200,00"]);
 });
