@@ -61,3 +61,18 @@ Abra `https://xn--finanashgh-s6a.com/?teste=1`. Aparece uma faixa roxa "Modo tes
 ficam guardados à parte no navegador (prefixo `genesis-teste:`) e o painel não usa a nuvem
 (sem login, não lê nem grava na conta). "Apagar dados de teste" recomeça do zero e
 "Sair do modo teste" volta ao painel normal com os dados de sempre.
+
+## Testes em massa (caçar problemas)
+
+`explorar/` gera centenas de extratos e faturas fictícios variados (OFX, CSV, texto do PDF do BB,
+fatura do Nubank: virada de ano, lote trocado entre PDFs, compras repetidas, parcelas, estornos,
+separadores e codificações diferentes), roda cada um no painel isolado e confere datas, valores,
+parcelas, vencimento, fechamento e duplicatas ao importar de novo ou um período maior.
+
+```bash
+node explorar/explorar.mjs --semente 1 --casos 300          # mesma semente = mesmos casos
+node explorar/explorar.mjs --semente 7 --casos 240 --so 7-19  # repetir só um caso do relatório
+```
+
+Não roda no GitHub (leva minutos). Cada problema achado vira um arquivo na biblioteca
+(`arquivos/fragilidades/`) depois de corrigido, e esse sim passa a ser conferido a cada PR.

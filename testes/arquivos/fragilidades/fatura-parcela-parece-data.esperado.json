@@ -1,0 +1,74 @@
+{
+  "descricao": "Fatura com 'Parcela 11/12' e 'parc 10/12' no meio da linha: a data é a do começo (20 MAR, 24 DEZ), nunca a parcela",
+  "reimportar": false,
+  "leitura": {
+    "meta": {
+      "isExtrato": false,
+      "isFatura": true,
+      "banco": "Nubank",
+      "cardFinal": "4051",
+      "vencimento": "2027-04-20",
+      "fechamentoDia": null,
+      "fechamentoFatura": null
+    },
+    "total_linhas": 5,
+    "soma": 1745.19,
+    "linhas": [
+      {
+        "data": "2027-03-14",
+        "dataEfet": "2027-04-20",
+        "valor": 518.41,
+        "sinal": "+",
+        "descricao": "PAG*JoaoSilva",
+        "tipo": "despesa",
+        "parcela": null,
+        "final": "4051",
+        "selecionada": true
+      },
+      {
+        "data": "2027-03-19",
+        "dataEfet": "2027-04-20",
+        "valor": 147.12,
+        "sinal": "+",
+        "descricao": "MP*DOCERIA",
+        "tipo": "despesa",
+        "parcela": null,
+        "final": "4051",
+        "selecionada": true
+      },
+      {
+        "data": "2027-04-04",
+        "dataEfet": "2027-04-20",
+        "valor": 422,
+        "sinal": "+",
+        "descricao": "Padaria São João",
+        "tipo": "despesa",
+        "parcela": "7/10",
+        "final": "4051",
+        "selecionada": true
+      },
+      {
+        "data": "2027-03-20",
+        "dataEfet": "2027-04-20",
+        "valor": 607.66,
+        "sinal": "+",
+        "descricao": "Ótica Visão",
+        "tipo": "despesa",
+        "parcela": "11/12",
+        "final": "4051",
+        "selecionada": true
+      },
+      {
+        "data": "2026-12-24",
+        "dataEfet": "2027-04-20",
+        "valor": 50,
+        "sinal": "+",
+        "descricao": "Loja Exemplo",
+        "tipo": "despesa",
+        "parcela": "10/12",
+        "final": "4051",
+        "selecionada": true
+      }
+    ]
+  }
+}

@@ -1,0 +1,18 @@
+{
+ "linhas": [
+  "Extrato de Conta Corrente",
+  "Cliente: FULANO DE TAL EXEMPLO",
+  "Período: 01 a 11/02/2026 Agência: 9999-9 Conta: 7777-1",
+  "Lançamentos",
+  "Dia Lote Documento Histórico Valor",
+  "31/01/2026 Saldo Anterior 1.212,46 (+)",
+  "11/02/2026 S A L D O 1.212,46 (+)",
+  "Informações Adicionais",
+  "Saldo 1.212,46 (+)",
+  "Limite Especial da Conta 0,00 (+)",
+  "- Limite Contratado 5.000,00 (+)",
+  "Lançamentos Futuros",
+  "Dia Histórico Valor",
+  "00/00/0000 0,00 (+)"
+ ]
+}
