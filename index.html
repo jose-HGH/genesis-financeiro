@@ -441,6 +441,7 @@
   .resumo-aperto{color:var(--warn-text);}
   .resumo-ok{color:var(--good-text);}
   .resumo-frase{margin:0; font-size:15px; color:var(--ink-2); max-width:46ch;}
+  .resumo-orc{margin:4px 0 0; font-size:13px; color:var(--ink-muted); max-width:52ch;}
   .resumo-sec{display:grid; grid-template-columns:1fr 1fr; gap:18px; margin-top:12px; padding-top:16px; border-top:1px solid var(--border);}
   .resumo-sec div{display:flex; flex-direction:column; gap:4px; min-width:0;}
   .resumo-sec span{font-size:12px; color:var(--ink-muted);}
@@ -4478,20 +4479,25 @@ var FLX = (function(){
   var BUDGETS_KEY = "genesis-financas-budgets-v1";
   var PATRIMONIO_KEY = "genesis-financas-patrimonio-v1";
 
+  // Orçamento mexe na Previsão (o que falta gastar já sai dela), então o quadro de resumo redesenha junto.
+  function aposMudarOrcamento(){
+    renderBudgets(); renderCategoryChart();
+    try{ if(document.getElementById("heroCard")) renderHero(refISO()); }catch(e){ if(window.console) console.error(e); }
+  }
   function loadBudgets(){
     if(state.mode === "db" && state.col){
       state.col.doc("__budgets__").get().then(function(snap){
         state.budgets = (snap.exists && snap.data().categorias) || {};
-        renderBudgets(); renderCategoryChart();
+        aposMudarOrcamento();
       }).catch(function(){});
     } else {
       try{ state.budgets = JSON.parse(localStorage.getItem(BUDGETS_KEY)) || {}; }catch(e){ state.budgets = {}; }
-      renderBudgets();
+      aposMudarOrcamento();
     }
   }
   function setBudget(categoria, limite){
     state.budgets[categoria] = limite;
-    renderBudgets(); renderCategoryChart();
+    aposMudarOrcamento();
     if(state.mode === "db" && state.col){
       state.col.doc("__budgets__").set({categorias: state.budgets}).catch(function(){ toast("Não foi possível salvar o orçamento na nuvem."); });
     } else {
@@ -4500,7 +4506,7 @@ var FLX = (function(){
   }
   function removeBudget(categoria){
     delete state.budgets[categoria];
-    renderBudgets(); renderCategoryChart();
+    aposMudarOrcamento();
     if(state.mode === "db" && state.col){
       state.col.doc("__budgets__").set({categorias: state.budgets}).catch(function(){});
     } else {
@@ -4879,7 +4885,7 @@ var FLX = (function(){
     if(a === "atualizar-saldo"){ abrirModalSaldo(); return; }
     if(a === "transferir"){ abrirTransferencia(); return; }
     if(a === "detalhes"){ resumoAberto = !resumoAberto; if(!resumoAberto) resumoLista = null; }
-    else if(a === "saldos" || a === "receber" || a === "pagar"){ resumoLista = (resumoLista === a ? null : a); }
+    else if(a === "saldos" || a === "receber" || a === "pagar" || a === "orcamentos"){ resumoLista = (resumoLista === a ? null : a); }
     renderHero(refISO());
   }
   // Janela pequena "Atualizar saldo"
@@ -4932,7 +4938,9 @@ var FLX = (function(){
     }
     var usaSaldo = mesAtual && chaves.length > 0;
     var base = Math.round((somaSaldos(state.saldos) + somaExtras()) * 100) / 100;
-    var valor = usaSaldo ? valorComSaldo(base, r.recPend, r.despPend, r.prevDesp) : r.saldoProjetado;
+    var reservaO = reservaOrcamentos(ref);
+    var semOrc = usaSaldo ? valorComSaldo(base, r.recPend, r.despPend, r.prevDesp) : r.saldoProjetado;
+    var valor = Math.round((semOrc - reservaO.total) * 100) / 100;
     var renda = r.recTotal || (state.patrimonio && state.patrimonio.rendaMensal) || 0;
     var sit = situacaoPrevisao(valor, renda);
     var resultado = Math.round((r.recTotal - r.despTotal) * 100) / 100;
@@ -4943,15 +4951,24 @@ var FLX = (function(){
          despesas_previstas: c2(r.prevDesp), receitas_do_mes: c2(r.recTotal), despesas_do_mes: c2(r.despTotal), resultado_do_mes: resultado}
       : {com_saldo: false, fim_do_mes: fimMes, previsao: c2(valor), situacao: sit.estado, receitas_do_mes: c2(r.recTotal + r.prevRec),
          despesas_do_mes: c2(r.despTotal + r.prevDesp), receitas_previstas: c2(r.prevRec), despesas_previstas: c2(r.prevDesp), resultado_do_mes: resultado};
+    if(reservaO.total > 0){ dadosIa.reservado_orcamentos = reservaO.total; dadosIa.previsao_sem_orcamentos = c2(semOrc); }
     COPI.dados.previsao = {card: "previsao", ref: ref, dados: dadosIa};
     var html = '<div class="resumo-titulo">Previsão para '+fmtDate(fimMes)+'</div>'+
       '<div class="resumo-valor resumo-'+sit.estado+'">'+fmt(valor)+'</div>'+
       '<p class="resumo-frase">'+sit.frase+'</p>'+
+      (reservaO.total > 0 ? '<p class="resumo-orc">Já descontando '+fmt(reservaO.total)+' que ainda falta gastar nos seus orçamentos.</p>' : '')+
       '<div class="resumo-sec">'+
         '<div><span>'+(usaSaldo ? "Saldo hoje" : "Receitas do mês")+'</span><strong>'+fmt(usaSaldo ? base : r.recTotal)+'</strong></div>'+
         '<div><span>Resultado de '+nomeMes+'</span><strong>'+fmt(resultado)+'</strong></div>'+
       '</div>'+copilotoCaixa("previsao")+saldoIdadeHtml()+conciliacaoHtml();
     if(resumoAberto){
+      var linhaOrcamentos = function(){
+        if(!(reservaO.total > 0)) return '';
+        return '<div class="resumo-linha"><button type="button" data-resumo="orcamentos">− Ainda falta gastar nos orçamentos</button><span>'+fmt(reservaO.total)+'</span></div>'+
+          (resumoLista === "orcamentos" ? '<ul class="resumo-itens">'+reservaO.itens.map(function(it){
+            return '<li class="resumo-item"><span>'+escapeAttr(it.categoria)+'</span><span>limite '+fmt(it.limite)+'</span><span>'+fmt(it.falta)+'</span></li>';
+          }).join("")+'</ul>' : '');
+      };
       var itens = function(lista, vazio){
         return lista.length ? '<ul class="resumo-itens">'+lista.map(function(t){
           return '<li class="resumo-item"><span>'+escapeAttr(t.descricao)+(isPrevista(t) ? ' <em>(prevista)</em>' : '')+'</span><span>'+fmtDate(t.dataEfet)+'</span><span>'+fmt(t.tipo === "receita" ? t.valor : despVal(t))+'</span></li>';
@@ -4968,11 +4985,13 @@ var FLX = (function(){
           (resumoLista === "receber" ? itens(comp.receber, "Nada a receber até "+fmtDate(fimMes)+".") : '')+
           '<div class="resumo-linha"><button type="button" data-resumo="pagar">− A pagar até '+fmtDate(fimMes)+' ('+nPagar+')</button><span>'+fmt(aPagar)+'</span></div>'+
           (resumoLista === "pagar" ? itens(comp.pagar, "Nada a pagar até "+fmtDate(fimMes)+".") : '')+
+          linhaOrcamentos()+
           '<div class="resumo-linha resumo-total"><span>= Previsão</span><span>'+fmt(valor)+'</span></div></div>';
       } else {
         html += '<div class="resumo-det">'+
           '<div class="resumo-linha"><span>Receitas de '+nomeMes+'</span><span>'+fmt(r.recTotal + r.prevRec)+'</span></div>'+
           '<div class="resumo-linha"><span>− Despesas de '+nomeMes+'</span><span>'+fmt(r.despTotal + r.prevDesp)+'</span></div>'+
+          linhaOrcamentos()+
           '<div class="resumo-linha resumo-total"><span>= Previsão</span><span>'+fmt(valor)+'</span></div></div>';
       }
     }
@@ -5663,16 +5682,39 @@ var FLX = (function(){
     return {r: r, pend: pend, resg: Math.round(resg * 100) / 100, aplic: Math.round(aplic * 100) / 100};
   }
 
+  // Gasto do mês por categoria (o mesmo número que o quadro de Orçamentos mostra) e as despesas previstas de cada categoria.
+  function gastoPorCategoria(ref){
+    var ym = monthKey(ref), gasto = {}, previsto = {};
+    state.transactions.forEach(function(t){
+      if(!isConsumo(t) || monthKey(t.dataEfet) !== ym) return;
+      if(isPrevista(t)){ previsto[t.categoria] = (previsto[t.categoria] || 0) + despVal(t); return; }
+      if(!countsAsSpend(t)) return;
+      gasto[t.categoria] = (gasto[t.categoria] || 0) + despVal(t);
+    });
+    return {gasto: gasto, previsto: previsto};
+  }
+  // O que ainda falta gastar de cada orçamento no mês: limite − gasto − previstas da categoria (nunca abaixo de zero).
+  // Entra na Previsão como dinheiro já comprometido. Só no mês atual e nos seguintes: mês passado já acabou.
+  // O que já foi gasto ou já está lançado não entra de novo, porque já está no saldo, no "a pagar" ou nas previstas.
+  function reservaOrcamentos(ref){
+    var ym = monthKey(ref), itens = [], total = 0;
+    var cats = Object.keys(state.budgets || {}).sort();
+    if(!cats.length || ym < monthKey(todayISO())) return {total: 0, itens: itens};
+    var g = gastoPorCategoria(ref);
+    cats.forEach(function(cat){
+      var limite = Number(state.budgets[cat]) || 0;
+      var usado = (g.gasto[cat] || 0) + (g.previsto[cat] || 0);
+      var falta = Math.round(Math.max(limite - usado, 0) * 100) / 100;
+      if(falta > 0){ itens.push({categoria: cat, falta: falta, limite: limite}); total += falta; }
+    });
+    return {total: Math.round(total * 100) / 100, itens: itens};
+  }
+
   function renderBudgets(){
     var ref = refISO();
-    var mr = monthRange(ref);
-    var spend = {};
-    state.transactions.forEach(function(t){
-      if(!isConsumo(t) || !countsAsSpend(t)) return;
-      var d = new Date(t.dataEfet+"T00:00:00");
-      if(d.getFullYear() !== mr.first.getFullYear() || d.getMonth() !== mr.first.getMonth()) return;
-      spend[t.categoria] = (spend[t.categoria] || 0) + despVal(t);
-    });
+    var spend = gastoPorCategoria(ref).gasto;
+    var reservaB = reservaOrcamentos(ref), faltaDe = {};
+    reservaB.itens.forEach(function(it){ faltaDe[it.categoria] = it.falta; });
     var cats = Object.keys(state.budgets).sort();
     var el = document.getElementById("budgetList");
     if(!cats.length){
@@ -5684,7 +5726,8 @@ var FLX = (function(){
       var gasto = spend[cat] || 0;
       var pct = limite > 0 ? Math.min((gasto/limite)*100, 100) : 0;
       var over = gasto > limite;
-      var foot = over ? ("excedido em "+fmt(gasto-limite)) : (Math.round((limite>0?gasto/limite:0)*100)+"% usado");
+      var foot = over ? ("excedido em "+fmt(gasto-limite)) : (Math.round((limite>0?gasto/limite:0)*100)+"% usado"+
+        (faltaDe[cat] ? " · faltam "+fmt(faltaDe[cat])+", já descontados da Previsão" : ""));
       return '<div class="budget-row'+(over?" over":"")+'">'+
         '<div class="budget-head"><span class="bname">'+escapeAttr(cat)+'</span><span class="bamounts">'+fmt(gasto)+' de '+fmt(limite)+'</span></div>'+
         '<div class="budget-track"><div class="budget-fill" style="width:'+pct+'%"></div></div>'+
@@ -10499,7 +10542,11 @@ var CAIXA = (function(){
       chatCalcular: function(c){ return chatCalcular(c); },
       chatResumoBase: function(){ return chatResumoBase(); },
       definirLancamentos: function(lista){ state.transactions = lista.map(function(t, i){ return Object.assign({id: "t" + i}, t); }); renderAll(); },
-      cartoes: function(){ return JSON.parse(JSON.stringify(state.cartoes)); }
+      cartoes: function(){ return JSON.parse(JSON.stringify(state.cartoes)); },
+      informarSaldo: function(chave, nome, valor){ informarSaldo(chave, nome, valor); },
+      definirOrcamentos: function(mapa){ state.budgets = Object.assign({}, mapa); aposMudarOrcamento(); },
+      reservaOrcamentos: function(ref){ return reservaOrcamentos(ref || refISO()); },
+      previsaoDados: function(){ return COPI.dados.previsao ? JSON.parse(JSON.stringify(COPI.dados.previsao.dados)) : null; }
     };
   }
 
