@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import {
   custoMaximoUsd, custoUsd, divergencias, impressaoDigital, jsonCanonico,
   paraCentavos, validarCardExplicar, validarCenario, validarConsulta, validarResumo, validarResumoChat,
-  validarResumoChatResposta, validarResumoSimulador, valoresEmReais, valoresInventados,
+  validarResumoChatResposta, validarResumoMensal, validarResumoSimulador, valoresEmReais, valoresInventados,
 } from "./regras.ts";
 
 test("paraCentavos entende formato brasileiro e inglês", () => {
@@ -187,4 +187,29 @@ test("chat: resultados da 2ª etapa só com números, datas, rótulos e categori
 
 test("chat: \"simular\" é aceito e não leva consultas", () => {
   assert.deepEqual(validarConsulta({ tipo: "simular", consultas: [] }, CATS_CHAT, "2026-11-12"), { pedido: { tipo: "simular", consultas: [] } });
+});
+
+test("validarResumoMensal aceita o fechamento do app e recusa o resto", () => {
+  const fech = {
+    receitas: 5000, despesas: 1600, resultado: 3400,
+    mes_anterior: { receitas: 5000, despesas: 1500, resultado: 3500 },
+    maiores_categorias: [{ categoria: "Mercado", valor: 900, media_3_meses: 600 }],
+    subiram: [{ categoria: "Mercado", valor: 900, media_3_meses: 600, a_mais: 300 }],
+    desceram: [{ categoria: "Lazer", valor: 100, media_3_meses: 300, a_menos: 200 }],
+    orcamentos: { dentro: 1, estourados: [{ categoria: "Mercado", limite: 800, gasto: 900, passou: 100 }] },
+    maior_gasto: { valor: 500, categoria: "Mercado", data: "2026-10-04" },
+    parcelas: { no_mes: 350, compras_que_terminaram: 1, deixa_de_sair: 200 },
+    proximo_mes: { mes: "2026-11", parcelas: 150, contas_previstas: 0, ja_comprometido: 150 },
+    conferido: { contas_com_diferenca: 0, tudo_conferido: true },
+  };
+  const r = (x: Record<string, unknown> = {}) => ({ versao: 1, mes: "2026-10", categorias: { Mercado: 900, Lazer: 100 }, fechamento: fech, ...x });
+  assert.equal(validarResumo(r()), null);
+  assert.equal(validarResumoMensal(r(), "2026-11"), null);
+  assert.equal(validarResumoMensal(r(), "2026-10"), "o mês ainda não acabou");
+  assert.equal(validarResumoMensal(r({ mes: "2024-01" }), "2026-11"), "mês antigo demais");
+  assert.match(validarResumoMensal(r({ card: "previsao" }), "2026-11") ?? "", /campo inesperado/);
+  assert.equal(validarResumoMensal(r({ fechamento: undefined }), "2026-11"), "fechamento ausente");
+  assert.equal(validarResumoMensal(r({ fechamento: { ...fech, maior_gasto: { valor: 500, descricao: "SUPERMERCADO CENTRAL" } } }), "2026-11"), "texto não permitido");
+  assert.equal(validarResumoMensal(r({ fechamento: { ...fech, maiores_categorias: [{ categoria: "Farmácia", valor: 10 }] } }), "2026-11"), "texto não permitido");
+  assert.equal(validarResumoMensal(r({ fechamento: { ...fech, Obs: 1 } }), "2026-11"), "nome de campo inválido: Obs");
 });

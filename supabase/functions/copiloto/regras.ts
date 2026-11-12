@@ -526,3 +526,54 @@ export function validarResumoChatResposta(r: ResumoBase): string | null {
   }
   return null;
 }
+
+// ---------------------------------------------------------------------
+// Resumo do mês (passo 5): o app fecha os números de um mês que já
+// acabou e a IA escreve uma carta curta só com eles.
+// ---------------------------------------------------------------------
+
+// Como CHAVE_OK, mas aceita algarismos depois da primeira letra ("media_3_meses").
+const CHAVE_MENSAL = /^[a-z_][a-z0-9_]{0,39}$/;
+
+/**
+ * Resumo da carta do mês: o resumo base e "fechamento", com os números que o
+ * app calculou. O mês tem de ser anterior ao mês de hoje (mesHoje, AAAA-MM).
+ * Em "fechamento" só entram números, verdadeiro/falso, datas, rótulos curtos e
+ * nomes de categoria que o resumo já traz, até 4 níveis, listas de até 12 itens.
+ */
+export function validarResumoMensal(r: ResumoBase, mesHoje: string): string | null {
+  const extras = Object.keys(r).filter((k) => !["versao", "mes", "categorias", "fechamento"].includes(k));
+  if (extras.length) return `campo inesperado: ${extras[0]}`;
+  if (!MES_ISO.test(mesHoje) || !(r.mes < mesHoje)) return "o mês ainda não acabou";
+  if (mesesEntre(r.mes, mesHoje) > 24) return "mês antigo demais";
+  if (Object.keys(r.categorias).length > 60) return "categorias demais";
+  const dados = r.fechamento;
+  if (!dados || typeof dados !== "object" || Array.isArray(dados)) return "fechamento ausente";
+  let campos = 0;
+  const visitar = (v: unknown, nivel: number, chave: string): string | null => {
+    if (v === null || typeof v === "boolean") return null;
+    if (typeof v === "number") return Number.isFinite(v) ? null : "número inválido";
+    if (typeof v === "string") {
+      return TEXTO_OK.test(v) || (chave === "categoria" && Object.prototype.hasOwnProperty.call(r.categorias, v)) ? null : "texto não permitido";
+    }
+    if (nivel > 4) return "níveis demais";
+    if (Array.isArray(v)) {
+      if (v.length > 12) return "lista longa demais";
+      for (const x of v) {
+        if (++campos > 300) return "campos demais";
+        const e = visitar(x, nivel + 1, chave);
+        if (e) return e;
+      }
+      return null;
+    }
+    if (typeof v !== "object") return "tipo não permitido";
+    for (const [k, x] of Object.entries(v as Record<string, unknown>)) {
+      if (!CHAVE_MENSAL.test(k)) return `nome de campo inválido: ${k}`;
+      if (++campos > 300) return "campos demais";
+      const e = visitar(x, nivel + 1, k);
+      if (e) return e;
+    }
+    return null;
+  };
+  return visitar(dados, 1, "");
+}

@@ -13,7 +13,8 @@
 //      No simulador, a resposta é o JSON do formulário: confere o esquema e os
 //      campos (validarCenario) em vez dos números. No chat, a 1ª etapa devolve
 //      as consultas que o app calcula (validarConsulta) e a 2ª ("chat_resposta")
-//      explica os resultados, com a mesma verificação de números.
+//      explica os resultados, com a mesma verificação de números. No resumo do
+//      mês, a carta usa só os números do fechamento (validarResumoMensal).
 //   9. acerta a cota com o custo real, guarda a resposta e registra sem dados pessoais
 //
 // Secrets (Painel do Supabase → Edge Functions → Secrets):
@@ -28,7 +29,7 @@ import { MENSAGENS, RECURSOS, SISTEMA_FIXO } from "./recursos.ts";
 import {
   custoMaximoUsd, custoUsd, divergencias, ESQUEMA_CENARIO, ESQUEMA_CONSULTA, estimarTokens, impressaoDigital,
   type ResumoBase, type Uso, validarCardExplicar, validarCenario, validarConsulta, validarResumo, validarResumoChat,
-  validarResumoChatResposta, validarResumoSimulador, valoresInventados,
+  validarResumoChatResposta, validarResumoMensal, validarResumoSimulador, valoresInventados,
 } from "./regras.ts";
 
 const ORIGENS = (Deno.env.get("ORIGENS_PERMITIDAS") ??
@@ -78,6 +79,11 @@ async function lerConfig(): Promise<Record<string, unknown>> {
   return Object.fromEntries(linhas.map((l) => [l.chave, l.valor]));
 }
 
+// Mês de hoje (AAAA-MM) no fuso do app, para o resumo do mês só aceitar mês que já acabou.
+function mesDeHoje(): string {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Boa_Vista", year: "numeric", month: "2-digit" }).format(new Date()).slice(0, 7);
+}
+
 function textoDaResposta(msg: { content: Array<{ type: string; text?: string }> }): string {
   return msg.content.filter((b) => b.type === "text").map((b) => b.text ?? "").join("").trim();
 }
@@ -117,6 +123,8 @@ Deno.serve(async (req) => {
   const modoConsulta = recurso.saida === "consulta";
   if (modoConsulta && validarResumoChat(resumo) !== null) return recusar(origem, 400, "resumo_invalido");
   if (nomeRecurso === "chat_resposta" && validarResumoChatResposta(resumo) !== null) return recusar(origem, 400, "resumo_invalido");
+  // Resumo do mês: só um mês que já acabou (no fuso do app) e os números do fechamento.
+  if (nomeRecurso === "resumo_mensal" && validarResumoMensal(resumo, mesDeHoje()) !== null) return recusar(origem, 400, "resumo_invalido");
   const modoJson = modoCenario || modoConsulta;
   const instrucao = recurso.instrucao +
     (recurso.instrucaoPorCard ? "\n\n" + (recurso.instrucaoPorCard[String(resumo.card)] ?? "") : "");
