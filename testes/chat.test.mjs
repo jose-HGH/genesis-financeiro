@@ -131,6 +131,49 @@ test("chat: fora do assunto e resposta reprovada mostram aviso, e os números do
   } finally { await ctx.close(); }
 });
 
+test("chat: categoria e termos juntos somam os dois jeitos (posto sem a palavra gasolina)", async () => {
+  const { ctx, page } = await painelComDados();
+  try {
+    await page.evaluate(([l, mes]) => window.__genesisTeste.definirLancamentos(l.concat([
+      { banco: "Nubank", modalidade: "Débito", classificacao: "Variável", recorrencia: "Única", escopo: "meu", tipo: "despesa", valor: 200, dataLanc: mes + "-04", dataEfet: mes + "-04", descricao: "AUTO POSTO CENTRAL", categoria: "Transporte" },
+      { banco: "Nubank", modalidade: "Débito", classificacao: "Variável", recorrencia: "Única", escopo: "meu", tipo: "despesa", valor: 50, dataLanc: mes + "-05", dataEfet: mes + "-05", descricao: "GASOLINA GALAO", categoria: "outros" },
+    ])), [LANCAMENTOS, mes]);
+    const d = await page.evaluate((mes) => window.__genesisTeste.chatCalcular({ ferramenta: "gastos", de: mes, ate: mes, categoria: "Transporte", termos: ["gasolina"], agrupar: "nenhum" }).dados, mes);
+    assert.equal(d.total, 250);
+    assert.equal(d.lancamentos, 2);
+  } finally { await ctx.close(); }
+});
+
+test("chat: \"e se\" vai para o simulador, que calcula antes e depois, e o Explicar escreve", async () => {
+  const { ctx, page, erros } = await painelComDados();
+  try {
+    await page.evaluate(() => {
+      window.__pedidos = [];
+      window.__genesisTeste.ligarChat((corpo) => {
+        window.__pedidos.push(corpo);
+        if (corpo.recurso === "chat") return { ok: true, consulta: { tipo: "simular", consultas: [] } };
+        if (corpo.recurso === "simulador") return { ok: true, cenario: { tipo: "saida", categoria: null, termos: [], percentual: null, valor: 800, valor_parcela: null, parcelas: null, data: null, repetir: "unica" } };
+        return { ok: true, texto: "Com mais R$ 800,00 de gasolina, o saldo do fim do mês muda." };
+      });
+      location.hash = "#inicio";
+    });
+    await page.waitForSelector("#chatCard:not([hidden]) #chatPergunta");
+    await page.fill("#chatPergunta", "quanto vai sobrar se eu gastar mais 800 de gasolina esse mes?");
+    await page.click("#chatEnviar");
+    await page.waitForSelector(".chat-turno .ia-caixa:not(:has(.chat-espera))");
+    const pedidos = await page.evaluate(() => window.__pedidos);
+    assert.deepEqual(pedidos.map((p) => p.recurso), ["chat", "simulador", "explicar"]);
+    assert.equal(pedidos[2].resumo.card, "simulacao");
+    assert.equal(pedidos[2].resumo.simulacao.valor, 800);
+    const caixa = await page.textContent(".chat-turno .ia-caixa");
+    assert.match(caixa, /Com mais R\$ 800,00/);
+    assert.match(caixa, /Saldo no fim do mês/);
+    await page.click("[data-chat-abrir-sim]");
+    await page.waitForFunction(() => document.getElementById("simValor") && document.getElementById("simValor").value === "800,00");
+    assert.deepEqual(erros, []);
+  } finally { await ctx.close(); }
+});
+
 test("chat: escondido para quem não está no grupo de testes do copiloto", async () => {
   const { ctx, page } = await abrirPainel(browser, servidor.base);
   try {

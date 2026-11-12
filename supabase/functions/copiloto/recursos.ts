@@ -113,10 +113,10 @@ Nunca invente valor: se a pessoa não disse quanto (exceto no "cortar", que usa 
   // os resultados. Ela nunca vê lançamentos nem descrições.
   chat: {
     modelo: "claude-haiku-5-5", esforco: "low", maxTokensSaida: 400,
-    versaoPrompt: "chat-1", ativo: true, aceitaPergunta: true, semPensamento: true, saida: "consulta",
+    versaoPrompt: "chat-2", ativo: true, aceitaPergunta: true, semPensamento: true, saida: "consulta",
     instrucao: `Desta vez você não escreve texto para a pessoa e não faz contas. A PERGUNTA DA PESSOA é sobre o dinheiro dela, e a sua única tarefa é escolher quais consultas o app deve calcular para responder, respondendo só com o JSON pedido. O app faz as contas com os lançamentos dela e depois você explica o resultado em outro pedido.
 
-"tipo": "consultar" (dá para responder com as ferramentas abaixo), "fora_do_assunto" (não é sobre as finanças dela no app: investimentos, produtos, outro assunto, pedido para mudar lançamentos ou pagar contas) ou "nao_entendi" (não dá para saber o que ela quer). Fora de "consultar", "consultas" fica [].
+"tipo": "consultar" (dá para responder com as ferramentas abaixo), "simular" (a pessoa pergunta o que aconteceria SE ela fizesse algo com um valor: gastar mais, comprar, parcelar, receber um dinheiro a mais, cortar um gasto; ex.: "quanto vai sobrar se eu gastar mais 800 de gasolina?", "e se eu comprar um celular em 10x?"; o app manda a pergunta para o simulador), "fora_do_assunto" (não é sobre as finanças dela no app: investimentos, produtos, outro assunto, pedido para mudar lançamentos ou pagar contas) ou "nao_entendi" (não dá para saber o que ela quer). Fora de "consultar", "consultas" fica [].
 
 "consultas": de 1 a 3 itens, só os necessários. Cada item tem todos os campos:
 - "ferramenta":
@@ -129,6 +129,7 @@ Nunca invente valor: se a pessoa não disse quanto (exceto no "cortar", que usa 
   "previsao" = a previsão do fim deste mês e o fluxo de caixa (dias negativos, menor saldo); use para "vou fechar o mês no positivo?", "quanto ainda posso gastar?".
 - "de" e "ate": meses no formato AAAA-MM, contando a partir de "hoje" no RESUMO. "Este mês" ou sem período = null nos dois (o app usa o mês de hoje). "Mês passado" = o mês anterior ao de hoje nos dois. "Últimos 3 meses" = os 3 meses completos antes do mês de hoje. "Este ano" = janeiro até o mês de hoje. No máximo 12 meses. "meses_com_dados" no RESUMO diz quais meses têm lançamentos.
 - "categoria": o nome EXATO de uma chave de "categorias" do RESUMO, se uma corresponder claramente ao que ela perguntou. Senão, null.
+- Categoria e termos juntos somam os dois jeitos de achar o gasto (os da categoria OU os que têm algum termo na descrição). Ex.: gasolina = categoria "Transporte" (se existir) e termos ["posto", "gasolina", "combustivel", "shell", "ipiranga", "petrobras"].
 - "termos": de 0 a 6 palavras curtas, minúsculas e sem acento, que aparecem na descrição dos lançamentos no extrato, quando ela cita um lugar, loja ou serviço. Ex.: iFood = ["ifood", "ifd"]; Uber = ["uber"]; streaming = ["netflix", "spotify", "disney", "prime video", "max"]; mercado = use a categoria se existir. Use [] quando não se aplica.
 - "agrupar": "mes" (quando ela quer ver mês a mês ou comparar meses), "categoria" (quando quer saber em que categorias foi) ou "nenhum".
 
@@ -136,7 +137,7 @@ Se existir PERGUNTA ANTERIOR, use-a para entender o que falta na pergunta atual 
   },
   chat_resposta: {
     modelo: "claude-haiku-5-5", esforco: "low", maxTokensSaida: 600,
-    versaoPrompt: "chat-resposta-1", ativo: true, aceitaPergunta: true, semPensamento: true,
+    versaoPrompt: "chat-resposta-2", ativo: true, aceitaPergunta: true, semPensamento: true,
     instrucao: `A pessoa fez a PERGUNTA DA PESSOA no chat do app. O app já calculou as consultas que respondem a ela; os resultados estão em "consultas" no RESUMO, cada um com "ferramenta", o período ("de" e "ate", meses AAAA-MM) e os filtros usados ("categoria", "termos"). Responda a pergunta em até 2 parágrafos curtos, com no máximo 100 palavras, usando só esses números.
 
 Como ler cada ferramenta:
@@ -150,7 +151,8 @@ Como ler cada ferramenta:
 Regras desta resposta:
 - Comece pela resposta direta da pergunta, com o número principal. Depois, se ajudar, um detalhe.
 - Se "lancamentos" for 0 ou a lista estiver vazia, diga que o app não achou lançamentos com esse filtro no período e sugira conferir a categoria ou o nome como aparece no extrato.
-- Se a pessoa pedir algo que os resultados não trazem (um total que não está lá, uma comparação em porcentagem), diga que o app ainda não calcula isso e responda com o que existe.
+- Se a pessoa pedir algo que os resultados não trazem (um total que não está lá, uma comparação em porcentagem, "quanto sobra se eu gastar mais X"), NÃO faça a conta: diga que o app ainda não calcula isso aqui, responda com o número que existe e sugira perguntar começando com "e se", que o app simula.
+- Se "categoria" e "termos" vierem juntos, o total soma os gastos da categoria e os que têm algum dos termos na descrição.
 - Datas de dia como dia/mês (05/11); meses por extenso ("outubro de 2026" ou só "outubro" se for do ano de hoje).
 - Não diga que é uma recomendação. Não sugira cortar gastos, a menos que ela pergunte.`,
   },

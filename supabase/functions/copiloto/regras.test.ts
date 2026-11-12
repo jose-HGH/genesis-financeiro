@@ -184,3 +184,7 @@ test("chat: resultados da 2ª etapa só com números, datas, rótulos e categori
   assert.deepEqual(valoresInventados("Você gastou R$ 300,00, cerca de R$ 100 por mês.", bom), []);
   assert.deepEqual(valoresInventados("Isso dá R$ 1.200,00 por ano.", bom), ["R$ 1.200,00"]);
 });
+
+test("chat: \"simular\" é aceito e não leva consultas", () => {
+  assert.deepEqual(validarConsulta({ tipo: "simular", consultas: [] }, CATS_CHAT, "2026-11-12"), { pedido: { tipo: "simular", consultas: [] } });
+});

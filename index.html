@@ -3593,12 +3593,16 @@ var FLX = (function(){
     try{ rec.start(); SIMVOZ.rec = rec; simVozMarcar(true); var m = document.getElementById(op.msg); if(m) m.textContent = "Ouvindo… fale a sua pergunta."; }
     catch(e){ simVozMarcar(false); }
   }
-  function simPerguntar(texto){
-    var campo = document.getElementById("simPergunta"), pergunta = typeof texto === "string" ? texto : (campo ? campo.value.trim() : "");
-    if(!pergunta || SIMD.iaCarregando || !COPI.ok || !sb || state.mode !== "db") return;
+  function simResumoPergunta(){
     var resumo = copilotoResumo(todayISO());
     simCategorias().forEach(function(c){ if(!(c in resumo.categorias)) resumo.categorias[c] = 0; }); // nomes das categorias, sem valores novos
     resumo.hoje = todayISO();
+    return resumo;
+  }
+  function simPerguntar(texto){
+    var campo = document.getElementById("simPergunta"), pergunta = typeof texto === "string" ? texto : (campo ? campo.value.trim() : "");
+    if(!pergunta || SIMD.iaCarregando || !COPI.ok || !sb || state.mode !== "db") return;
+    var resumo = simResumoPergunta();
     SIMD.iaCarregando = true; SIMD.iaMsg = null; renderSimulador();
     sb.functions.invoke("copiloto", {body: {recurso: "simulador", resumo: resumo, pergunta: pergunta}}).then(function(r){
       if(r.error && r.error.context && typeof r.error.context.json === "function") return r.error.context.json().catch(function(){ return {ok: false}; });
@@ -10176,9 +10180,14 @@ var CAIXA = (function(){
     r.meses_com_dados = Object.keys(meses).sort().slice(-36);
     return r;
   }
+  // Categoria e termos juntos valem como "ou": "gasolina" com a categoria Transporte pega os dois jeitos de achar o gasto
+  // (a descrição do posto quase nunca diz "gasolina").
   function chatBate(t, c, termos){
-    if(c.categoria && (t.categoria || "Sem categoria") !== c.categoria) return false;
-    if(termos.length){ var d = simNorm(t.descricao); if(!termos.some(function(x){ return d.indexOf(x) !== -1; })) return false; }
+    var porCat = !!c.categoria && (t.categoria || "Sem categoria") === c.categoria;
+    var porTermo = termos.length > 0 && termos.some(function(x){ return simNorm(t.descricao).indexOf(x) !== -1; });
+    if(c.categoria && termos.length) return porCat || porTermo;
+    if(c.categoria) return porCat;
+    if(termos.length) return porTermo;
     return true;
   }
   function chatTop(obj, n){
@@ -10277,11 +10286,12 @@ var CAIXA = (function(){
   }
   function chatTurnoHtml(t){
     var corpo = t.carregando ? '<p class="chat-espera">Calculando…</p>'
-      : (window.__v5hide && t.res ? "<p>Os valores estão ocultos. Mostre os valores para ler a resposta.</p>"
+      : (window.__v5hide && (t.res || t.sim) ? "<p>Os valores estão ocultos. Mostre os valores para ler a resposta.</p>"
         : String(t.texto || "").split(/\n\s*\n/).map(function(p){ return "<p>" + escapeAttr(p.trim()).replace(/\n/g, "<br>") + "</p>"; }).join(""));
-    var nums = !t.carregando && t.res && t.res.length && !window.__v5hide ? '<details class="chat-numeros"' + (t.erro ? " open" : "") + '><summary>Números do app</summary>' + chatNumerosHtml(t.res) + "</details>" : "";
+    var temNums = !t.carregando && !window.__v5hide && ((t.res && t.res.length) || t.sim);
+    var nums = temNums ? '<details class="chat-numeros"' + (t.erro || t.sim ? " open" : "") + '><summary>Números do app</summary>' + (t.sim ? chatSimNumerosHtml(t.sim) : chatNumerosHtml(t.res)) + "</details>" : "";
     return '<div class="chat-turno"><div class="chat-eu">' + escapeAttr(t.pergunta) + '</div><div class="ia-caixa' + (t.erro ? " ia-erro" : "") + '">' + corpo + nums +
-      (t.carregando ? "" : '<div class="ia-rodape"><span>' + (t.res && t.res.length ? (t.erro ? "Os números acima são do app." : "Texto escrito por IA a partir dos números do app.") : "") + "</span></div>") + "</div></div>";
+      (t.carregando ? "" : '<div class="ia-rodape"><span>' + ((t.res && t.res.length) || t.sim ? (t.erro ? "Os números acima são do app." : "Texto escrito por IA a partir dos números do app.") : "") + "</span></div>") + "</div></div>";
   }
   function renderChat(){
     var card = document.getElementById("chatCard"), box = document.getElementById("chatCorpo");
@@ -10315,6 +10325,7 @@ var CAIXA = (function(){
       if(!j.ok) return fim({texto: j.mensagem || "O copiloto não respondeu agora. Tente de novo em instantes.", erro: true});
       var q = j.consulta || {};
       if(q.tipo === "fora_do_assunto") return fim({texto: "Eu respondo só sobre os seus números aqui no app: gastos, receitas, resultado do mês, maiores gastos, parcelas, faturas e a previsão do mês. Não dou recomendação de investimento nem mexo em lançamentos.", erro: true});
+      if(q.tipo === "simular") return chatSimular(pergunta, fim);
       if(q.tipo !== "consultar" || !Array.isArray(q.consultas) || !q.consultas.length) return fim({texto: "Não entendi a pergunta. Tente de outro jeito, por exemplo: \"quanto gastei com mercado em outubro?\".", erro: true});
       var res;
       try{ res = q.consultas.slice(0, 3).filter(function(c){ return CHAT_FERR[c.ferramenta]; }).map(chatCalcular); }
@@ -10329,11 +10340,56 @@ var CAIXA = (function(){
       });
     });
   }
+  // "E se eu gastar mais 800 de gasolina?": a conta nova é do simulador. A IA preenche o formulário (recurso "simulador"),
+  // o app calcula o antes e o depois (simCalcular) e o "Explicar" do quadro "simulacao" escreve a resposta.
+  function chatSimular(pergunta, fim){
+    return chatInvocar({recurso: "simulador", resumo: simResumoPergunta(), pergunta: pergunta}).then(function(j){
+      j = j || {};
+      if(!j.ok) return fim({texto: j.mensagem || "O copiloto não respondeu agora. Tente de novo em instantes.", erro: true});
+      var c = j.cenario || {};
+      if(c.tipo === "nao_entendi" || !SIM_TIPOS[c.tipo]) return fim({texto: "Para simular, diga o valor. Por exemplo: \"e se eu gastar mais R$ 800 de gasolina este mês?\".", erro: true});
+      if(c.tipo === "parcelada") c.cartao = simCartaoNaPergunta(pergunta);
+      var r;
+      try{ r = simCalcular(c); }catch(e){ if(window.console) console.error(e); return fim({texto: "Não consegui calcular essa simulação agora.", erro: true}); }
+      if(!r || r.vazio) return fim({texto: "O app não achou gastos com esse filtro para simular. Confira a categoria ou o nome como aparece no extrato.", erro: true});
+      var sim = {cen: c, dados: r.dados};
+      var resumo = copilotoResumo(todayISO());
+      resumo.card = "simulacao"; resumo.simulacao = r.dados;
+      if(r.dados.categoria && !(r.dados.categoria in resumo.categorias)) resumo.categorias[r.dados.categoria] = 0;
+      return chatInvocar({recurso: "explicar", resumo: resumo}).then(function(k){
+        k = k || {};
+        if(k.ok) return fim({texto: k.texto, sim: sim});
+        fim({texto: k.motivo === "numeros_reprovados" ? "Não consegui escrever a resposta com segurança. A conta do app está abaixo." : (k.mensagem || "O copiloto não respondeu agora. A conta do app está abaixo."), sim: sim, erro: true});
+      });
+    });
+  }
+  function chatSimNumerosHtml(sim){
+    var d = sim.dados, li = [], linha = function(a, b){ return "<li><span>" + flxEsc(a) + "</span><b>" + b + "</b></li>"; };
+    var seta = function(a, b){ return fmt(a) + " → " + fmt(b); };
+    if(d.tipo === "cortar"){
+      li.push(linha("Gasto médio por mês", fmt(d.media_mensal))); li.push(linha("Economia por mês", fmt(d.economia_por_mes))); li.push(linha("Em 12 meses", fmt(d.economia_em_doze_meses)));
+    } else if(d.tipo === "parcelada_comparar"){
+      Object.keys(d.perfis || {}).forEach(function(p){ var o = d.opcoes[d.perfis[p]]; if(o) li.push(linha((SIM_PERFIS[p] || p) + " · " + o.parcelas + "x de " + fmt(o.valor_parcela), "pior dia " + fmt(o.menor_saldo))); });
+    } else if(d.antes && d.depois){
+      li.push(linha("Saldo no fim do mês", seta(d.antes.saldo_fim_do_mes, d.depois.saldo_fim_do_mes)));
+      li.push(linha("Menor saldo", seta(d.antes.menor_saldo, d.depois.menor_saldo)));
+      li.push(linha("Dias negativos", d.antes.dias_negativos + " → " + d.depois.dias_negativos));
+    }
+    var aviso = d.nao_recomendado ? '<div class="sim-aviso">Não é recomendado agora: ' + (d.nao_recomendado === "ja_negativo" ? "o saldo já vai ficar negativo nos próximos dias." : "o saldo ficaria negativo.") + "</div>" : "";
+    return '<div class="chat-num"><div class="chat-num-t">Simulação · ' + flxEsc(SIM_TIPOS[sim.cen.tipo] || "") + (d.saldo_informado === false ? " · sem saldo informado" : "") + "</div>" + aviso +
+      (li.length ? "<ul>" + li.join("") + "</ul>" : "") + '<button type="button" class="resumo-link" data-chat-abrir-sim="1">Abrir no Simulador</button></div>';
+  }
   (function chatLigar(){
     document.addEventListener("click", function(ev){
       var t = ev.target && ev.target.closest ? ev.target : null; if(!t) return;
       if(t.closest("#chatEnviar")){ chatPerguntar(); return; }
       var dica = t.closest("[data-chat-dica]"); if(dica){ chatPerguntar(dica.dataset.chatDica); return; }
+      var abrir = t.closest("[data-chat-abrir-sim]");
+      if(abrir){
+        var turno = CHATD.turnos.filter(function(x){ return x.sim; }).pop();
+        if(turno){ SIMD.cen = turno.sim.cen; SIMD.daIa = false; location.hash = "#planejamento"; setTimeout(function(){ simPreencher(turno.sim.cen); renderSimulador(); var el = document.getElementById("simCard"); if(el) el.scrollIntoView({behavior: "smooth", block: "start"}); }, 50); }
+        return;
+      }
       if(t.closest("#chatLimpar")){ CHATD.turnos = []; CHATD.msg = null; renderChat(); return; }
       if(t.closest("#chatMic")) simVoz({campo: "chatPergunta", msg: "chatMsg", botao: "chatMic", enviar: chatPerguntar});
     });
