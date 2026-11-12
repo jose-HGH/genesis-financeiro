@@ -1,0 +1,7 @@
+{
+  "descricao": "Extrato do BB sem nenhum lançamento no período: avisa e não transforma o saldo em lançamento",
+  "reimportar": false,
+  "leitura": {
+    "erro": "Este extrato não tem lançamentos no período (de 01/02 a 11/02), só o saldo de R$ 1.212,46. Não há nada para importar."
+  }
+}

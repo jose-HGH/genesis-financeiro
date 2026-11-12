@@ -83,3 +83,33 @@ test("erro de JavaScript é guardado para o diagnóstico (uma vez por mensagem, 
     }
   } finally { await ctx.close(); }
 });
+
+test("modo teste (?teste=1): dados à parte, sem nuvem, e sair volta aos dados normais", async () => {
+  const ctx = await browser.newContext();
+  try {
+    await ctx.route(/^https?:\/\/(?!127\.0\.0\.1)/, (r) => r.abort("blockedbyclient"));
+    const page = await ctx.newPage();
+    await page.goto(`${servidor.base}/index.html`);
+    await page.waitForFunction(() => !!window.__genesisTeste);
+    await page.evaluate(() => localStorage.setItem("marca-normal", "real"));
+
+    await page.goto(`${servidor.base}/index.html?teste=1`);
+    await page.waitForFunction(() => !!window.__genesisTeste);
+    assert.equal(await page.evaluate(() => window.GENESIS_MODO_TESTE), true);
+    assert.ok(await page.$("#genesisModoTeste"), "faixa do modo teste não apareceu");
+    assert.equal(await page.evaluate(() => localStorage.getItem("marca-normal")), null, "modo teste leu dado normal");
+    await page.evaluate(() => localStorage.setItem("marca-teste", "t"));
+
+    await page.goto(`${servidor.base}/index.html`); // mesma aba: continua em teste
+    await page.waitForFunction(() => !!window.__genesisTeste);
+    assert.equal(await page.evaluate(() => localStorage.getItem("marca-teste")), "t");
+
+    await page.click("text=Sair do modo teste");
+    await page.waitForURL(/teste=0/);
+    await page.waitForFunction(() => !!window.__genesisTeste);
+    assert.equal(await page.evaluate(() => window.GENESIS_MODO_TESTE), false);
+    assert.equal(await page.evaluate(() => localStorage.getItem("marca-normal")), "real");
+    assert.equal(await page.evaluate(() => localStorage.getItem("marca-teste")), null);
+    assert.equal(await page.$("#genesisModoTeste"), null);
+  } finally { await ctx.close(); }
+});
