@@ -196,3 +196,178 @@ test("400 casos sorteados: Previsão = sem orçamentos − o que falta, conferid
     assert.deepEqual(erros, []);
   } finally { await ctx.close(); }
 });
+
+// ---- Sem data certa: o que falta dos orçamentos, um pouco por dia, no Fluxo de caixa, no Simulador e no gráfico do saldo ----
+
+test("o que falta é espalhado de hoje até o último dia, e a soma fecha nos centavos", async () => {
+  const l = [{ ...base, tipo: "despesa", valor: 100, dataLanc: dia(mes, diaPassado), dataEfet: dia(mes, diaPassado), descricao: "POSTO", categoria: "Transporte" }];
+  const { ctx, page, erros } = await painel(l, 1000);
+  try {
+    await page.evaluate(() => window.__genesisTeste.definirOrcamentos({ Transporte: 400.01 }));
+    const r = await page.evaluate(() => ({ dias: window.__genesisTeste.orcamentoPorDia(), res: window.__genesisTeste.reservaOrcamentos() }));
+    const datas = Object.keys(r.dias).sort();
+    assert.equal(r.res.total, 300.01);
+    assert.equal(datas[0], hoje);
+    assert.equal(datas[datas.length - 1], dia(mes, ultimoDia));
+    assert.equal(datas.length, ultimoDia - diaHoje + 1);
+    assert.equal(c2(Object.values(r.dias).reduce((a, b) => a + b, 0)), 300.01);
+    const vals = Object.values(r.dias);
+    assert.ok(Math.max(...vals) - Math.min(...vals) <= 0.011, "dias com valores quase iguais");
+    assert.deepEqual(erros, []);
+  } finally { await ctx.close(); }
+});
+
+test("Fluxo de caixa e gráfico do saldo terminam o mês igual à Previsão; hoje o gráfico continua no saldo real", { skip: diaFuturo ? false : "hoje é o último dia do mês" }, async () => {
+  const l = [
+    { ...base, tipo: "despesa", valor: 100, dataLanc: dia(mes, diaPassado), dataEfet: dia(mes, diaPassado), descricao: "POSTO", categoria: "Transporte" },
+    { ...base, tipo: "despesa", valor: 250, dataLanc: dia(mes, diaFuturo), dataEfet: dia(mes, diaFuturo), descricao: "ALUGUEL", categoria: "Moradia" },
+    { ...base, tipo: "receita", valor: 700, dataLanc: dia(mes, ultimoDia), dataEfet: dia(mes, ultimoDia), descricao: "FREELA", categoria: "Renda extra" },
+  ];
+  const { ctx, page, erros } = await painel(l, 1161);
+  try {
+    const sem = await page.evaluate(() => ({ f: window.__genesisTeste.fluxo(), g: window.__genesisTeste.graficoSaldo(), p: window.__genesisTeste.previsaoDados() }));
+    await page.evaluate(() => window.__genesisTeste.definirOrcamentos({ Transporte: 400, delivery: 120 }));
+    const com = await page.evaluate(() => ({ f: window.__genesisTeste.fluxo(), g: window.__genesisTeste.graficoSaldo(), p: window.__genesisTeste.previsaoDados() }));
+    assert.equal(com.p.reservado_orcamentos, 420);
+    assert.equal(com.p.previsao, c2(1161 - 250 + 700 - 420));
+    assert.equal(c2(sem.f.saldoNoFim - com.f.saldoNoFim), 420);
+    assert.equal(com.f.saldoNoFim, com.p.previsao, "Fluxo termina o mês igual à Previsão");
+    assert.equal(com.f.dados.orcamentos_espalhados, 420);
+    assert.equal(c2(com.f.orcamento.reduce((a, e) => a + e.valor, 0)), 420);
+    assert.equal(c2(sem.g[ultimoDia] - com.g[ultimoDia]), 420, "gráfico: fim do mês desce o que falta");
+    assert.equal(com.g[diaHoje], sem.g[diaHoje], "gráfico: hoje continua no saldo real");
+    assert.equal(com.g[diaHoje], 1161);
+    // Na tela do Fluxo, o dia mostra a etiqueta própria.
+    assert.ok(com.f.orcamento.every((e) => e.data >= hoje && e.data <= dia(mes, ultimoDia)));
+    assert.deepEqual(erros, []);
+  } finally { await ctx.close(); }
+});
+
+test("sugestão pela média dos últimos 3 meses: conta só meses com dados, ignora categoria que já tem orçamento e preenche o formulário", async () => {
+  const m = (k) => { let [y, mm] = mes.split("-").map(Number); mm -= k; while (mm < 1) { mm += 12; y--; } return `${y}-${String(mm).padStart(2, "0")}`; };
+  const l = [
+    { ...base, tipo: "despesa", valor: 300, dataLanc: dia(m(1), 3), dataEfet: dia(m(1), 3), descricao: "POSTO", categoria: "Transporte" },
+    { ...base, tipo: "despesa", valor: 200, dataLanc: dia(m(2), 3), dataEfet: dia(m(2), 3), descricao: "POSTO", categoria: "Transporte" },
+    { ...base, tipo: "estorno", valor: 50, dataLanc: dia(m(2), 4), dataEfet: dia(m(2), 4), descricao: "ESTORNO", categoria: "Transporte" },
+    { ...base, tipo: "despesa", valor: 900, dataLanc: dia(m(1), 5), dataEfet: dia(m(1), 5), descricao: "MERCADO", categoria: "Mercado" },
+    { ...base, tipo: "despesa", valor: 999, dataLanc: dia(m(4), 5), dataEfet: dia(m(4), 5), descricao: "ANTIGO", categoria: "Lazer" }, // fora dos 3 meses
+    { ...base, tipo: "despesa", valor: 80, dataLanc: dia(mes, 1), dataEfet: dia(mes, 1), descricao: "ESTE MES", categoria: "Lazer" }, // mês atual não entra
+  ];
+  const { ctx, page, erros } = await painel(l, 1000);
+  try {
+    const media = await page.evaluate(() => window.__genesisTeste.mediaTresMeses());
+    assert.deepEqual(media, { Transporte: 225, Mercado: 450 }); // 2 meses com dados: (300+200−50)/2 e 900/2
+    await page.evaluate(() => { location.hash = "#planejamento"; });
+    const sug = page.locator("#budgetSugestoes");
+    assert.match(await sug.innerText(), /Mercado R\$\s?450,00[\s\S]*Transporte R\$\s?225,00/);
+    await sug.locator('[data-sug-cat="Transporte"]').click();
+    assert.equal(await page.locator("#budgetCategoria").inputValue(), "Transporte");
+    assert.equal(await page.locator("#budgetLimite").inputValue(), "225.00");
+    await page.locator("#budgetForm button[type=submit]").click();
+    assert.doesNotMatch(await sug.innerText(), /Transporte/, "categoria com orçamento sai das sugestões");
+    // Digitar uma categoria mostra a média como dica no campo do limite.
+    await page.locator("#budgetCategoria").fill("Mercado");
+    assert.match(await page.locator("#budgetLimite").getAttribute("placeholder"), /Média de 3 meses: R\$\s?450,00/);
+    assert.deepEqual(erros, []);
+  } finally { await ctx.close(); }
+});
+
+test("aviso de ritmo: aparece quando o gasto até hoje projeta passar do limite, some quando já estourou", { skip: diaHoje >= 5 ? false : "antes do dia 5 não há aviso de ritmo" }, async () => {
+  // Gasto até hoje = 60% do limite: no ritmo, passa do limite se 0,6 × dias do mês / dia de hoje > 1.
+  const limite = 1000, gasto = 600, proj = c2(gasto / diaHoje * ultimoDia);
+  const l = [
+    { ...base, tipo: "despesa", valor: gasto, dataLanc: dia(mes, 1), dataEfet: dia(mes, 1), descricao: "POSTO", categoria: "Transporte" },
+    { ...base, tipo: "despesa", valor: 1200, dataLanc: dia(mes, 1), dataEfet: dia(mes, 1), descricao: "MERCADO", categoria: "Mercado" },
+  ];
+  const { ctx, page, erros } = await painel(l, 1000);
+  try {
+    await page.evaluate(([limite]) => window.__genesisTeste.definirOrcamentos({ Transporte: limite, Mercado: 1000 }), [limite]);
+    const txt = await page.locator("#budgetList").innerText();
+    if (proj > limite) assert.match(txt, /No ritmo atual, chega a/);
+    else assert.doesNotMatch(txt, /No ritmo atual/);
+    assert.match(txt, /excedido em R\$\s?200,00/);
+    assert.equal((txt.match(/No ritmo atual/g) || []).length, proj > limite ? 1 : 0, "Mercado estourado não ganha aviso de ritmo");
+    assert.deepEqual(erros, []);
+  } finally { await ctx.close(); }
+});
+
+test("300 casos sorteados: Fluxo e gráfico descem exatamente o que falta dos orçamentos", async () => {
+  const rnd = sorteador(777);
+  const CATS = ["Transporte", "Mercado", "delivery", "Lazer"];
+  const casos = [];
+  for (let n = 0; n < 300; n++) {
+    const l = [];
+    const qtd = Math.floor(rnd() * 12);
+    for (let i = 0; i < qtd; i++) {
+      const r = rnd(), tipo = r < 0.65 ? "despesa" : r < 0.75 ? "estorno" : "receita";
+      const d = 1 + Math.floor(rnd() * ultimoDia);
+      l.push({ ...base, tipo, valor: c2(1 + rnd() * 700), dataLanc: dia(mes, d), dataEfet: dia(mes, d), descricao: "L" + i,
+        categoria: tipo === "receita" ? "Salário" : CATS[Math.floor(rnd() * CATS.length)] });
+    }
+    const orc = {};
+    CATS.forEach((c) => { if (rnd() < 0.6) orc[c] = c2(rnd() * 1200); });
+    casos.push({ l, orc, saldo: c2(rnd() * 5000 - 500) });
+  }
+  const { ctx, page, erros } = await abrirPainel(browser, servidor.base);
+  try {
+    const res = await page.evaluate((casos) => casos.map((c) => {
+      const t = window.__genesisTeste;
+      t.definirOrcamentos({}); t.definirLancamentos(c.l); t.informarSaldo("manual|conta teste", "Conta teste", c.saldo);
+      const f0 = t.fluxo(), g0 = t.graficoSaldo();
+      t.definirOrcamentos(c.orc);
+      const f1 = t.fluxo(), g1 = t.graficoSaldo(), p = t.previsaoDados();
+      return { falta: p.reservado_orcamentos || 0, df: f0.saldoNoFim - f1.saldoNoFim, dg: g0[g0.length - 1] - g1[g1.length - 1],
+        soma: f1.orcamento.reduce((a, e) => a + e.valor, 0) };
+    }), casos);
+    res.forEach((r, i) => {
+      assert.equal(c2(r.df), r.falta, `caso ${i}: fluxo`);
+      assert.equal(c2(r.dg), r.falta, `caso ${i}: gráfico`);
+      assert.equal(c2(r.soma), r.falta, `caso ${i}: soma dos dias`);
+    });
+    assert.deepEqual(erros, []);
+  } finally { await ctx.close(); }
+});
+
+test("Lançamentos: partes como no app do banco (planejado, à vista, parcelas, entradas, transferências) e filtros", async () => {
+  const l = [
+    { ...base, tipo: "despesa", valor: 46, dataLanc: dia(mes, diaPassado), dataEfet: dia(mes, diaPassado), descricao: "EMPORIO FICTICIO", categoria: "Mercado" },
+    { ...base, tipo: "estorno", valor: 6, dataLanc: dia(mes, diaPassado), dataEfet: dia(mes, diaPassado), descricao: "ESTORNO FICTICIO", categoria: "Mercado" },
+    { ...base, tipo: "despesa", modalidade: "Crédito", valor: 383.71, dataLanc: dia(mes, 1), dataEfet: dia(mes, 1), descricao: "LOJA FICTICIA", categoria: "Compras",
+      parcela: "4/5", parcelaAtual: 4, totalParcelas: 5, idCompra: "k1", seriesId: "k1" },
+    { ...base, tipo: "receita", valor: 3000, dataLanc: dia(mes, 1), dataEfet: dia(mes, 1), descricao: "SALARIO FICTICIO", categoria: "Salário" },
+    { ...base, tipo: "transferencia_interna", valor: 299, dataLanc: dia(mes, 1), dataEfet: dia(mes, 1), descricao: "POUPANCA FICTICIA", categoria: "Transferência interna" },
+    { ...base, tipo: "despesa", valor: 572.66, dataLanc: dia(mes, 1), dataEfet: dia(mes, 1), descricao: "POSTO FICTICIO", categoria: "Transporte" },
+  ];
+  const { ctx, page, erros } = await painel(l, 1000);
+  try {
+    await page.evaluate(() => window.__genesisTeste.definirOrcamentos({ Transporte: 872.66, Mercado: 100 }));
+    await page.evaluate(() => { location.hash = "#lancamentos"; });
+    const ver = page.locator("#btnLedgerToggle");
+    if (await ver.isVisible()) await ver.click();
+    const grupos = await page.locator("#ledgerBody tr.ledger-grupo td").allInnerTexts();
+    assert.deepEqual(grupos.map((g) => g.split(" · ")[0]),
+      ["Planejado nos orçamentos", "Compras e contas à vista", "Parcelas", "Entradas", "Transferências e pagamentos de fatura"]);
+    assert.match(grupos[0], /· 2/); assert.match(grupos[0], /-R\$\s?360,00/); // 300 do Transporte + 60 do Mercado (100 − 46 + 6)
+    assert.match(grupos[1], /· 3/); // 2 compras e o estorno
+    assert.match(grupos[2], /-R\$\s?383,71/);
+    const plan = await page.locator("#ledgerBody tr.ledger-plan").allInnerTexts();
+    assert.equal(plan.length, 2);
+    assert.match(plan.join("\n"), /Planejado[\s\S]*Ainda falta gastar em Mercado[\s\S]*limite R\$\s?100,00 · gasto até agora R\$\s?40,00/);
+    assert.match(await page.locator("#ledgerCount").innerText(), /2 planejados/);
+    // Filtro "Realizado" e busca escondem o planejado; categoria filtra.
+    await page.selectOption("#fStatus", "realizado");
+    assert.equal(await page.locator("#ledgerBody tr.ledger-plan").count(), 0);
+    await page.selectOption("#fStatus", "");
+    await page.selectOption("#fCategoria", "Transporte");
+    assert.equal(await page.locator("#ledgerBody tr.ledger-plan").count(), 1);
+    await page.selectOption("#fCategoria", "");
+    // Mês passado: nada planejado.
+    await page.fill("#fMes", ant); await page.locator("#fMes").dispatchEvent("change");
+    assert.equal(await page.locator("#ledgerBody tr.ledger-plan").count(), 0);
+    // "Ver orçamento" leva ao Planejamento.
+    await page.fill("#fMes", mes); await page.locator("#fMes").dispatchEvent("change");
+    await page.locator("[data-plan-ver]").first().click();
+    assert.equal(await page.evaluate(() => location.hash), "#planejamento");
+    assert.deepEqual(erros, []);
+  } finally { await ctx.close(); }
+});

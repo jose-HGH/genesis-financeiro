@@ -636,6 +636,10 @@
   .budget-row.over .budget-pct{color:var(--critical-text); font-weight:600;}
   .budget-remove{border:none; background:none; color:var(--ink-muted); font-size:11px; cursor:pointer; text-decoration:underline;}
   .budget-remove:hover{color:var(--critical-text);}
+  .budget-sug{display:flex; flex-wrap:wrap; gap:6px; align-items:center; margin:-6px 0 14px; font-size:12px; color:var(--ink-muted);}
+  .budget-sug button{font:inherit; font-size:12px; border:1px solid var(--border-strong); background:var(--surface-alt); color:var(--ink); border-radius:999px; padding:4px 10px; cursor:pointer;}
+  .budget-sug button:hover{border-color:var(--brand);}
+  .budget-row .budget-ritmo{font-size:11px; color:var(--warn-text); margin-top:2px;}
   .cat-over-badge{display:inline-block; font-size:10px; font-weight:600; color:var(--critical-text); background:var(--critical-wash); border-radius:5px; padding:1px 5px; margin-left:6px;}
 
   .row-edit{border:none; background:none; color:var(--brand); font-size:12px; cursor:pointer; padding:4px 8px; border-radius:6px; font-weight:600;}
@@ -719,6 +723,12 @@
   .status-pill .sp-dot{width:8px; height:8px; border-radius:50%;}
   .status-pill.realizado .sp-dot{background:var(--good);}
   .status-pill.pendente .sp-dot{background:var(--warn);}
+  .status-pill.planejado .sp-dot{background:var(--ink-muted);}
+  tr.ledger-grupo td{font-size:12px; font-weight:600; color:var(--ink-2); background:var(--surface-alt); padding-top:10px; padding-bottom:10px;}
+  tr.ledger-grupo .lg-tot{float:right; font-family:var(--font-num); color:var(--ink-muted); font-weight:500;}
+  tr.ledger-plan td.num{color:var(--ink-muted); font-style:italic;}
+  .badge-plan{display:inline-block; margin-left:6px; font-size:10px; font-weight:600; padding:1px 7px; border-radius:999px; border:1px dashed var(--border-strong); color:var(--ink-muted); vertical-align:middle;}
+  .row-plan{border:none; background:none; color:var(--brand); font:inherit; font-size:12px; cursor:pointer; text-decoration:underline;}
   td select, td input.cat-input{font-family:var(--font-ui); font-size:12px; border:1px solid var(--border-strong); border-radius:7px; padding:4px 6px; background:#fff; color:var(--ink); max-width:140px;}
   .row-del{border:none; background:none; color:var(--ink-muted); font-size:12px; cursor:pointer; padding:4px 8px; border-radius:6px;}
   .row-del:hover{background:var(--critical-wash); color:var(--critical-text);}
@@ -1016,6 +1026,7 @@
   .status-pill{font-size:12px; font-weight:600; border-radius:999px; padding:4px 10px;}
   .status-pill.realizado{background:var(--accent-soft); color:var(--accent-ink-v5);}
   .status-pill.pendente{background:var(--warn-bg); color:var(--warn-text);}
+  .status-pill.planejado{background:var(--surface-alt); color:var(--ink-2); border:1px dashed var(--border-strong);}
   .status-pill .sp-dot{display:none;}
   .cls-pill, td .cls-btn, .row-class{border-radius:999px;}
   .badge-parcela, .manual-tag, .row-pago{color:var(--accent-ink-v5); background:var(--accent-soft);}
@@ -1486,6 +1497,7 @@
       <input type="number" step="0.01" min="0.01" id="budgetLimite" placeholder="Limite mensal (R$)" required aria-label="Limite mensal em reais">
       <button type="submit" class="btn btn-primary">Definir orçamento</button>
     </form>
+    <div class="budget-sug" id="budgetSugestoes" hidden></div>
     <div class="budget-list" id="budgetList"></div>
   </section>
 
@@ -2942,6 +2954,12 @@ var FLX = (function(){
           prioridade: "essencial", fonte: "lancamento"});
       });
       Object.keys(ft).forEach(function(k){ var f = ft[k]; f.valor = FLX.cent(f.valor); if(f.valor > 0) ev.push(f); });
+      // O que falta gastar nos orçamentos deste mês, um pouco por dia (sem data certa). Só o mês atual, como na Previsão.
+      var porDia = orcamentoPorDia(hoje);
+      Object.keys(porDia).forEach(function(d){
+        if(d < hoje || d > ate) return;
+        ev.push({key: "orc:" + d, desc: "Orçamentos (o que falta, um pouco por dia)", valor: porDia[d], tipo: "saida", data: d, prioridade: "essencial", fonte: "orcamento"});
+      });
     } else {
       (FAM.lanc || []).forEach(function(l){
         if(l.tipo === "pagamento_fatura" || l.tipo === "transferencia_interna") return;
@@ -3001,7 +3019,7 @@ var FLX = (function(){
     var h = '<div class="fx-det"><div class="fx-ev"><b>' + flxDia(d.data) + "</b><span>Saldo no fim do dia: <b class=\"" + (d.neg ? "fx-neg" : "") + '">' + fmt(d.saldo) + "</b></span></div>";
     if(!d.eventos.length) h += '<span class="fx-nota">Nada previsto neste dia.</span>';
     d.eventos.forEach(function(e){
-      var tag = e.fonte === "fatura" ? "fatura · data fixa" : e.fonte === "prevista" ? "prevista" : "lançamento · data fixa";
+      var tag = e.fonte === "fatura" ? "fatura · data fixa" : e.fonte === "prevista" ? "prevista" : e.fonte === "orcamento" ? "orçamento · sem data certa" : "lançamento · data fixa";
       var mv = e.fonte === "prevista" && e.tipo === "saida" ? '<span class="tag">' + (e.movivel ? "pode mudar de data" : "data fixa") + "</span>" : "";
       h += '<div class="fx-ev"><span>' + (e.tipo === "entrada" ? "↑ " : "↓ ") + flxEsc(e.desc) + '<span class="tag">' + tag + "</span>" + mv + "</span><b class=\"" + (e.tipo === "saida" ? "fx-neg" : "") + '">' + (e.tipo === "saida" ? "−" : "+") + fmt(e.valor) + "</b></div>";
     });
@@ -3314,6 +3332,8 @@ var FLX = (function(){
     var hoje = todayISO(), ym = monthKey(hoje), fim = simDataNoMes(ym, 31);
     var ext = FLX.addDias(hoje, 90); if(ext < fim) ext = fim;
     var ini = flxSaldoInicial(), base = flxEventos("meu", hoje, ext), extra = [], d = {tipo: c.tipo};
+    var orcEsp = base.reduce(function(t, e){ return t + (e.fonte === "orcamento" ? e.valor : 0); }, 0);
+    if(orcEsp > 0) d.orcamentos_espalhados = simC2(orcEsp);
     if(c.tipo === "parcelada"){
       var n = c.parcelas, parc = c.valor_parcela ? simC2(c.valor_parcela) : simC2(c.valor / n), total = c.valor_parcela ? simC2(parc * n) : simC2(c.valor);
       var cart = c.cartao && c.cartao !== "estimar" ? simCartao(c.cartao) : null;
@@ -4479,10 +4499,13 @@ var FLX = (function(){
   var BUDGETS_KEY = "genesis-financas-budgets-v1";
   var PATRIMONIO_KEY = "genesis-financas-patrimonio-v1";
 
-  // Orçamento mexe na Previsão (o que falta gastar já sai dela), então o quadro de resumo redesenha junto.
+  // Orçamento mexe na Previsão, no Fluxo de caixa e no Simulador (o que falta gastar já sai deles), então eles redesenham junto.
   function aposMudarOrcamento(){
     renderBudgets(); renderCategoryChart();
-    try{ if(document.getElementById("heroCard")) renderHero(refISO()); }catch(e){ if(window.console) console.error(e); }
+    try{ var ref = refISO(); renderHero(ref); renderCashflow(ref); }catch(e){ if(window.console) console.error(e); }
+    try{ renderFluxo(); }catch(e){ if(window.console) console.error(e); }
+    try{ renderSimulador(); }catch(e){ if(window.console) console.error(e); }
+    try{ lemRender(); }catch(e){ if(window.console) console.error(e); }
   }
   function loadBudgets(){
     if(state.mode === "db" && state.col){
@@ -5401,6 +5424,14 @@ var FLX = (function(){
       var abre = Math.round((baseCf - cumul[hojeD.getDate()]) * 100) / 100;
       cumul = cumul.map(function(v){ return Math.round((v + abre) * 100) / 100; });
     }
+    // O que falta dos orçamentos sai um pouco por dia, de hoje até o fim do mês (no mês atual e nos seguintes).
+    // O ponto de hoje continua igual ao saldo real; a parte de hoje aparece a partir de amanhã, e o fim do mês fecha igual.
+    var porDiaCf = orcamentoPorDia(ref), acumOrc = 0, ymCf = monthKey(ref), hojeCf = mesAtualCf ? hojeD.getDate() : 0;
+    for(var dc = 1; dc <= n; dc++){
+      acumOrc += porDiaCf[ymCf + "-" + pad2(dc)] || 0;
+      var tira = dc === hojeCf && dc < n ? acumOrc - (porDiaCf[ymCf + "-" + pad2(dc)] || 0) : acumOrc;
+      if(tira) cumul[dc] = Math.round((cumul[dc] - tira) * 100) / 100;
+    }
     var cfCard = document.getElementById("cashflowSvg").closest(".card");
     if(cfCard){
       var cfH2 = cfCard.querySelector("h2"), cfHint = cfCard.querySelector(".hint");
@@ -5515,6 +5546,15 @@ var FLX = (function(){
 
   var LEDGER_COLLAPSED_COUNT = 4;
   var ledgerShowAll = false;
+  // Partes da lista de lançamentos, na ordem em que aparecem (o planejado dos orçamentos vem antes de todas).
+  var LEDGER_GRUPOS = ["avista", "parcelas", "entradas", "outros"];
+  var LEDGER_GRUPO_NOME = {planejado: "Planejado nos orçamentos", avista: "Compras e contas à vista", parcelas: "Parcelas", entradas: "Entradas", outros: "Transferências e pagamentos de fatura"};
+  function grupoLancamento(t){
+    if(isNeutro(t)) return "outros";
+    if(t.tipo === "receita") return "entradas"; // estorno fica junto das compras, como no app do banco
+    if(t.tipo === "parcelamento_fatura" || parcelaInfo(t)) return "parcelas";
+    return "avista";
+  }
   function renderLedger(ref){
     var search = document.getElementById("fSearch").value.trim().toLowerCase();
     var fTipo = document.getElementById("fTipo").value;
@@ -5534,15 +5574,54 @@ var FLX = (function(){
         if(hay.indexOf(search) === -1) return false;
       }
       return true;
-    }).sort(function(a,b){ return b.dataEfet.localeCompare(a.dataEfet) || b.dataLanc.localeCompare(a.dataLanc); });
+    }).sort(function(a,b){
+      return LEDGER_GRUPOS.indexOf(grupoLancamento(a)) - LEDGER_GRUPOS.indexOf(grupoLancamento(b)) ||
+        b.dataEfet.localeCompare(a.dataEfet) || b.dataLanc.localeCompare(a.dataLanc);
+    });
+    // Cabeçalho de cada parte (como o app do banco separa à vista e parcelas), com quantidade e total da parte inteira.
+    var resumoGrupo = {};
+    rows.forEach(function(t){
+      var g = grupoLancamento(t), r = resumoGrupo[g] = resumoGrupo[g] || {n: 0, total: 0};
+      r.n++; r.total += isNeutro(t) ? 0 : (tipoEntra(t.tipo) ? t.valor : -t.valor);
+    });
+
+    // Planejado nos orçamentos: o que ainda falta gastar em cada categoria no mês. Não é lançamento: só aparece, não se edita aqui.
+    var mesPlan = fMes || monthKey(ref), planos = [];
+    if(!search && (!fTipo || fTipo === "despesa") && fStatus !== "realizado"){
+      planos = reservaOrcamentos(mesPlan + "-01").itens.filter(function(it){ return !fCat || it.categoria === fCat; });
+    }
 
     var totalFiltered = rows.length;
     if(!ledgerShowAll && rows.length > LEDGER_COLLAPSED_COUNT){ rows = rows.slice(0, LEDGER_COLLAPSED_COUNT); }
-    document.getElementById("ledgerCount").textContent = totalFiltered + " de " + state.transactions.length + " lançamentos"+(fMes?" · "+fmtMonthLabel(fMes):"");
+    document.getElementById("ledgerCount").textContent = totalFiltered + " de " + state.transactions.length + " lançamentos"+(fMes?" · "+fmtMonthLabel(fMes):"")+
+      (planos.length ? " · " + planos.length + (planos.length === 1 ? " planejado" : " planejados") : "");
 
     var classOptions = ["Fixa","Variável","Parcelada"];
     var recOptions = ["Única","Mensal"];
-    var html = rows.map(function(t){
+    var fimPlan = (function(){ var y = +mesPlan.slice(0, 4), m = +mesPlan.slice(5, 7); return mesPlan + "-" + pad2(new Date(y, m, 0).getDate()); })();
+    var cabecalho = function(g, n, total){
+      return '<tr class="ledger-grupo"><td colspan="11">'+LEDGER_GRUPO_NOME[g]+' · '+n+'<span class="lg-tot">'+(g === "outros" ? "fora das receitas e despesas" : (total < 0 ? "-" : "")+fmt(Math.abs(total)))+'</span></td></tr>';
+    };
+    var html = "";
+    if(planos.length){
+      html += cabecalho("planejado", planos.length, -planos.reduce(function(a, it){ return a + it.falta; }, 0));
+      html += planos.map(function(it){
+        return '<tr class="ledger-plan">'+
+          '<td class="fam-col"></td>'+
+          '<td><span class="status-pill planejado"><span class="sp-dot"></span>Planejado</span></td>'+
+          '<td style="font-family:var(--font-num); color:var(--ink-muted);">—</td>'+
+          '<td style="font-family:var(--font-num); color:var(--ink-2);">até '+fmtDate(fimPlan)+'</td>'+
+          '<td class="desc-cell"><div class="d-main">Ainda falta gastar em '+escapeAttr(it.categoria)+'<span class="badge-plan">orçamento</span></div>'+
+            '<div class="d-sub">limite '+fmt(it.limite)+' · gasto até agora '+fmt(it.usado)+' · sem data certa</div></td>'+
+          '<td>'+escapeAttr(it.categoria)+'</td><td style="color:var(--ink-muted);">—</td><td>Mensal</td><td class="fam-col"></td>'+
+          '<td class="num neg">-'+fmt(it.falta)+'</td>'+
+          '<td><button type="button" class="row-plan" data-plan-ver="1">Ver orçamento</button></td></tr>';
+      }).join("");
+    }
+    var grupoAtual = null;
+    html += rows.map(function(t){
+      var g = grupoLancamento(t), cab = "";
+      if(g !== grupoAtual){ grupoAtual = g; cab = cabecalho(g, resumoGrupo[g].n, resumoGrupo[g].total); }
       var real = isRealized(t, ref);
       var pagFat = isNeutro(t);
       var sign = pagFat ? "" : (tipoEntra(t.tipo) ? "+" : "-");
@@ -5561,7 +5640,7 @@ var FLX = (function(){
       var manual = t.pagoManual === true || t.pagoManual === false;
       var payVerb = tipoEntra(t.tipo) ? "recebido" : "pago";
       var payLabel = real ? ("Marcar como não "+payVerb) : ("Marcar como "+payVerb);
-      return '<tr'+rowCls+'>'+
+      var linha = '<tr'+rowCls+'>'+
         '<td class="fam-col"><input type="checkbox" class="fam-sel" data-id="'+t.id+'"'+(FAM.sel[t.id] ? ' checked' : '')+' aria-label="Selecionar"></td>'+
         '<td><span class="status-pill '+(real?"realizado":"pendente")+(manual?" manual":"")+'"><span class="sp-dot"></span>'+(real?"Realizado":"Pendente")+(manual?' <span class="manual-tag" title="Status definido manualmente, não muda por data">manual</span>':'')+'</span></td>'+
         '<td style="font-family:var(--font-num);">'+fmtDate(t.dataLanc)+'</td>'+
@@ -5574,6 +5653,7 @@ var FLX = (function(){
         '<td class="num '+numCls+'">'+sign+fmt(t.valor)+'</td>'+
         '<td class="row-actions"><button class="row-pago" data-id="'+t.id+'" data-real="'+real+'">'+payLabel+'</button><button class="row-edit" data-id="'+t.id+'">Editar</button> <button class="row-del" data-id="'+t.id+'">Excluir</button></td>'+
         '</tr>';
+      return cab + linha;
     }).join("");
     document.getElementById("ledgerBody").innerHTML = html || '<tr><td colspan="11" class="empty-note">Nenhum lançamento encontrado.</td></tr>';
 
@@ -5599,6 +5679,9 @@ var FLX = (function(){
         if(val === "Mensal" && tx && !tx.seriesId){ patch.seriesId = id; }
         Store.update(id, patch);
       };
+    });
+    document.querySelectorAll("[data-plan-ver]").forEach(function(el){
+      el.onclick = function(){ location.hash = "#planejamento"; };
     });
     document.querySelectorAll(".row-pago").forEach(function(el){
       el.onclick = function(){
@@ -5705,14 +5788,74 @@ var FLX = (function(){
       var limite = Number(state.budgets[cat]) || 0;
       var usado = (g.gasto[cat] || 0) + (g.previsto[cat] || 0);
       var falta = Math.round(Math.max(limite - usado, 0) * 100) / 100;
-      if(falta > 0){ itens.push({categoria: cat, falta: falta, limite: limite}); total += falta; }
+      if(falta > 0){ itens.push({categoria: cat, falta: falta, limite: limite, usado: Math.round(usado * 100) / 100}); total += falta; }
     });
     return {total: Math.round(total * 100) / 100, itens: itens};
+  }
+
+  // O que falta dos orçamentos, espalhado igual pelos dias que restam no mês (de hoje até o último dia).
+  // Ninguém sabe o dia exato de abastecer o carro: o Fluxo de caixa e o Simulador contam um pouco por dia.
+  // Os centavos que sobram da divisão vão para os últimos dias, para a soma bater com a Previsão.
+  function orcamentoPorDia(ref){
+    var res = reservaOrcamentos(ref), out = {};
+    if(!(res.total > 0)) return out;
+    var ym = monthKey(ref), y = +ym.slice(0, 4), m = +ym.slice(5, 7), n = new Date(y, m, 0).getDate();
+    var hoje = todayISO(), ini = monthKey(hoje) === ym ? +hoje.slice(8, 10) : 1;
+    var dias = n - ini + 1, cents = Math.round(res.total * 100), parte = Math.floor(cents / dias), sobra = cents - parte * dias;
+    for(var d = ini; d <= n; d++){
+      var c = parte + (d > n - sobra ? 1 : 0);
+      if(c > 0) out[ym + "-" + pad2(d)] = c / 100;
+    }
+    return out;
+  }
+  // Média mensal de gasto por categoria nos 3 meses anteriores ao mês de ref, contando só os meses que têm algum lançamento
+  // (quem começou a usar há 1 mês não fica com a média dividida por 3).
+  function mediaTresMeses(ref){
+    var ym = monthKey(ref), meses = [], y = +ym.slice(0, 4), m = +ym.slice(5, 7);
+    for(var i = 1; i <= 3; i++){ var mm = m - i, yy = y; while(mm < 1){ mm += 12; yy--; } meses.push(yy + "-" + pad2(mm)); }
+    var comDados = {}, soma = {};
+    state.transactions.forEach(function(t){
+      var k = monthKey(t.dataEfet); if(meses.indexOf(k) === -1) return;
+      comDados[k] = true;
+      if(!isConsumo(t) || !countsAsSpend(t)) return;
+      soma[t.categoria] = (soma[t.categoria] || 0) + despVal(t);
+    });
+    var n = Object.keys(comDados).length, out = {};
+    if(!n) return out;
+    Object.keys(soma).forEach(function(c){ var v = Math.round(soma[c] / n * 100) / 100; if(v > 0) out[c] = v; });
+    return out;
+  }
+  // Ritmo do mês atual: o que já foi gasto até hoje, dividido pelos dias que passaram, vezes os dias do mês.
+  // Só a partir do 5º dia (antes disso uma compra grande distorce tudo) e só se ainda não estourou.
+  var RITMO_DIA_MIN = 5;
+  function ritmoOrcamento(ref, cat, limite){
+    var hoje = todayISO(), ym = monthKey(ref);
+    if(ym !== monthKey(hoje)) return null;
+    var dia = +hoje.slice(8, 10); if(dia < RITMO_DIA_MIN) return null;
+    var y = +ym.slice(0, 4), m = +ym.slice(5, 7), n = new Date(y, m, 0).getDate(), ate = 0;
+    state.transactions.forEach(function(t){
+      if(t.categoria !== cat || !isConsumo(t) || !countsAsSpend(t) || monthKey(t.dataEfet) !== ym || t.dataEfet > hoje) return;
+      ate += despVal(t);
+    });
+    if(!(ate > 0) || ate > limite) return null;
+    var proj = Math.round(ate / dia * n * 100) / 100;
+    return proj > limite ? {projecao: proj, passa: Math.round((proj - limite) * 100) / 100} : null;
+  }
+  function renderBudgetSugestoes(){
+    var el = document.getElementById("budgetSugestoes"); if(!el) return;
+    var media = mediaTresMeses(refISO());
+    var cats = Object.keys(media).filter(function(c){ return !(c in state.budgets); })
+      .sort(function(a, b){ return media[b] - media[a]; }).slice(0, 4);
+    el.hidden = !cats.length;
+    el.innerHTML = cats.length ? '<span>Sugestões pela média dos últimos 3 meses:</span>' + cats.map(function(c){
+      return '<button type="button" data-sug-cat="' + escapeAttr(c) + '" data-sug-val="' + media[c].toFixed(2) + '">' + escapeAttr(c) + ' ' + fmt(media[c]) + '</button>';
+    }).join("") : "";
   }
 
   function renderBudgets(){
     var ref = refISO();
     var spend = gastoPorCategoria(ref).gasto;
+    renderBudgetSugestoes();
     var reservaB = reservaOrcamentos(ref), faltaDe = {};
     reservaB.itens.forEach(function(it){ faltaDe[it.categoria] = it.falta; });
     var cats = Object.keys(state.budgets).sort();
@@ -5728,10 +5871,12 @@ var FLX = (function(){
       var over = gasto > limite;
       var foot = over ? ("excedido em "+fmt(gasto-limite)) : (Math.round((limite>0?gasto/limite:0)*100)+"% usado"+
         (faltaDe[cat] ? " · faltam "+fmt(faltaDe[cat])+", já descontados da Previsão" : ""));
+      var rit = over ? null : ritmoOrcamento(ref, cat, limite);
       return '<div class="budget-row'+(over?" over":"")+'">'+
         '<div class="budget-head"><span class="bname">'+escapeAttr(cat)+'</span><span class="bamounts">'+fmt(gasto)+' de '+fmt(limite)+'</span></div>'+
         '<div class="budget-track"><div class="budget-fill" style="width:'+pct+'%"></div></div>'+
-        '<div class="budget-foot"><span class="budget-pct">'+foot+'</span><button type="button" class="budget-remove" data-cat="'+escapeAttr(cat)+'">remover</button></div></div>';
+        '<div class="budget-foot"><span class="budget-pct">'+foot+'</span><button type="button" class="budget-remove" data-cat="'+escapeAttr(cat)+'">remover</button></div>'+
+        (rit ? '<div class="budget-ritmo">No ritmo atual, chega a '+fmt(rit.projecao)+' no fim do mês ('+fmt(rit.passa)+' acima do limite).</div>' : '')+'</div>';
     }).join("");
     document.querySelectorAll(".budget-remove").forEach(function(el2){
       el2.onclick = function(){ removeBudget(this.dataset.cat); toast("Orçamento removido."); };
@@ -9832,6 +9977,17 @@ var CAIXA = (function(){
     });
   });
 
+  document.getElementById("budgetSugestoes").addEventListener("click", function(e){
+    var b = e.target.closest("[data-sug-cat]"); if(!b) return;
+    document.getElementById("budgetCategoria").value = b.dataset.sugCat;
+    document.getElementById("budgetLimite").value = b.dataset.sugVal;
+    document.getElementById("budgetLimite").focus();
+  });
+  // Ao digitar a categoria, o campo do limite mostra a média dos últimos 3 meses como dica.
+  document.getElementById("budgetCategoria").addEventListener("input", function(){
+    var v = mediaTresMeses(refISO())[this.value.trim()], lim = document.getElementById("budgetLimite");
+    lim.placeholder = v ? "Média de 3 meses: " + fmt(v) : "Limite mensal (R$)";
+  });
   document.getElementById("budgetForm").addEventListener("submit", function(e){
     e.preventDefault();
     var cat = document.getElementById("budgetCategoria").value.trim();
@@ -10154,6 +10310,8 @@ var CAIXA = (function(){
     var d = {escopo: c.esc === "familia" ? "familia" : "meu", saldo_informado: c.esc === "meu" ? c.ini.n > 0 : false, saldo_inicial: c2(c.ini.valor),
       fim_do_periodo: c.j.fim, menor_saldo: c2(menor ? menor.saldo : 0), dia_menor_saldo: menor ? menor.data : null, saldo_no_fim: c2(b.saldoFinal),
       dias_negativos: b.buraco > 0 ? b.diasNeg : 0};
+    var orcEsp = (c.eventos || []).reduce(function(t, e){ return t + (e.fonte === "orcamento" && e.data <= c.j.fim ? e.valor : 0); }, 0);
+    if(orcEsp > 0) d.orcamentos_espalhados = c2(orcEsp);
     if(b.buraco > 0){
       d.primeiro_dia_negativo = b.primeiroNeg; d.buraco = c2(b.buraco);
       d.juros_pct_mes = Number(an.jurosPct) || 0; d.juros_estimados = c2(an.antes.jurosNeg);
@@ -10546,6 +10704,14 @@ var CAIXA = (function(){
       informarSaldo: function(chave, nome, valor){ informarSaldo(chave, nome, valor); },
       definirOrcamentos: function(mapa){ state.budgets = Object.assign({}, mapa); aposMudarOrcamento(); },
       reservaOrcamentos: function(ref){ return reservaOrcamentos(ref || refISO()); },
+      orcamentoPorDia: function(ref){ return orcamentoPorDia(ref || refISO()); },
+      mediaTresMeses: function(ref){ return mediaTresMeses(ref || refISO()); },
+      fluxo: function(){
+        var c = flxCalcular(); if(c.passado) return null;
+        return {saldoIni: c.ini.valor, fim: c.j.fim, saldoNoFim: c.an.base.saldoFinal, dados: copilotoDadosFluxo(c),
+          orcamento: c.eventos.filter(function(e){ return e.fonte === "orcamento"; }).map(function(e){ return {data: e.data, valor: e.valor}; })};
+      },
+      graficoSaldo: function(){ return cfState ? cfState.cumul.slice() : null; },
       previsaoDados: function(){ return COPI.dados.previsao ? JSON.parse(JSON.stringify(COPI.dados.previsao.dados)) : null; }
     };
   }
