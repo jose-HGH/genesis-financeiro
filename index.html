@@ -8870,6 +8870,20 @@ var FLX = (function(){
   function reannotateExtrato(){
     stagingCheck = annotateExtratoRows(staging, {ext: stagingMeta.ext, txs: ledgerParaImportar(), contrapartes: state.contrapartes, hoje: todayISO()});
     impMarcarDupExtrato(staging, stagingMeta.contaKey, ledgerParaImportar()); // vale para PDF, OFX, CSV e Excel: o mesmo movimento pode ter vindo em outro formato, com outro documento
+    impAutoVincular(staging);
+  }
+  // Lançamento manual com o mesmo valor e até 5 dias de diferença (ex.: o aluguel lançado à mão como receita de todo mês):
+  // a linha do extrato já entra vinculada a ele, sem criar outro lançamento. Só uma vez por linha, para o "desfazer" valer.
+  function impAutoVincular(rows){
+    var usados = {};
+    rows.forEach(function(r){ if(r.vincularId) usados[r.vincularId] = 1; });
+    rows.forEach(function(r){
+      if(r._autoVinc || r.vincularId || r.conciliaId || (r.dup && r.dup.extrato)) return;
+      r._autoVinc = true;
+      var t = podeVincular(r);
+      if(!t || usados[t.id] || extCents(t.valor) !== extCents(r.valor) || daysDiff(t.dataEfet, r.dataEfet) > 5) return;
+      r.vincularId = t.id; r.selected = true; usados[t.id] = 1;
+    });
   }
   function portaoReimportacaoExtrato(){
     var key = stagingMeta.extratoKey;
@@ -10947,6 +10961,7 @@ var CAIXA = (function(){
             modalidade: r.modalidade || null, parcela: r.parcela || null, final: r.final || null, selecionada: !!r.selected, duplicada: r.dup ? r.dup.level : null}; })};
       },
       lancamentos: function(){ return state.transactions.slice(); },
+      vinculosPrevia: function(){ return staging.map(function(r){ return r.vincularId || null; }); },
       // chat do copiloto sem nuvem: o teste troca a Edge Function por uma função (copiloto: corpo do pedido → resposta)
       copilotoFalso: null,
       ligarChat: function(fn){ window.__genesisTeste.copilotoFalso = fn; renderChat(); renderResumoMes(); },
