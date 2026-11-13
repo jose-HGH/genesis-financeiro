@@ -102,6 +102,13 @@ test("resumo do mês: quadro no Início e carta escrita pelo copiloto falso", as
     assert.equal(pedidos[0].resumo.fechamento.resultado, 3400);
     assert.ok(!JSON.stringify(pedidos[0]).includes("FICTICI"));
     assert.equal(await card.locator('[data-rmes="escrever"]').count(), 0, "depois da carta, o botão some");
+
+    // mês mais antigo escolhido no seletor: números aparecem, mas sem carta (uma por mês, só do mês que acabou)
+    await page.evaluate((d) => { const el = document.getElementById("refDate"); el.value = d; el.dispatchEvent(new Event("change", { bubbles: true })); }, dia(a2, 15));
+    await page.waitForFunction(() => /Fechamento de /.test(document.getElementById("resumoMesT").textContent) && !document.querySelector("#resumoMesCard .ia-caixa"));
+    assert.equal(await card.locator('[data-rmes="escrever"]').count(), 0);
+    assert.match(await card.innerText(), /uma vez por mês, só para o mês que acabou/);
+    assert.equal(pedidos.length, 1);
     assert.deepEqual(erros, []);
   } finally { await ctx.close(); }
 });

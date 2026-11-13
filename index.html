@@ -10442,7 +10442,8 @@ var CAIXA = (function(){
 
   // ---------- Resumo do mês (passo 5) ----------
   // O app fecha os números de um mês que já acabou ("fechamento") e mostra no Início para todos.
-  // Para o testador do copiloto, um botão pede à IA (recurso resumo_mensal) uma carta curta com esses números.
+  // Para o testador do copiloto, um botão pede à IA (recurso resumo_mensal) uma carta curta com esses números:
+  // uma por mês, só do mês que acabou (o servidor confere e o plano limita a 1).
   // Descrições de lançamento ficam só na tela: para a IA vão números, datas e categorias.
   var RMES = {resp: {}};
   function rmesMesAlvo(){
@@ -10561,7 +10562,10 @@ var CAIXA = (function(){
     if(d.conferido && !d.conferido.tudo_conferido) h += '<p class="rmes-aviso">' + d.conferido.contas_com_diferenca + (d.conferido.contas_com_diferenca === 1 ? " conta tem" : " contas têm") + " diferença na conciliação com o extrato. Os números podem mudar quando ela for resolvida.</p>";
     h += "</div>";
     var sig = rmesSig(f), r = RMES.resp[sig];
-    if(chatDisponivel()){
+    // A carta é uma por mês, só do mês que acabou: a de novembro sai a partir de 1º de dezembro.
+    var cartaDoMes = ym === shiftMonthKey(monthKey(todayISO()), -1);
+    if(chatDisponivel() && !cartaDoMes) h += '<p class="rmes-aviso">A carta do copiloto sai uma vez por mês, só para o mês que acabou.</p>';
+    if(chatDisponivel() && cartaDoMes){
       if(r && !r.carregando) h += '<div class="ia-caixa' + (r.erro ? " ia-erro" : "") + '" role="status">' +
         (window.__v5hide ? "<p>Os valores estão ocultos. Mostre os valores para ler o resumo.</p>" : String(r.texto || "").split(/\n\s*\n/).map(function(p){ return "<p>" + escapeAttr(p.trim()).replace(/\n/g, "<br>") + "</p>"; }).join("")) +
         '<div class="ia-rodape"><span>' + (r.erro ? "Os números acima continuam valendo." : "Texto escrito por IA a partir dos números do fechamento. Os números são do app.") + "</span></div></div>";
@@ -10574,7 +10578,7 @@ var CAIXA = (function(){
   }
   function resumoMesEscrever(){
     var ym = rmesMesAlvo(), f = ym ? resumoMesDados(ym) : null;
-    if(!f || !chatDisponivel()) return;
+    if(!f || !chatDisponivel() || ym !== shiftMonthKey(monthKey(todayISO()), -1)) return;
     var sig = rmesSig(f);
     if(RMES.resp[sig] && RMES.resp[sig].carregando) return;
     RMES.resp[sig] = {carregando: true}; renderResumoMes();

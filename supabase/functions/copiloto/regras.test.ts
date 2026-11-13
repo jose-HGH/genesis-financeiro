@@ -206,7 +206,8 @@ test("validarResumoMensal aceita o fechamento do app e recusa o resto", () => {
   assert.equal(validarResumo(r()), null);
   assert.equal(validarResumoMensal(r(), "2026-11"), null);
   assert.equal(validarResumoMensal(r(), "2026-10"), "o mês ainda não acabou");
-  assert.equal(validarResumoMensal(r({ mes: "2024-01" }), "2026-11"), "mês antigo demais");
+  assert.equal(validarResumoMensal(r({ mes: "2026-09" }), "2026-11"), "só o mês que acabou");
+  assert.equal(validarResumoMensal(r({ mes: "2025-12" }), "2026-01"), null); // virada do ano
   assert.match(validarResumoMensal(r({ card: "previsao" }), "2026-11") ?? "", /campo inesperado/);
   assert.equal(validarResumoMensal(r({ fechamento: undefined }), "2026-11"), "fechamento ausente");
   assert.equal(validarResumoMensal(r({ fechamento: { ...fech, maior_gasto: { valor: 500, descricao: "SUPERMERCADO CENTRAL" } } }), "2026-11"), "texto não permitido");

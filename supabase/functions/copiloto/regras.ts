@@ -537,7 +537,7 @@ const CHAVE_MENSAL = /^[a-z_][a-z0-9_]{0,39}$/;
 
 /**
  * Resumo da carta do mês: o resumo base e "fechamento", com os números que o
- * app calculou. O mês tem de ser anterior ao mês de hoje (mesHoje, AAAA-MM).
+ * app calculou. O mês tem de ser o anterior ao mês de hoje (mesHoje, AAAA-MM).
  * Em "fechamento" só entram números, verdadeiro/falso, datas, rótulos curtos e
  * nomes de categoria que o resumo já traz, até 4 níveis, listas de até 12 itens.
  */
@@ -545,7 +545,8 @@ export function validarResumoMensal(r: ResumoBase, mesHoje: string): string | nu
   const extras = Object.keys(r).filter((k) => !["versao", "mes", "categorias", "fechamento"].includes(k));
   if (extras.length) return `campo inesperado: ${extras[0]}`;
   if (!MES_ISO.test(mesHoje) || !(r.mes < mesHoje)) return "o mês ainda não acabou";
-  if (mesesEntre(r.mes, mesHoje) > 24) return "mês antigo demais";
+  // Uma carta por mês: só a do mês que acabou (em dezembro, a de novembro).
+  if (mesesEntre(r.mes, mesHoje) !== 1) return "só o mês que acabou";
   if (Object.keys(r.categorias).length > 60) return "categorias demais";
   const dados = r.fechamento;
   if (!dados || typeof dados !== "object" || Array.isArray(dados)) return "fechamento ausente";

@@ -83,8 +83,8 @@ Se vier "orcamentos_espalhados", o app já tirou esse valor do saldo, um pouco p
     },
   },
   // Passo 5: carta do mês. O app fecha os números de um mês que já acabou
-  // ("fechamento"); a IA só escreve a carta com eles. Uma por mês costuma bastar
-  // (limite resumo_mensal_mes no plano); a resposta fica guardada.
+  // ("fechamento"); a IA só escreve a carta com eles. Uma carta por mês, só do mês
+  // que acabou (validarResumoMensal + limite resumo_mensal_mes = 1); a resposta fica guardada.
   resumo_mensal: {
     modelo: "claude-sonnet-5-5", esforco: "low", maxTokensSaida: 2000,
     versaoPrompt: "resumo-1", ativo: true, aceitaPergunta: false,
