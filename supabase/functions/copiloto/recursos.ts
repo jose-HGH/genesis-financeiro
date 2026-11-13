@@ -6,6 +6,7 @@
 // entram ligados (ativo: true) cada um no seu passo, com o prompt próprio.
 // Passo 3 ligou o "explicar". Passo 6 ligou o "simulador" e o quadro
 // "simulacao" do "explicar". Passo 7 ligou o "chat" e o "chat_resposta".
+// Passo 5 ligou o "resumo_mensal" (carta do mês).
 
 export type Esforco = "low" | "medium";
 
@@ -81,11 +82,30 @@ Se "saldo_informado" for false, lembre que a conta partiu de saldo zero porque n
 Se vier "orcamentos_espalhados", o app já tirou esse valor do saldo, um pouco por dia até o fim do mês: é o que ainda falta gastar nos orçamentos por categoria, sem data certa. Mencione isso em uma frase curta só se ajudar a entender o resultado.`,
     },
   },
-  // Passo 5: carta do mês.
+  // Passo 5: carta do mês. O app fecha os números de um mês que já acabou
+  // ("fechamento"); a IA só escreve a carta com eles. Uma carta por mês, só do mês
+  // que acabou (validarResumoMensal + limite resumo_mensal_mes = 1); a resposta fica guardada.
   resumo_mensal: {
-    modelo: "claude-sonnet-5-5", esforco: "low", maxTokensSaida: 2500,
-    versaoPrompt: "resumo-0", ativo: false, aceitaPergunta: false,
-    instrucao: "(definida no passo 5)",
+    modelo: "claude-sonnet-5-5", esforco: "low", maxTokensSaida: 2000,
+    versaoPrompt: "resumo-1", ativo: true, aceitaPergunta: false,
+    instrucao: `Escreva o resumo do mês "mes" do RESUMO para a pessoa, como uma carta curta: 3 parágrafos curtos, no máximo 170 palavras no total, sem título, sem lista e sem saudação longa. Use só os números de "fechamento", copiados do RESUMO.
+
+Como ler "fechamento":
+- "receitas", "despesas" e "resultado" (receitas menos despesas; negativo = gastou mais do que entrou). "mes_anterior" traz os mesmos números do mês antes, quando existir.
+- "maiores_categorias": as categorias com mais gasto no mês ("valor"), com "media_3_meses" (média dos 3 meses anteriores, null se não há histórico).
+- "subiram" e "desceram": categorias que fugiram da média, com "valor", "media_3_meses" e a diferença ("a_mais" ou "a_menos").
+- "orcamentos": "dentro" (quantos orçamentos ficaram dentro do limite) e "estourados" (cada um com "limite", "gasto" e "passou").
+- "maior_gasto": o maior lançamento de gasto do mês ("valor", "categoria", "data"); a descrição fica só na tela.
+- "parcelas": "no_mes" (quanto foi de parcelas no mês), "compras_que_terminaram" e "deixa_de_sair" (quanto por mês deixa de sair porque essas parcelas acabaram).
+- "proximo_mes": "mes", "parcelas" (parcelas que já vencem nele), "contas_previstas" e "ja_comprometido" (as duas somadas, pelo app).
+- "conferido": "contas_com_diferenca" (contas cuja conciliação com o extrato não bate) e "tudo_conferido".
+
+Como escrever:
+- Se "tudo_conferido" for false, comece com uma frase curta dizendo que algumas contas ainda têm diferença na conciliação e que os números podem mudar quando ela for resolvida.
+- 1º parágrafo: como o mês fechou (receitas, despesas e resultado) e, se houver "mes_anterior", se o resultado foi melhor ou pior que o do mês anterior, sem fazer conta.
+- 2º parágrafo: para onde foi o dinheiro: as 2 ou 3 maiores categorias e, se houver, o que subiu ou desceu em relação à média e os orçamentos estourados. Descreva sem julgar.
+- 3º parágrafo: o que vem no "proximo_mes": o que já está comprometido e, se "deixa_de_sair" existir e for maior que zero, que algumas parcelas acabaram e esse valor deixa de sair por mês.
+- Meses por extenso ("outubro"). Não dê conselhos de investimento. No máximo uma observação gentil, só se os números mostrarem algo claro (por exemplo, um orçamento estourado).`,
   },
   // Passo 6: simulador "e se" em texto livre. A IA só preenche o formulário
   // (JSON com esquema fixo); quem calcula é o app, e a explicação do resultado

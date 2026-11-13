@@ -480,6 +480,7 @@
   .chat-espera{color:var(--ink-2);}
   .chat-dicas{display:flex; flex-wrap:wrap; gap:8px; margin-bottom:10px;} .chat-dicas .btn{height:auto; padding:6px 12px; font-size:12.5px; border-radius:999px; text-align:left;}
   .chat-numeros{margin:4px 0 8px;} .chat-numeros > summary{cursor:pointer; font-size:12.5px; color:var(--ink-2);}
+  .rmes-neg b{color:var(--critical-text);} .rmes-aviso{font-size:12.5px; color:var(--ink-2); margin:8px 0 0;} .rmes-acoes{display:flex; justify-content:flex-end; margin-top:6px;}
   .chat-num{margin-top:8px; font-size:13px;} .chat-num-t{font-weight:600; font-size:12.5px; margin-bottom:2px;}
   .chat-num ul, .chat-itens{list-style:none; margin:4px 0; padding:0;}
   .chat-num li{display:flex; justify-content:space-between; gap:12px; padding:3px 0; border-bottom:1px solid var(--line); font-variant-numeric:tabular-nums;}
@@ -1255,6 +1256,16 @@
   .fx-mov .tag{font-size:11px; padding:1px 8px; border-radius:999px; border:1px solid var(--line); color:var(--ink-2); white-space:nowrap;}
   /* ---- Lembretes ---- */
   #lemBarra{display:flex; flex-direction:column; gap:6px; margin:0 0 14px;}
+  #contasDia{border:1px solid var(--warn-solid); border-radius:14px; background:var(--warn-bg); padding:12px 14px; margin:0 0 12px; display:flex; flex-direction:column; gap:8px;}
+  #contasDia .cd-topo{display:flex; flex-wrap:wrap; align-items:center; gap:8px 14px; justify-content:space-between;}
+  #contasDia .cd-titulo{font-weight:600; color:var(--warn-text); font-size:14px;}
+  #contasDia .cd-sub{font-size:12.5px; color:var(--ink-2);}
+  #contasDia .cd-acoes{display:flex; gap:12px; align-items:center;}
+  #contasDia .cd-lista{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:6px;}
+  #contasDia .cd-item{display:flex; flex-wrap:wrap; align-items:center; gap:4px 12px; justify-content:space-between; background:var(--surface); border-radius:10px; padding:8px 10px; font-size:13px;}
+  #contasDia .cd-item .cd-desc{flex:1 1 180px; min-width:0; overflow-wrap:anywhere;}
+  #contasDia .cd-item .cd-quando{font-size:11px; color:var(--ink-muted); margin-left:6px;}
+  #contasDia .cd-item .cd-val{font-family:var(--font-num); font-weight:600; color:var(--critical-text);}
   #lemBarra[hidden]{display:none;}
   .lem-lista{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:6px;}
   .lem-item{position:relative; display:flex; align-items:stretch; border:1px solid var(--line); border-radius:12px; background:var(--glass); min-width:0;}
@@ -1354,6 +1365,11 @@
     <div class="card-head" style="margin:0"><h2 id="fxT">Fluxo de caixa</h2>
       <div class="fx-bar"><div class="fx-seg" id="fxEsc" role="group" aria-label="Quais lançamentos entram"><button type="button" data-esc="meu" aria-pressed="true">Meu</button><button type="button" data-esc="familia" aria-pressed="false">Família</button></div></div></div>
     <div id="fxCorpo"></div>
+  </section>
+
+  <section class="card" id="resumoMesCard" aria-labelledby="resumoMesT" hidden>
+    <div class="card-head"><h2 id="resumoMesT">Fechamento do mês</h2><span class="hint">Os números são do app, com os lançamentos do mês que acabou.</span></div>
+    <div id="resumoMesCorpo"></div>
   </section>
 
   <section class="card" id="chatCard" aria-labelledby="chatT" hidden>
@@ -1883,6 +1899,7 @@
   var stats = el("div", {"class": "v5-stats", id: "v5Stats"});
   put("inicio", document.querySelector(".hero-review-grid"));
   put("inicio", stats);
+  put("inicio", $("resumoMesCard"));
   put("inicio", $("chatCard"));
   put("inicio", $("accountTiles"));
   put("inicio", row(flex(cardOf("upcomingList"), "v5-w"), flex(cardOf("cashflowSvg"), "v5-n")));
@@ -3778,6 +3795,82 @@ var FLX = (function(){
       texto: "O Fluxo de caixa prevê saldo negativo a partir de " + flxDia(s.primeiroNeg) + " (" + fmt(dia ? dia.saldo : 0) + ")."};
   }
 
+  // ---- contas do dia: o que vence hoje e amanhã e ainda não foi pago ----
+  // Lançamentos de saída com data de hoje ou amanhã (fora cartão de crédito, que vence na fatura), sem "pago" marcado
+  // e que não vieram do extrato (o que veio do extrato já saiu da conta); faturas de cartão importadas que vencem nesses
+  // dias, sem pagamento de fatura do mesmo banco nos 10 dias antes; e contas previstas do Fluxo de caixa.
+  // "Já paguei" de fatura e de conta prevista fica guardado como lembrete excluído (tipo "conta_paga").
+  var CD = {aberto: false};
+  function lemContasDia(hoje){
+    var amanha = FLX.addDias(hoje, 1), itens = [];
+    var pagaGuardada = function(chave){ var st = LEM.rows[lemId("conta_paga", chave)]; return !!(st && st.estado === "excluido"); };
+    state.transactions.forEach(function(t){
+      if(t.deletedAt || isNeutro(t) || tipoEntra(t.tipo) || isFaturaTx(t)) return;
+      if(t.dataEfet !== hoje && t.dataEfet !== amanha) return;
+      if(t.pagoManual === true || t.fonte === "extrato") return;
+      itens.push({tipo: "lancamento", id: t.id, desc: t.descricao || "(sem descrição)", valor: Math.round(despVal(t) * 100) / 100, data: t.dataEfet, destino: "lancamentos"});
+    });
+    var fat = {};
+    state.transactions.forEach(function(t){
+      if(t.deletedAt || !isFaturaTx(t) || (t.dataEfet !== hoje && t.dataEfet !== amanha)) return;
+      var k = (t.cartao || t.banco || "cartão") + "|" + t.dataEfet;
+      var f = fat[k] = fat[k] || {tipo: "fatura", chave: "fatura|" + k, desc: "Fatura " + (cardLabel(t.cartao) || t.banco || "do cartão"), banco: t.banco, valor: 0, data: t.dataEfet, destino: "inicio"};
+      f.valor += despVal(t);
+    });
+    Object.keys(fat).forEach(function(k){
+      var f = fat[k]; f.valor = Math.round(f.valor * 100) / 100;
+      if(f.valor <= 0 || pagaGuardada(f.chave)) return;
+      var de = FLX.addDias(f.data, -10);
+      var paga = state.transactions.some(function(t){ return !t.deletedAt && t.tipo === "pagamento_fatura" && t.banco === f.banco && t.dataEfet >= de && t.dataEfet <= hoje; });
+      if(!paga) itens.push(f);
+    });
+    if(state.mode === "db" && FLXD.carregado && FLXD.uid === state.uid){
+      (FLXD.itens || []).forEach(function(c){
+        if(c.tipo !== "saida") return;
+        FLX.expandir({data: c.data, recorrencia: c.recorrencia, excecoes: c.excecoes || {}}, hoje, amanha).forEach(function(o){
+          var chave = "prevista|" + c.id + "|" + o.occ;
+          if(pagaGuardada(chave)) return;
+          itens.push({tipo: "prevista", chave: chave, desc: c.descricao || "Conta prevista", valor: Math.round(Number(c.valor) * 100) / 100, data: o.data, destino: "planejamento"});
+        });
+      });
+    }
+    itens.sort(function(a, b){ return a.data.localeCompare(b.data) || b.valor - a.valor; });
+    return {hoje: hoje, amanha: amanha, itens: itens};
+  }
+  function renderContasDia(hoje){
+    var bar = document.getElementById("lemBarra"); if(!bar) return;
+    var el = document.getElementById("contasDia");
+    if(!el){ el = document.createElement("section"); el.id = "contasDia"; el.setAttribute("aria-label", "Contas de hoje e amanhã"); el.setAttribute("role", "status"); bar.parentNode.insertBefore(el, bar); }
+    var cd = lemContasDia(hoje), fechado = LEM.rows[lemId("contas_dia", hoje)];
+    var deHoje = cd.itens.filter(function(i){ return i.data === hoje; }), deAmanha = cd.itens.filter(function(i){ return i.data !== hoje; });
+    if(!cd.itens.length || (fechado && fechado.estado === "excluido")){ el.hidden = true; el.innerHTML = ""; el._itens = []; return; }
+    var soma = function(l){ return l.reduce(function(a, i){ return a + i.valor; }, 0); };
+    var frase = function(l, quando){ return l.length ? quando + " " + (l.length === 1 ? "vence 1 conta" : "vencem " + l.length + " contas") + ": " + fmt(soma(l)) : ""; };
+    var titulo = deHoje.length ? frase(deHoje, "Hoje") : frase(deAmanha, "Amanhã");
+    var sub = deHoje.length && deAmanha.length ? frase(deAmanha, "Amanhã") : "";
+    el.hidden = false;
+    el.innerHTML = '<div class="cd-topo"><div><div class="cd-titulo">' + titulo + '</div>' + (sub ? '<div class="cd-sub">' + sub + "</div>" : "") + "</div>" +
+      '<div class="cd-acoes"><button type="button" class="resumo-link" data-cd="ver" aria-expanded="' + CD.aberto + '">' + (CD.aberto ? "Ocultar" : "Ver contas") + "</button>" +
+      '<button type="button" class="resumo-link" data-cd="fechar">Fechar por hoje</button></div></div>' +
+      (CD.aberto ? '<ul class="cd-lista">' + cd.itens.map(function(it, i){
+        return '<li class="cd-item"><span class="cd-desc">' + escapeAttr(it.desc) + '<span class="cd-quando">' + (it.data === hoje ? "hoje" : "amanhã") + (it.tipo === "prevista" ? " · conta prevista" : it.tipo === "fatura" ? " · fatura" : "") + "</span></span>" +
+          '<span class="cd-val">' + fmt(it.valor) + "</span>" +
+          '<button type="button" class="btn btn-ghost" data-cd="pago" data-i="' + i + '">' + (it.tipo === "lancamento" ? "Marcar como pago" : "Já paguei") + "</button></li>";
+      }).join("") + "</ul>" : "");
+    el._itens = cd.itens;
+  }
+  document.addEventListener("click", function(ev){
+    var el = document.getElementById("contasDia"), b = ev.target && ev.target.closest ? ev.target.closest("[data-cd]") : null;
+    if(!el || !b || !el.contains(b)) return;
+    var a = b.dataset.cd, hoje = todayISO();
+    if(a === "ver"){ CD.aberto = !CD.aberto; lemRender(); return; }
+    if(a === "fechar"){ CD.aberto = false; lemGravar({tipo: "contas_dia", chave: hoje, destino: null}, {estado: "excluido", adiado_ate: null}); return; }
+    var it = el._itens && el._itens[+b.dataset.i]; if(!it) return;
+    if(it.tipo === "lancamento"){ Store.update(it.id, {pagoManual: true}); toast("Marcado como pago."); return; }
+    lemGravar({tipo: "conta_paga", chave: it.chave, destino: null}, {estado: "excluido", adiado_ate: null});
+    toast("Anotado: já pago.");
+  });
+
   function lemVisiveis(hoje){
     var vis = [];
     lemRegras(hoje).forEach(function(it){
@@ -3801,6 +3894,8 @@ var FLX = (function(){
     if(!LEM.carregado && !LEM.carregando) lemCarregar();
     if(!LEM.carregado) return;
     var hoje = todayISO(); LEM.hoje = hoje;
+    try{ renderContasDia(hoje); }catch(e){ if(window.console) console.error(e); }
+    try{ renderResumoMes(); }catch(e){ if(window.console) console.error(e); }
     var vis = lemVisiveis(hoje), mostra = LEM.todos ? vis : vis.slice(0, LEM_MAX);
     el.hidden = !vis.length; if(!vis.length){ el.innerHTML = ""; el._itens = []; return; }
     el.innerHTML = '<ul class="lem-lista">' + mostra.map(function(it, i){
@@ -5742,6 +5837,7 @@ var FLX = (function(){
     try{ renderFluxo(); }catch(e){ if(window.console) console.error(e); }
     try{ renderSimulador(); }catch(e){ if(window.console) console.error(e); }
     try{ renderChat(); }catch(e){ if(window.console) console.error(e); }
+    try{ renderResumoMes(); }catch(e){ if(window.console) console.error(e); }
     try{ lemRender(); }catch(e){ if(window.console) console.error(e); }
     if(window.__v5ui){ try{ window.__v5ui.after(ref); }catch(e){} }
   }
@@ -10255,7 +10351,7 @@ var CAIXA = (function(){
     var mudou = ok !== COPI.ok || uid !== COPI.uid;
     COPI.ok = ok; COPI.uid = uid;
     if(!ok){ COPI.resp = {}; if(typeof CHATD !== "undefined") CHATD.turnos = []; }
-    if(mudou){ try{ renderHero(refISO()); renderFluxo(); renderConciliacao(); renderSimulador(); renderChat(); }catch(e){ if(window.console) console.error(e); } }
+    if(mudou){ try{ renderHero(refISO()); renderFluxo(); renderConciliacao(); renderSimulador(); renderChat(); renderResumoMes(); }catch(e){ if(window.console) console.error(e); } }
   }
   function copilotoCarregarStatus(){
     if(!sb || state.mode !== "db") return;
@@ -10343,6 +10439,163 @@ var CAIXA = (function(){
     if(b.dataset.iaExplicar){ copilotoExplicar(b.dataset.iaExplicar); return; }
     var ch = b.dataset.iaFechar; delete COPI.resp[ch]; copilotoRedesenhar(ch);
   }, true);
+
+  // ---------- Resumo do mês (passo 5) ----------
+  // O app fecha os números de um mês que já acabou ("fechamento") e mostra no Início para todos.
+  // Para o testador do copiloto, um botão pede à IA (recurso resumo_mensal) uma carta curta com esses números:
+  // uma por mês, só do mês que acabou (o servidor confere e o plano limita a 1).
+  // Descrições de lançamento ficam só na tela: para a IA vão números, datas e categorias.
+  var RMES = {resp: {}};
+  function rmesMesAlvo(){
+    var hoje = todayISO(), atual = monthKey(hoje), ref = monthKey(refISO());
+    if(ref < atual) return ref; // a pessoa escolheu um mês passado no seletor
+    if(+hoje.slice(8, 10) > 10) return null; // no mês atual, o fechamento do anterior aparece só nos primeiros 10 dias
+    return shiftMonthKey(atual, -1);
+  }
+  function rmesTemDados(ym){
+    return state.transactions.some(function(t){ return !t.deletedAt && !isNeutro(t) && /^\d{4}-\d{2}/.test(t.dataEfet || "") && monthKey(t.dataEfet) === ym; });
+  }
+  function rmesTotais(ym){ var r = computeTotals(ym + "-15"); return {receitas: simC2(r.recTotal), despesas: simC2(r.despTotal), resultado: simC2(r.recTotal - r.despTotal)}; }
+  function rmesGrupoParcela(t){ return t.idCompra || t.seriesId || (simNorm(t.descricao) + "|" + t.valor); }
+  // Devolve {dados, local}: "dados" vai para a IA (só números, datas e categorias); "local" tem as descrições, só para a tela.
+  function resumoMesDados(ym){
+    if(!ym || !rmesTemDados(ym)) return null;
+    var prox = shiftMonthKey(ym, 1), d = rmesTotais(ym), local = {};
+    var antes = shiftMonthKey(ym, -1);
+    if(rmesTemDados(antes)) d.mes_anterior = rmesTotais(antes);
+    var cats = copilotoResumo(ym + "-15").categorias;
+    // média dos 3 meses anteriores, só com os meses que têm lançamentos
+    var hist = [1, 2, 3].map(function(n){ return shiftMonthKey(ym, -n); }).filter(rmesTemDados).map(function(m){ return copilotoResumo(m + "-15").categorias; });
+    var media = function(cat){ return hist.length ? simC2(hist.reduce(function(s, c){ return s + (c[cat] || 0); }, 0) / hist.length) : null; };
+    var nomes = {}; Object.keys(cats).forEach(function(c){ nomes[c] = 1; }); hist.forEach(function(h){ Object.keys(h).forEach(function(c){ nomes[c] = 1; }); });
+    var linhas = Object.keys(nomes).map(function(c){ return {categoria: c, valor: simC2(cats[c] || 0), media_3_meses: media(c)}; });
+    d.maiores_categorias = linhas.filter(function(x){ return x.valor > 0; }).sort(function(a, b){ return b.valor - a.valor; }).slice(0, 3);
+    var foge = function(x){ var m = x.media_3_meses; return m !== null && Math.abs(x.valor - m) >= Math.max(50, m * 0.2); };
+    var subiram = linhas.filter(function(x){ return foge(x) && x.valor > x.media_3_meses; }).map(function(x){ return {categoria: x.categoria, valor: x.valor, media_3_meses: x.media_3_meses, a_mais: simC2(x.valor - x.media_3_meses)}; })
+      .sort(function(a, b){ return b.a_mais - a.a_mais; }).slice(0, 3);
+    var desceram = linhas.filter(function(x){ return foge(x) && x.valor < x.media_3_meses; }).map(function(x){ return {categoria: x.categoria, valor: x.valor, media_3_meses: x.media_3_meses, a_menos: simC2(x.media_3_meses - x.valor)}; })
+      .sort(function(a, b){ return b.a_menos - a.a_menos; }).slice(0, 3);
+    if(subiram.length) d.subiram = subiram;
+    if(desceram.length) d.desceram = desceram;
+    var orc = Object.keys(state.budgets || {}).sort().filter(function(c){ return Number(state.budgets[c]) > 0; });
+    if(orc.length){
+      var est = [];
+      orc.forEach(function(c){ var lim = simC2(state.budgets[c]), g = simC2(cats[c] || 0); if(g > lim) est.push({categoria: c, limite: lim, gasto: g, passou: simC2(g - lim)}); });
+      d.orcamentos = {dentro: orc.length - est.length, estourados: est.sort(function(a, b){ return b.passou - a.passou; }).slice(0, 6)};
+    }
+    var maior = null;
+    state.transactions.forEach(function(t){
+      if(t.deletedAt || !isConsumo(t) || isPrevista(t) || !/^\d{4}-\d{2}/.test(t.dataEfet || "") || monthKey(t.dataEfet) !== ym) return;
+      if(!maior || despVal(t) > despVal(maior)) maior = t;
+    });
+    if(maior && despVal(maior) > 0){
+      d.maior_gasto = {valor: simC2(despVal(maior)), categoria: maior.categoria || "Sem categoria", data: maior.dataEfet};
+      local.maior_gasto = maior.descricao || "(sem descrição)";
+    }
+    // parcelas: o que saiu no mês e as compras cuja última parcela foi neste mês
+    var grupos = {}, noMes = 0;
+    state.transactions.forEach(function(t){
+      if(t.deletedAt || !hasParcela(t) || !isConsumo(t) || !/^\d{4}-\d{2}/.test(t.dataEfet || "")) return;
+      var m = monthKey(t.dataEfet), g = grupos[rmesGrupoParcela(t)] = grupos[rmesGrupoParcela(t)] || {ultimo: m, valor: despVal(t), texto: t.descricao || "(sem descrição)"};
+      if(m > g.ultimo) g.ultimo = m;
+      if(m === ym){ noMes += despVal(t); g.valor = despVal(t); g.texto = t.descricao || "(sem descrição)"; }
+    });
+    var acabaram = Object.keys(grupos).map(function(k){ return grupos[k]; }).filter(function(g){ return g.ultimo === ym && g.valor > 0; });
+    if(noMes > 0 || acabaram.length){
+      d.parcelas = {no_mes: simC2(noMes), compras_que_terminaram: acabaram.length, deixa_de_sair: simC2(acabaram.reduce(function(s, g){ return s + g.valor; }, 0))};
+      local.acabaram = acabaram.sort(function(a, b){ return b.valor - a.valor; }).slice(0, 5);
+    }
+    // próximo mês: parcelas que já vencem nele e contas previstas (lançamentos previstos e contas do Planejamento)
+    var parcProx = 0, contasProx = 0;
+    state.transactions.forEach(function(t){
+      if(t.deletedAt || !isConsumo(t) || !/^\d{4}-\d{2}/.test(t.dataEfet || "") || monthKey(t.dataEfet) !== prox) return;
+      if(hasParcela(t)) parcProx += despVal(t); else if(isPrevista(t)) contasProx += despVal(t);
+    });
+    if(state.mode === "db" && typeof FLXD !== "undefined" && FLXD.carregado && FLXD.uid === state.uid){
+      (FLXD.itens || []).forEach(function(c){
+        if(c.tipo !== "saida") return;
+        contasProx += FLX.expandir({data: c.data, recorrencia: c.recorrencia, excecoes: c.excecoes || {}}, prox + "-01", prox + "-" + String(FLX.ultimoDia(+prox.slice(0, 4), +prox.slice(5, 7))).padStart(2, "0")).length * (Number(c.valor) || 0);
+      });
+    }
+    d.proximo_mes = {mes: prox, parcelas: simC2(parcProx), contas_previstas: simC2(contasProx), ja_comprometido: simC2(parcProx + contasProx)};
+    var contas = contasConciliaveis(), dif = 0;
+    contas.forEach(function(k){ var r = conciliacaoDe(k); if(r.aplicavel && !r.ok) dif++; });
+    if(contas.length) d.conferido = {contas_com_diferenca: dif, tudo_conferido: dif === 0};
+    return {mes: ym, dados: d, local: local};
+  }
+  // O pedido para a IA: resumo versão 1 do mês (o servidor confere as categorias com o banco) + o fechamento.
+  function resumoMesPedido(f){
+    var r = copilotoResumo(f.mes + "-15");
+    var usar = function(c){ if(c && !(c in r.categorias)) r.categorias[c] = 0; };
+    ["maiores_categorias", "subiram", "desceram"].forEach(function(k){ (f.dados[k] || []).forEach(function(x){ usar(x.categoria); }); });
+    if(f.dados.orcamentos) f.dados.orcamentos.estourados.forEach(function(x){ usar(x.categoria); });
+    if(f.dados.maior_gasto) usar(f.dados.maior_gasto.categoria);
+    r.fechamento = f.dados;
+    return {recurso: "resumo_mensal", resumo: r};
+  }
+  function rmesMesNome(ym){ return MESES_LEM[+ym.slice(5, 7) - 1] + (ym.slice(0, 4) !== todayISO().slice(0, 4) ? " de " + ym.slice(0, 4) : ""); }
+  function rmesSig(f){ return f.mes + "|" + JSON.stringify(f.dados); }
+  function renderResumoMes(){
+    var card = document.getElementById("resumoMesCard"), box = document.getElementById("resumoMesCorpo");
+    if(!card || !box) return;
+    var ym = rmesMesAlvo(), f = ym ? resumoMesDados(ym) : null;
+    var fechado = ym && LEM.rows && LEM.rows[lemId("resumo_mes", ym)] && LEM.rows[lemId("resumo_mes", ym)].estado === "excluido" && monthKey(refISO()) >= monthKey(todayISO());
+    card.hidden = !f || !!fechado;
+    if(card.hidden) return;
+    var d = f.dados, li = function(a, b, cls){ return "<li" + (cls ? ' class="' + cls + '"' : "") + "><span>" + a + "</span><b>" + b + "</b></li>"; };
+    var comMedia = function(x){ return x.media_3_meses === null ? "" : " <small>média " + fmt(x.media_3_meses) + "</small>"; };
+    document.getElementById("resumoMesT").textContent = "Fechamento de " + rmesMesNome(ym);
+    var h = '<div class="chat-num"><ul>' + li("Entrou", fmt(d.receitas)) + li("Saiu", fmt(d.despesas)) +
+      li("Resultado" + (d.mes_anterior ? " <small>mês anterior " + fmt(d.mes_anterior.resultado) + "</small>" : ""), fmt(d.resultado), d.resultado < 0 ? "rmes-neg" : "") + "</ul>";
+    if(d.maiores_categorias.length) h += '<div class="chat-num-t">Para onde foi o dinheiro</div><ul>' + d.maiores_categorias.map(function(x){ return li(flxEsc(x.categoria) + comMedia(x), fmt(x.valor)); }).join("") + "</ul>";
+    if(d.subiram) h += '<div class="chat-num-t">Acima da média</div><ul>' + d.subiram.map(function(x){ return li(flxEsc(x.categoria) + comMedia(x), "+" + fmt(x.a_mais)); }).join("") + "</ul>";
+    if(d.desceram) h += '<div class="chat-num-t">Abaixo da média</div><ul>' + d.desceram.map(function(x){ return li(flxEsc(x.categoria) + comMedia(x), "−" + fmt(x.a_menos)); }).join("") + "</ul>";
+    if(d.orcamentos) h += '<div class="chat-num-t">Orçamentos</div><ul>' + li("Dentro do limite", String(d.orcamentos.dentro)) +
+      d.orcamentos.estourados.map(function(x){ return li(flxEsc(x.categoria) + " <small>limite " + fmt(x.limite) + " · gasto " + fmt(x.gasto) + "</small>", "passou " + fmt(x.passou), "rmes-neg"); }).join("") + "</ul>";
+    if(d.maior_gasto) h += '<div class="chat-num-t">Maior gasto</div><ul>' + li(flxEsc(f.local.maior_gasto) + " <small>" + flxEsc(flxDia(d.maior_gasto.data)) + " · " + flxEsc(d.maior_gasto.categoria) + "</small>", fmt(d.maior_gasto.valor)) + "</ul>";
+    if(d.parcelas){
+      h += '<div class="chat-num-t">Parcelas</div><ul>' + li("Parcelas no mês", fmt(d.parcelas.no_mes));
+      if(d.parcelas.compras_que_terminaram) h += li("Compras que terminaram <small>" + flxEsc(f.local.acabaram.map(function(g){ return g.texto; }).join(", ")) + "</small>", "−" + fmt(d.parcelas.deixa_de_sair) + "/mês");
+      h += "</ul>";
+    }
+    h += '<div class="chat-num-t">Já comprometido em ' + flxEsc(rmesMesNome(d.proximo_mes.mes)) + '</div><ul>' + li("Parcelas", fmt(d.proximo_mes.parcelas)) + li("Contas previstas", fmt(d.proximo_mes.contas_previstas)) + li("Total", fmt(d.proximo_mes.ja_comprometido)) + "</ul>";
+    if(d.conferido && !d.conferido.tudo_conferido) h += '<p class="rmes-aviso">' + d.conferido.contas_com_diferenca + (d.conferido.contas_com_diferenca === 1 ? " conta tem" : " contas têm") + " diferença na conciliação com o extrato. Os números podem mudar quando ela for resolvida.</p>";
+    h += "</div>";
+    var sig = rmesSig(f), r = RMES.resp[sig];
+    // A carta é uma por mês, só do mês que acabou: a de novembro sai a partir de 1º de dezembro.
+    var cartaDoMes = ym === shiftMonthKey(monthKey(todayISO()), -1);
+    if(chatDisponivel() && !cartaDoMes) h += '<p class="rmes-aviso">A carta do copiloto sai uma vez por mês, só para o mês que acabou.</p>';
+    if(chatDisponivel() && cartaDoMes){
+      if(r && !r.carregando) h += '<div class="ia-caixa' + (r.erro ? " ia-erro" : "") + '" role="status">' +
+        (window.__v5hide ? "<p>Os valores estão ocultos. Mostre os valores para ler o resumo.</p>" : String(r.texto || "").split(/\n\s*\n/).map(function(p){ return "<p>" + escapeAttr(p.trim()).replace(/\n/g, "<br>") + "</p>"; }).join("")) +
+        '<div class="ia-rodape"><span>' + (r.erro ? "Os números acima continuam valendo." : "Texto escrito por IA a partir dos números do fechamento. Os números são do app.") + "</span></div></div>";
+      if(!r || r.carregando || r.erro) h += '<div class="ia-barra"><button type="button" class="ia-btn" data-rmes="escrever"' + (r && r.carregando ? " disabled" : "") + '>' +
+        '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/></svg>' +
+        (r && r.carregando ? "Escrevendo…" : "Escrever resumo do mês") + "</button></div>";
+    }
+    if(monthKey(refISO()) >= monthKey(todayISO())) h += '<div class="rmes-acoes"><button type="button" class="resumo-link" data-rmes="fechar">Fechar até o próximo mês</button></div>';
+    box.innerHTML = h;
+  }
+  function resumoMesEscrever(){
+    var ym = rmesMesAlvo(), f = ym ? resumoMesDados(ym) : null;
+    if(!f || !chatDisponivel() || ym !== shiftMonthKey(monthKey(todayISO()), -1)) return;
+    var sig = rmesSig(f);
+    if(RMES.resp[sig] && RMES.resp[sig].carregando) return;
+    RMES.resp[sig] = {carregando: true}; renderResumoMes();
+    chatInvocar(resumoMesPedido(f)).then(function(j){
+      j = j || {};
+      RMES.resp[sig] = {texto: j.ok ? j.texto : (j.mensagem || "O copiloto não respondeu agora. Tente de novo em instantes."), erro: !j.ok};
+      renderResumoMes();
+    });
+  }
+  document.addEventListener("click", function(e){
+    var b = e.target && e.target.closest ? e.target.closest("[data-rmes]") : null;
+    if(!b) return;
+    if(b.dataset.rmes === "escrever"){ resumoMesEscrever(); return; }
+    var ym = rmesMesAlvo();
+    if(ym) lemGravar({tipo: "resumo_mes", chave: ym, destino: "inicio"}, {estado: "excluido"});
+    renderResumoMes();
+  });
 
   // ---------- Copiloto: chat nível 1 (passo 7) ----------
   // O sistema calcula, a IA escolhe e explica. Duas etapas por pergunta:
@@ -10696,7 +10949,9 @@ var CAIXA = (function(){
       lancamentos: function(){ return state.transactions.slice(); },
       // chat do copiloto sem nuvem: o teste troca a Edge Function por uma função (copiloto: corpo do pedido → resposta)
       copilotoFalso: null,
-      ligarChat: function(fn){ window.__genesisTeste.copilotoFalso = fn; renderChat(); },
+      ligarChat: function(fn){ window.__genesisTeste.copilotoFalso = fn; renderChat(); renderResumoMes(); },
+      resumoMesDados: function(ym){ return resumoMesDados(ym); },
+      resumoMesPedido: function(ym){ var f = resumoMesDados(ym); return f ? resumoMesPedido(f) : null; },
       chatCalcular: function(c){ return chatCalcular(c); },
       chatResumoBase: function(){ return chatResumoBase(); },
       definirLancamentos: function(lista){ state.transactions = lista.map(function(t, i){ return Object.assign({id: "t" + i}, t); }); renderAll(); },
