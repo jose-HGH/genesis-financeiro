@@ -13,7 +13,8 @@
 //      No simulador, a resposta é o JSON do formulário: confere o esquema e os
 //      campos (validarCenario) em vez dos números. No chat, a 1ª etapa devolve
 //      as consultas que o app calcula (validarConsulta) e a 2ª ("chat_resposta")
-//      explica os resultados, com a mesma verificação de números. No resumo do
+//      explica os resultados, com a mesma verificação de números. No ajuste
+//      (nível 2), a resposta é a ação escolhida (validarAjuste). No resumo do
 //      mês, a carta usa só os números do fechamento (validarResumoMensal).
 //   9. acerta a cota com o custo real, guarda a resposta e registra sem dados pessoais
 //
@@ -27,8 +28,8 @@ import { createClient } from "npm:@supabase/supabase-js@2.117.0";
 import postgres from "npm:postgres@3.4.5";
 import { MENSAGENS, RECURSOS, SISTEMA_FIXO } from "./recursos.ts";
 import {
-  custoMaximoUsd, custoUsd, divergencias, ESQUEMA_CENARIO, ESQUEMA_CONSULTA, estimarTokens, impressaoDigital,
-  type ResumoBase, type Uso, validarCardExplicar, validarCenario, validarConsulta, validarResumo, validarResumoChat,
+  custoMaximoUsd, custoUsd, divergencias, ESQUEMA_AJUSTE, ESQUEMA_CENARIO, ESQUEMA_CONSULTA, estimarTokens, impressaoDigital,
+  type ResumoBase, type Uso, validarAjuste, validarCardExplicar, validarCenario, validarConsulta, validarResumo, validarResumoChat,
   validarResumoChatResposta, validarResumoMensal, validarResumoSimulador, valoresInventados,
 } from "./regras.ts";
 
@@ -122,10 +123,13 @@ Deno.serve(async (req) => {
   // Chat: na 1ª etapa só categorias, hoje e os meses com dados; na 2ª, os resultados das consultas.
   const modoConsulta = recurso.saida === "consulta";
   if (modoConsulta && validarResumoChat(resumo) !== null) return recusar(origem, 400, "resumo_invalido");
+  // Ajuste (nível 2): mesmo resumo da 1ª etapa do chat; a resposta é a ação escolhida (validarAjuste).
+  const modoAjuste = recurso.saida === "ajuste";
+  if (modoAjuste && validarResumoChat(resumo) !== null) return recusar(origem, 400, "resumo_invalido");
   if (nomeRecurso === "chat_resposta" && validarResumoChatResposta(resumo) !== null) return recusar(origem, 400, "resumo_invalido");
   // Resumo do mês: só um mês que já acabou (no fuso do app) e os números do fechamento.
   if (nomeRecurso === "resumo_mensal" && validarResumoMensal(resumo, mesDeHoje()) !== null) return recusar(origem, 400, "resumo_invalido");
-  const modoJson = modoCenario || modoConsulta;
+  const modoJson = modoCenario || modoConsulta || modoAjuste;
   const instrucao = recurso.instrucao +
     (recurso.instrucaoPorCard ? "\n\n" + (recurso.instrucaoPorCard[String(resumo.card)] ?? "") : "");
   const pergunta = recurso.aceitaPergunta && typeof corpo.pergunta === "string"
@@ -161,6 +165,7 @@ Deno.serve(async (req) => {
               values (${userId}::uuid, ${nomeRecurso}, ${recurso.modelo}, ${recurso.versaoPrompt}, 'cache', now())`;
     if (modoCenario) return responder(origem, 200, { ok: true, cenario: JSON.parse(guardada.texto), guardada: true });
     if (modoConsulta) return responder(origem, 200, { ok: true, consulta: JSON.parse(guardada.texto), guardada: true });
+    if (modoAjuste) return responder(origem, 200, { ok: true, ajuste: JSON.parse(guardada.texto), guardada: true });
     return responder(origem, 200, { ok: true, texto: guardada.texto, guardada: true });
   }
 
@@ -193,6 +198,7 @@ Deno.serve(async (req) => {
           effort: recurso.esforco,
           ...(modoCenario ? { format: { type: "json_schema" as const, schema: ESQUEMA_CENARIO } } : {}),
           ...(modoConsulta ? { format: { type: "json_schema" as const, schema: ESQUEMA_CONSULTA } } : {}),
+          ...(modoAjuste ? { format: { type: "json_schema" as const, schema: ESQUEMA_AJUSTE } } : {}),
         },
         ...(recurso.semPensamento ? { thinking: { type: "disabled" as const } } : {}),
         // Ordem fixa para o cache: instruções iguais para todos → resumo da pessoa → pedido.
@@ -238,6 +244,14 @@ Deno.serve(async (req) => {
         else { status = "ok"; motivo = "consulta_invalida"; erroCenario = conf.erro; }
         continue;
       }
+      if (modoAjuste) {
+        let bruto: unknown = null;
+        try { bruto = JSON.parse(candidato); } catch { /* conferido abaixo */ }
+        const conf = validarAjuste(bruto, resumo.categorias, String(resumo.hoje));
+        if ("ajuste" in conf) { texto = JSON.stringify(conf.ajuste); status = "ok"; motivo = null; }
+        else { status = "ok"; motivo = "ajuste_invalido"; erroCenario = conf.erro; }
+        continue;
+      }
       if (modoCenario) {
         let bruto: unknown = null;
         try { bruto = JSON.parse(candidato); } catch { /* conferido abaixo */ }
@@ -270,10 +284,12 @@ Deno.serve(async (req) => {
               on conflict (impressao) do nothing`;
     if (modoCenario) return responder(origem, 200, { ok: true, cenario: JSON.parse(texto), guardada: false });
     if (modoConsulta) return responder(origem, 200, { ok: true, consulta: JSON.parse(texto), guardada: false });
+    if (modoAjuste) return responder(origem, 200, { ok: true, ajuste: JSON.parse(texto), guardada: false });
     return responder(origem, 200, { ok: true, texto, guardada: false });
   }
   if (motivo === "cenario_invalido") return recusar(origem, 200, "cenario_invalido");
   if (motivo === "consulta_invalida") return recusar(origem, 200, "consulta_invalida");
+  if (motivo === "ajuste_invalido") return recusar(origem, 200, "ajuste_invalido");
   if (status === "recusado") return recusar(origem, 200, "recusado");
   if (motivo === "numeros_reprovados") return recusar(origem, 200, "numeros_reprovados");
   return recusar(origem, 502, "erro");

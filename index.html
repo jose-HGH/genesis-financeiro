@@ -481,6 +481,7 @@
   .chat-dicas{display:flex; flex-wrap:wrap; gap:8px; margin-bottom:10px;} .chat-dicas .btn{height:auto; padding:6px 12px; font-size:12.5px; border-radius:999px; text-align:left;}
   .chat-numeros{margin:4px 0 8px;} .chat-numeros > summary{cursor:pointer; font-size:12.5px; color:var(--ink-2);}
   .rmes-neg b{color:var(--critical-text);} .rmes-aviso{font-size:12.5px; color:var(--ink-2); margin:8px 0 0;} .rmes-acoes{display:flex; justify-content:flex-end; margin-top:6px;}
+  .chat-aj-nota{font-size:12.5px; color:var(--ink-2); margin:6px 0 0;} .chat-aj-acoes{display:flex; gap:8px; align-items:center; margin-top:10px; flex-wrap:wrap;} .chat-aj-ok{font-size:13px; font-weight:600;}
   .chat-num{margin-top:8px; font-size:13px;} .chat-num-t{font-weight:600; font-size:12.5px; margin-bottom:2px;}
   .chat-num ul, .chat-itens{list-style:none; margin:4px 0; padding:0;}
   .chat-num li{display:flex; justify-content:space-between; gap:12px; padding:3px 0; border-bottom:1px solid var(--line); font-variant-numeric:tabular-nums;}
@@ -3917,8 +3918,13 @@ var FLX = (function(){
       var p = pares[i], resp = ajResposta(p.categoria), st = LEM.rows[lemId("ajuste", p.chave)];
       if(resp === "ok") continue;
       if(st && st.estado === "adiado" && st.adiado_ate && st.adiado_ate > hoje) continue;
-      var r = computeTotals(p.mes + "-15"), antes = Math.round((r.recTotal - r.despTotal) * 100) / 100;
       p.anterior = resp;
+      return ajOpcoes(p);
+    }
+    return null;
+  }
+  function ajOpcoes(p){
+      var r = computeTotals(p.mes + "-15"), antes = Math.round((r.recTotal - r.despTotal) * 100) / 100;
       p.opcoes = [
         {id: "recebo", rotulo: "Eu recebo esse valor", efeito: "apaga a saída", depois: antes + p.valor, serie: ajSerie(p.desp)},
         {id: "pago", rotulo: "Eu pago esse valor", efeito: "apaga a entrada", depois: antes - p.valor, serie: ajSerie(p.rec)},
@@ -3927,8 +3933,6 @@ var FLX = (function(){
       ];
       p.antes = antes;
       return p;
-    }
-    return null;
   }
   function renderAjustes(hoje){
     var bar = document.getElementById("lemBarra"); if(!bar) return;
@@ -8165,6 +8169,7 @@ var FLX = (function(){
   ];
 
   function guessCategoria(desc){
+    var porRegra = catPorRegra(desc); if(porRegra) return porRegra;
     for(var i=0;i<CATEGORY_RULES.length;i++){ if(CATEGORY_RULES[i][0].test(desc)) return CATEGORY_RULES[i][1]; }
     return "A categorizar";
   }
@@ -10860,9 +10865,10 @@ var CAIXA = (function(){
       : (window.__v5hide && (t.res || t.sim) ? "<p>Os valores estão ocultos. Mostre os valores para ler a resposta.</p>"
         : String(t.texto || "").split(/\n\s*\n/).map(function(p){ return "<p>" + escapeAttr(p.trim()).replace(/\n/g, "<br>") + "</p>"; }).join(""));
     var temNums = !t.carregando && !window.__v5hide && ((t.res && t.res.length) || t.sim);
+    var ajHtml = !t.carregando && t.aj ? (window.__v5hide ? "<p>Os valores estão ocultos. Mostre os valores para conferir a mudança.</p>" : chatAjHtml(t, CHATD.turnos.indexOf(t))) : "";
     var nums = temNums ? '<details class="chat-numeros"' + (t.erro || t.sim ? " open" : "") + '><summary>Números do app</summary>' + (t.sim ? chatSimNumerosHtml(t.sim) : chatNumerosHtml(t.res)) + "</details>" : "";
-    return '<div class="chat-turno"><div class="chat-eu">' + escapeAttr(t.pergunta) + '</div><div class="ia-caixa' + (t.erro ? " ia-erro" : "") + '">' + corpo + nums +
-      (t.carregando ? "" : '<div class="ia-rodape"><span>' + ((t.res && t.res.length) || t.sim ? (t.erro ? "Os números acima são do app." : "Texto escrito por IA a partir dos números do app.") : "") + "</span></div>") + "</div></div>";
+    return '<div class="chat-turno"><div class="chat-eu">' + escapeAttr(t.pergunta) + '</div><div class="ia-caixa' + (t.erro ? " ia-erro" : "") + '">' + corpo + nums + ajHtml +
+      (t.carregando ? "" : '<div class="ia-rodape"><span>' + (t.aj ? "A IA só escolheu a mudança; a lista e os números são do app. Nada muda sem \"Aplicar\"." : (t.res && t.res.length) || t.sim ? (t.erro ? "Os números acima são do app." : "Texto escrito por IA a partir dos números do app.") : "") + "</span></div>") + "</div></div>";
   }
   function renderChat(){
     var card = document.getElementById("chatCard"), box = document.getElementById("chatCorpo");
@@ -10877,7 +10883,7 @@ var CAIXA = (function(){
       (simVozDisponivel() ? '<button type="button" class="btn btn-ghost sim-mic" id="chatMic" aria-label="Falar a pergunta" aria-pressed="false"' + (CHATD.carregando ? " disabled" : "") + '><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button>' : "") +
       '<button type="button" class="btn btn-primary" id="chatEnviar"' + (CHATD.carregando ? " disabled" : "") + ">Perguntar</button></div>" +
       '<div class="sim-msg" id="chatMsg" role="status">' + escapeAttr(CHATD.msg || "") + "</div>" +
-      (CHATD.turnos.length ? '<div class="chat-pe"><span>O copiloto só lê os seus números. Ele não muda nada.</span><button type="button" class="resumo-link" id="chatLimpar">Limpar conversa</button></div>' : "");
+      (CHATD.turnos.length ? '<div class="chat-pe"><span>O copiloto só muda um lançamento quando você aperta "Aplicar".</span><button type="button" class="resumo-link" id="chatLimpar">Limpar conversa</button></div>' : "");
     box.innerHTML = h;
     var inp = document.getElementById("chatPergunta"); if(inp){ inp.value = CHATD.carregando ? "" : valor; if(foco && !CHATD.carregando) inp.focus(); }
     var lista = document.getElementById("chatLista"); if(lista) lista.scrollTop = lista.scrollHeight;
@@ -10895,8 +10901,9 @@ var CAIXA = (function(){
       j = j || {};
       if(!j.ok) return fim({texto: j.mensagem || "O copiloto não respondeu agora. Tente de novo em instantes.", erro: true});
       var q = j.consulta || {};
-      if(q.tipo === "fora_do_assunto") return fim({texto: "Eu respondo só sobre os seus números aqui no app: gastos, receitas, resultado do mês, maiores gastos, parcelas, faturas e a previsão do mês. Não dou recomendação de investimento nem mexo em lançamentos.", erro: true});
+      if(q.tipo === "fora_do_assunto") return fim({texto: "Eu respondo só sobre os seus números aqui no app: gastos, receitas, resultado do mês, maiores gastos, parcelas, faturas e a previsão do mês. Também ajudo a corrigir lançamentos (você confirma antes). Não dou recomendação de investimento nem pago ou movo dinheiro.", erro: true});
       if(q.tipo === "simular") return chatSimular(pergunta, fim);
+      if(q.tipo === "ajustar") return chatAjustar(pergunta, fim);
       if(q.tipo !== "consultar" || !Array.isArray(q.consultas) || !q.consultas.length) return fim({texto: "Não entendi a pergunta. Tente de outro jeito, por exemplo: \"quanto gastei com mercado em outubro?\".", erro: true});
       var res;
       try{ res = q.consultas.slice(0, 3).filter(function(c){ return CHAT_FERR[c.ferramenta]; }).map(chatCalcular); }
@@ -10934,6 +10941,156 @@ var CAIXA = (function(){
       });
     });
   }
+  // ---------- Nível 2: propor ajustes e aplicar só com confirmação ----------
+  // A IA (recurso "ajuste") só escolhe UMA ação de uma lista fechada e os filtros (categoria, termos, valor, período).
+  // O app acha os lançamentos aqui no navegador, mostra cada um com o antes e o depois e o efeito no resultado do mês,
+  // e só muda quando a pessoa aperta "Aplicar". Depois de aplicar, "Desfazer" volta tudo.
+  var AJ_REGRAS = "__catRegras__"; // "tudo que for uber vai para Transporte": guardado junto das contrapartes (vai para a nuvem)
+  function catRegras(){ var o = state.contrapartes && state.contrapartes[AJ_REGRAS]; return (o && typeof o === "object") ? o : {}; }
+  function catPorRegra(desc){
+    var r = catRegras(), d = " " + simNorm(desc || "") + " ", achou = null;
+    Object.keys(r).forEach(function(t){ if(!achou && t && d.indexOf(" " + t) !== -1) achou = r[t]; });
+    return achou;
+  }
+  function ajContrib(t){
+    if(!t || t.deletedAt || isNeutro(t) || isPrevista(t)) return 0;
+    return t.tipo === "receita" ? Number(t.valor) || 0 : -despVal(t);
+  }
+  function ajNoPeriodo(t, a){
+    if(!/^\d{4}-\d{2}/.test(t.dataEfet || "")) return false;
+    var m = monthKey(t.dataEfet), hoje = monthKey(todayISO());
+    var de = a.de || (a.ate ? a.ate : shiftMonthKey(hoje, -3)), ate = a.ate || (a.de ? a.de : shiftMonthKey(hoje, 12));
+    return m >= de && m <= ate;
+  }
+  function ajBusca(a, filtro){
+    var termos = (a.termos || []).map(simNorm).filter(Boolean);
+    return state.transactions.filter(function(t){
+      if(t.deletedAt || !ajNoPeriodo(t, a)) return false;
+      if(a.valor !== null && a.valor !== undefined && Math.abs(Number(t.valor) - a.valor) > 0.005) return false;
+      if((a.categoria || termos.length) && !chatBate(t, {categoria: a.categoria}, termos)) return false;
+      return !filtro || filtro(t);
+    }).sort(function(x, y){ return x.dataEfet < y.dataEfet ? -1 : x.dataEfet > y.dataEfet ? 1 : 0; });
+  }
+  // Monta a proposta: mudanças por lançamento ({t, patch} ou {t, apagar}), o efeito por mês e o texto.
+  function ajPropor(a){
+    var mud = [], titulo = "", regra = null, rotTipo = {receita: "entrada", despesa: "saída", transferencia_interna: "transferência entre contas", estorno: "estorno"};
+    if(a.acao === "entrada_saida"){
+      var p = ajPares(todayISO()).filter(function(x){ return ajNorm(x.categoria) === ajNorm(a.categoria); })[0];
+      if(!p) return {vazio: "Não achei " + a.categoria + " como entrada e como saída de mesmo valor no mesmo mês."};
+      ajOpcoes(p);
+      var o = p.opcoes.filter(function(x){ return x.id === a.resposta; })[0];
+      if(!o) return {vazio: "Diga se você recebe, paga ou se é só dinheiro passando entre suas contas."};
+      if(o.id === "recebo"){ mud.push({t: p.desp, apagar: true}); o.serie.forEach(function(t){ mud.push({t: t, patch: {tipo: "receita"}}); }); }
+      else if(o.id === "pago"){ mud.push({t: p.rec, apagar: true}); o.serie.forEach(function(t){ mud.push({t: t, patch: {tipo: "despesa"}}); }); }
+      else [p.rec, p.desp].forEach(function(t){ mud.push({t: t, patch: {tipo: "transferencia_interna", categoria: "Transferência interna"}}); });
+      titulo = o.rotulo + ": " + o.efeito + (o.serie.length ? " e " + (o.serie.length === 1 ? "o próximo da série muda" : "os próximos " + o.serie.length + " da série mudam") + " junto" : "") + ".";
+      regra = {par: p, opcao: o};
+    } else if(a.acao === "marcar_transferencia"){
+      ajBusca(a, function(t){ return t.tipo === "receita" || t.tipo === "despesa"; }).forEach(function(t){ mud.push({t: t, patch: {tipo: "transferencia_interna", categoria: "Transferência interna"}}); });
+      titulo = "Marcar como transferência entre suas contas (sai das receitas e despesas).";
+    } else if(a.acao === "mudar_categoria"){
+      ajBusca(a, function(t){ return !isNeutro(t) && (t.categoria || "") !== a.nova_categoria; }).forEach(function(t){ mud.push({t: t, patch: {categoria: a.nova_categoria}}); });
+      titulo = "Mudar a categoria para " + a.nova_categoria + ".";
+      if(a.criar_regra && (a.termos || []).length) regra = {termos: a.termos.map(simNorm).filter(Boolean), categoria: a.nova_categoria};
+    } else if(a.acao === "apagar_repetido"){
+      var achados = ajBusca(a, function(t){ return !isNeutro(t); }), vistos = [];
+      achados.forEach(function(t){
+        var igual = vistos.filter(function(v){ return v.tipo === t.tipo && Math.abs(v.valor - t.valor) < 0.005 && Math.abs(daysDiff(v.dataEfet, t.dataEfet)) <= 3 && descSimilarity(v.descricao || "", t.descricao || "") >= 0.6; })[0];
+        if(igual){
+          // fica o que veio do banco (extrato ou fatura); apaga o outro
+          var fica = (t.documento || t.importId) && !(igual.documento || igual.importId) ? t : igual, sai = fica === t ? igual : t;
+          if(fica === t) vistos[vistos.indexOf(igual)] = t;
+          mud.push({t: sai, apagar: true, fica: fica});
+        } else vistos.push(t);
+      });
+      titulo = "Apagar o repetido (fica um de cada).";
+    } else if(a.acao === "mudar_valor_serie"){
+      var cand = ajBusca({termos: a.termos, categoria: a.categoria, valor: null, de: shiftMonthKey(monthKey(todayISO()), -12), ate: shiftMonthKey(monthKey(todayISO()), 24)}, function(t){ return !isNeutro(t); });
+      var porSerie = {};
+      cand.forEach(function(t){ if(t.seriesId) (porSerie[t.seriesId] = porSerie[t.seriesId] || []).push(t); });
+      var serie = Object.keys(porSerie).sort(function(x, y){ return porSerie[y].length - porSerie[x].length; })[0];
+      var alvo = serie ? state.transactions.filter(function(t){ return !t.deletedAt && t.seriesId === serie; }) : cand;
+      alvo.filter(function(t){ return monthKey(t.dataEfet) >= a.a_partir_de && Math.abs(Number(t.valor) - a.novo_valor) > 0.005; })
+        .forEach(function(t){ mud.push({t: t, patch: {valor: a.novo_valor}}); });
+      titulo = "Mudar o valor para " + fmt(a.novo_valor) + " a partir de " + MESES_LEM[+a.a_partir_de.slice(5, 7) - 1] + (serie ? " (lançamentos da série)" : "") + ".";
+    }
+    if(!mud.length && !(regra && regra.termos)) return {vazio: "Não achei lançamentos com esse filtro" + (a.acao === "apagar_repetido" ? " que estejam repetidos" : "") + ". Tente dizer o valor, a data ou o nome como aparece no extrato."};
+    // efeito por mês no resultado (receitas − despesas)
+    var meses = {};
+    mud.forEach(function(m){
+      var depois = m.apagar ? 0 : ajContrib(Object.assign({}, m.t, m.patch));
+      var d = depois - ajContrib(m.t), mk = monthKey(m.t.dataEfet);
+      meses[mk] = (meses[mk] || 0) + d;
+    });
+    var efeitos = Object.keys(meses).sort().filter(function(mk){ return Math.abs(meses[mk]) >= 0.005; }).map(function(mk){
+      var r = computeTotals(mk + "-15"), antes = Math.round((r.recTotal - r.despTotal) * 100) / 100;
+      return {mes: mk, antes: antes, depois: Math.round((antes + meses[mk]) * 100) / 100};
+    });
+    mud.forEach(function(m){ m.desc = m.t.descricao || "(sem descrição)"; m.data = m.t.dataEfet; m.valor = Number(m.t.valor) || 0;
+      m.texto = m.apagar ? "vai para Apagados recentemente" + (m.fica ? " (fica o de " + flxDia(m.fica.dataEfet) + ")" : "")
+        : m.patch.tipo ? (rotTipo[m.t.tipo] || m.t.tipo) + " → " + rotTipo[m.patch.tipo] : m.patch.categoria ? (m.t.categoria || "Sem categoria") + " → " + m.patch.categoria : fmt(m.valor) + " → " + fmt(m.patch.valor); });
+    return {acao: a.acao, titulo: titulo, mud: mud, efeitos: efeitos, regra: regra};
+  }
+  function ajAplicarProposta(pr){
+    var desfazer = [];
+    pr.mud.forEach(function(m){
+      var atual = state.transactions.find(function(t){ return t.id === m.t.id && !t.deletedAt; });
+      if(!atual) return;
+      if(m.apagar){ Store.remove(atual.id); desfazer.push({restaurar: atual.id}); }
+      else { var antes = {}; Object.keys(m.patch).forEach(function(k){ antes[k] = atual[k]; }); Store.update(atual.id, m.patch); desfazer.push({id: atual.id, patch: antes}); }
+    });
+    if(pr.regra && pr.regra.termos){
+      var r = Object.assign({}, catRegras()), velhas = {};
+      pr.regra.termos.forEach(function(t){ velhas[t] = r[t]; r[t] = pr.regra.categoria; });
+      state.contrapartes[AJ_REGRAS] = r; saveContrapartes();
+      desfazer.push({regras: velhas});
+    }
+    if(pr.regra && pr.regra.par) lemGravar({tipo: "ajuste", chave: "es|" + ajNorm(pr.regra.par.categoria) + "|" + pr.regra.opcao.id, destino: null}, {estado: "excluido", adiado_ate: null});
+    pr.aplicado = true; pr.desfazer = desfazer;
+  }
+  function ajDesfazer(pr){
+    (pr.desfazer || []).slice().reverse().forEach(function(d){
+      if(d.restaurar) Store.restore(d.restaurar);
+      else if(d.regras){ var r = Object.assign({}, catRegras()); Object.keys(d.regras).forEach(function(t){ if(d.regras[t] === undefined) delete r[t]; else r[t] = d.regras[t]; }); state.contrapartes[AJ_REGRAS] = r; saveContrapartes(); }
+      else Store.update(d.id, d.patch);
+    });
+    pr.aplicado = false; pr.desfeito = true; pr.desfazer = null;
+  }
+  function chatAjustar(pergunta, fim){
+    return chatInvocar({recurso: "ajuste", resumo: chatResumoBase(), pergunta: pergunta}).then(function(j){
+      j = j || {};
+      if(!j.ok) return fim({texto: j.mensagem || "O copiloto não respondeu agora. Tente de novo em instantes.", erro: true});
+      var a = j.ajuste || {};
+      if(a.acao === "nao_entendi" || !a.acao) return fim({texto: "Não entendi qual mudança fazer. Diga o lançamento (valor, data ou nome como aparece no extrato) e o que mudar. Por exemplo: \"o Pix de R$ 810 de 09/11 é transferência para minha conta\".", erro: true});
+      var pr;
+      try{ pr = ajPropor(a); }catch(e){ if(window.console) console.error(e); return fim({texto: "Não consegui montar essa mudança agora.", erro: true}); }
+      if(pr.vazio) return fim({texto: pr.vazio, erro: true});
+      fim({texto: pr.titulo + " Confira abaixo: nada muda até você apertar \"Aplicar\".", aj: pr});
+    });
+  }
+  function chatAjHtml(t, i){
+    var pr = t.aj, MAX = 8, linha = function(a, b){ return "<li><span>" + a + "</span><b>" + b + "</b></li>"; };
+    var h = '<div class="chat-num"><div class="chat-num-t">' + (pr.mud.length === 1 ? "1 lançamento" : pr.mud.length + " lançamentos") + "</div><ul>" +
+      pr.mud.slice(0, MAX).map(function(m){ return linha(flxEsc(m.desc) + " <small>" + flxEsc(flxDia(m.data)) + " · " + flxEsc(m.texto) + "</small>", fmt(m.valor)); }).join("") +
+      (pr.mud.length > MAX ? linha("e mais " + (pr.mud.length - MAX), "") : "") + "</ul>";
+    if(pr.efeitos.length) h += '<div class="chat-num-t">Resultado do mês (entradas − saídas)</div><ul>' + pr.efeitos.slice(0, 4).map(function(e){ return linha(flxEsc(chatMesRot(e.mes)), fmt(e.antes) + " → " + fmt(e.depois)); }).join("") + (pr.efeitos.length > 4 ? linha("e mais " + (pr.efeitos.length - 4) + " meses", "") : "") + "</ul>";
+    else h += '<p class="chat-aj-nota">O resultado dos meses não muda.</p>';
+    if(pr.regra && pr.regra.termos) h += '<p class="chat-aj-nota">E daqui para frente, o que tiver "' + flxEsc(pr.regra.termos.join('", "')) + '" na descrição já entra em ' + flxEsc(pr.regra.categoria) + ".</p>";
+    h += '<div class="chat-aj-acoes">' + (pr.aplicado ? '<span class="chat-aj-ok">Aplicado.</span><button type="button" class="btn btn-ghost" data-chat-aj="desfazer" data-i="' + i + '">Desfazer</button>'
+      : pr.desfeito ? '<span class="chat-aj-ok">Desfeito. Nada mudou.</span>'
+      : pr.cancelado ? '<span class="chat-aj-ok">Cancelado. Nada mudou.</span>'
+      : '<button type="button" class="btn btn-primary" data-chat-aj="aplicar" data-i="' + i + '">Aplicar</button><button type="button" class="btn btn-ghost" data-chat-aj="cancelar" data-i="' + i + '">Cancelar</button>') + "</div>";
+    return h + "</div>";
+  }
+  document.addEventListener("click", function(ev){
+    var b = ev.target && ev.target.closest ? ev.target.closest("[data-chat-aj]") : null; if(!b) return;
+    var t = CHATD.turnos[+b.dataset.i]; if(!t || !t.aj) return;
+    var a = b.dataset.chatAj;
+    if(a === "aplicar" && !t.aj.aplicado){ ajAplicarProposta(t.aj); toast("Mudança aplicada."); }
+    else if(a === "cancelar") t.aj.cancelado = true;
+    else if(a === "desfazer" && t.aj.aplicado){ ajDesfazer(t.aj); toast("Mudança desfeita."); }
+    renderChat();
+  });
   function chatSimNumerosHtml(sim){
     var d = sim.dados, li = [], linha = function(a, b){ return "<li><span>" + flxEsc(a) + "</span><b>" + b + "</b></li>"; };
     var seta = function(a, b){ return fmt(a) + " → " + fmt(b); };
@@ -11072,6 +11229,8 @@ var CAIXA = (function(){
       resumoMesPedido: function(ym){ var f = resumoMesDados(ym); return f ? resumoMesPedido(f) : null; },
       chatCalcular: function(c){ return chatCalcular(c); },
       chatResumoBase: function(){ return chatResumoBase(); },
+      categoriaPara: function(desc){ return guessCategoria(desc); },
+      regrasCategoria: function(){ return JSON.parse(JSON.stringify(catRegras())); },
       definirLancamentos: function(lista){ state.transactions = lista.map(function(t, i){ return Object.assign({id: "t" + i}, t); }); renderAll(); },
       cartoes: function(){ return JSON.parse(JSON.stringify(state.cartoes)); },
       informarSaldo: function(chave, nome, valor){ informarSaldo(chave, nome, valor); },

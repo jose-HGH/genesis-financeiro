@@ -387,7 +387,8 @@ export function validarResumoChat(r: ResumoBase): string | null {
 export const FERRAMENTAS = ["gastos", "receitas", "resultado_mes", "maiores_gastos", "parcelas", "faturas", "previsao"] as const;
 export type Ferramenta = typeof FERRAMENTAS[number];
 // "simular": um "e se" com conta nova (gastar mais, comprar parcelado). O app manda a pergunta para o simulador.
-export const TIPOS_CONSULTA = ["consultar", "simular", "fora_do_assunto", "nao_entendi"] as const;
+// "ajustar": a pessoa quer corrigir lançamentos (nível 2). O app manda a pergunta para o recurso "ajuste".
+export const TIPOS_CONSULTA = ["consultar", "simular", "ajustar", "fora_do_assunto", "nao_entendi"] as const;
 const AGRUPAR = ["nenhum", "mes", "categoria"] as const;
 const MAX_CONSULTAS = 3;
 
@@ -577,4 +578,113 @@ export function validarResumoMensal(r: ResumoBase, mesHoje: string): string | nu
     return null;
   };
   return visitar(dados, 1, "");
+}
+
+// ---------------------------------------------------------------------
+// Nível 2 (sugerir e aplicar só com confirmação): a IA só escolhe uma ação
+// de uma lista fechada e os filtros para achar os lançamentos. O app acha
+// os lançamentos, mostra o antes e o depois e só muda com "Aplicar".
+// ---------------------------------------------------------------------
+
+export const ACOES_AJUSTE = [
+  "entrada_saida", "marcar_transferencia", "mudar_categoria", "apagar_repetido", "mudar_valor_serie", "nao_entendi",
+] as const;
+export type AcaoAjuste = typeof ACOES_AJUSTE[number];
+export const RESPOSTAS_ENTRADA_SAIDA = ["recebo", "pago", "transf"] as const;
+
+export interface Ajuste {
+  acao: AcaoAjuste;
+  categoria: string | null;
+  termos: string[];
+  valor: number | null;
+  de: string | null;
+  ate: string | null;
+  resposta: typeof RESPOSTAS_ENTRADA_SAIDA[number] | null;
+  nova_categoria: string | null;
+  novo_valor: number | null;
+  a_partir_de: string | null;
+  criar_regra: boolean;
+}
+
+/** Esquema da saída estruturada do recurso "ajuste". Todos os campos sempre presentes. */
+export const ESQUEMA_AJUSTE = {
+  type: "object",
+  additionalProperties: false,
+  required: ["acao", "categoria", "termos", "valor", "de", "ate", "resposta", "nova_categoria", "novo_valor", "a_partir_de", "criar_regra"],
+  properties: {
+    acao: { type: "string", enum: [...ACOES_AJUSTE] },
+    categoria: anulavel({ type: "string" }),
+    termos: { type: "array", items: { type: "string" } },
+    valor: anulavel({ type: "number" }),
+    de: anulavel({ type: "string" }),
+    ate: anulavel({ type: "string" }),
+    resposta: anulavel({ type: "string", enum: [...RESPOSTAS_ENTRADA_SAIDA] }),
+    nova_categoria: anulavel({ type: "string" }),
+    novo_valor: anulavel({ type: "number" }),
+    a_partir_de: anulavel({ type: "string" }),
+    criar_regra: { type: "boolean" },
+  },
+} as const;
+
+// Nome de categoria nova: letras (com acento), números, espaço e pouca pontuação; nada de texto longo.
+const CATEGORIA_NOVA_OK = /^[\p{L}\p{N}][\p{L}\p{N} \/&.,()-]{0,39}$/u;
+
+/**
+ * Confere e normaliza o ajuste que a IA devolveu. Categoria de busca só das
+ * que o resumo traz; termos como no chat; meses de 3 anos atrás até 1 ano à
+ * frente; cada ação com os campos que precisa.
+ */
+export function validarAjuste(
+  bruto: unknown, categorias: Record<string, number>, hoje: string,
+): { ajuste: Ajuste } | { erro: string } {
+  if (!bruto || typeof bruto !== "object" || Array.isArray(bruto)) return { erro: "não é objeto" };
+  const o = bruto as Record<string, unknown>;
+  const acao = o.acao as AcaoAjuste;
+  if (!(ACOES_AJUSTE as readonly string[]).includes(acao)) return { erro: "ação desconhecida" };
+  const vazio: Ajuste = {
+    acao: "nao_entendi", categoria: null, termos: [], valor: null, de: null, ate: null, resposta: null,
+    nova_categoria: null, novo_valor: null, a_partir_de: null, criar_regra: false,
+  };
+  if (acao === "nao_entendi") return { ajuste: vazio };
+  const mesHoje = hoje.slice(0, 7);
+  const mesOk = (v: unknown): string | null | false => {
+    if (v === null || v === undefined || v === "") return null;
+    if (typeof v !== "string" || !MES_ISO.test(v)) return false;
+    return mesesEntre(v, mesHoje) > 36 || mesesEntre(mesHoje, v) > 12 ? false : v;
+  };
+  let categoria: string | null = null;
+  if (typeof o.categoria === "string" && o.categoria.trim()) {
+    if (!Object.prototype.hasOwnProperty.call(categorias, o.categoria)) return { erro: "categoria fora da lista" };
+    categoria = o.categoria;
+  }
+  const termos = Array.isArray(o.termos)
+    ? [...new Set(o.termos.filter((t) => typeof t === "string").map((t) => normalizarTermo(t as string))
+      .filter((t) => t.length >= 2 && t.length <= 24 && TERMO_OK.test(t)))].slice(0, 6)
+    : [];
+  const de = mesOk(o.de), ate = mesOk(o.ate), aPartir = mesOk(o.a_partir_de);
+  if (de === false || ate === false || aPartir === false) return { erro: "mês inválido" };
+  if (de && ate && mesesEntre(de, ate) < 0) return { erro: "período invertido" };
+  const valor = dinheiro(o.valor), novoValor = dinheiro(o.novo_valor);
+  const aj: Ajuste = { ...vazio, acao, categoria, termos, valor, de, ate, criar_regra: o.criar_regra === true };
+
+  if (acao === "entrada_saida") {
+    if (!categoria) return { erro: "entrada_saida sem categoria" };
+    if (!(RESPOSTAS_ENTRADA_SAIDA as readonly string[]).includes(o.resposta as string)) return { erro: "resposta inválida" };
+    return { ajuste: { ...aj, resposta: o.resposta as Ajuste["resposta"], criar_regra: false } };
+  }
+  if (acao === "marcar_transferencia" || acao === "apagar_repetido") {
+    if (!termos.length && valor === null && !categoria) return { erro: "sem filtro para achar os lançamentos" };
+    return { ajuste: { ...aj, criar_regra: false } };
+  }
+  if (acao === "mudar_categoria") {
+    if (!termos.length && !categoria) return { erro: "sem filtro para achar os lançamentos" };
+    const nova = typeof o.nova_categoria === "string" ? o.nova_categoria.trim().replace(/\s+/g, " ") : "";
+    if (!CATEGORIA_NOVA_OK.test(nova)) return { erro: "nova categoria inválida" };
+    if (nova === categoria) return { erro: "nova categoria igual à atual" };
+    return { ajuste: { ...aj, nova_categoria: nova, criar_regra: aj.criar_regra && termos.length > 0 } };
+  }
+  // mudar_valor_serie
+  if (!termos.length && !categoria) return { erro: "sem filtro para achar a série" };
+  if (novoValor === null) return { erro: "novo valor inválido" };
+  return { ajuste: { ...aj, novo_valor: novoValor, a_partir_de: aPartir ?? mesHoje, criar_regra: false } };
 }
