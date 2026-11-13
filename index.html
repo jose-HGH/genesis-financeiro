@@ -1256,6 +1256,14 @@
   .fx-mov .tag{font-size:11px; padding:1px 8px; border-radius:999px; border:1px solid var(--line); color:var(--ink-2); white-space:nowrap;}
   /* ---- Lembretes ---- */
   #lemBarra{display:flex; flex-direction:column; gap:6px; margin:0 0 14px;}
+  #ajustesBox{border:1px solid var(--border-strong); border-radius:14px; background:var(--info-bg); padding:12px 14px; margin:0 0 12px; display:flex; flex-direction:column; gap:8px;}
+  #ajustesBox .aj-topo{display:flex; flex-wrap:wrap; align-items:center; gap:8px 14px; justify-content:space-between;}
+  #ajustesBox .aj-titulo{font-weight:600; font-size:14px; flex:1 1 260px;}
+  #ajustesBox .cd-acoes{display:flex; gap:14px; align-items:center;}
+  #ajustesBox .aj-sub{font-size:12.5px; color:var(--ink-2); margin:0;}
+  #ajustesBox .aj-opcoes{list-style:none; margin:0; padding:0; display:grid; gap:6px;}
+  #ajustesBox .aj-op{width:100%; display:flex; flex-direction:column; align-items:flex-start; gap:2px; text-align:left; white-space:normal; height:auto; padding:8px 12px;}
+  #ajustesBox .aj-op small{font-weight:400; font-size:12px; opacity:.85;}
   #contasDia{border:1px solid var(--warn-solid); border-radius:14px; background:var(--warn-bg); padding:12px 14px; margin:0 0 12px; display:flex; flex-direction:column; gap:8px;}
   #contasDia .cd-topo{display:flex; flex-wrap:wrap; align-items:center; gap:8px 14px; justify-content:space-between;}
   #contasDia .cd-titulo{font-weight:600; color:var(--warn-text); font-size:14px;}
@@ -3871,6 +3879,100 @@ var FLX = (function(){
     toast("Anotado: já pago.");
   });
 
+  // ---------- Perguntas sobre lançamentos estranhos (sem IA) ----------
+  // Regra fixa: no mesmo mês, uma entrada e uma saída de mesmo valor e mesma categoria (ex.: "Aluguel" de R$ 3.000,00
+  // como receita e como despesa). O app não adivinha: pergunta com opções prontas e mostra o efeito no resultado do mês.
+  // Nada muda até a pessoa escolher. A resposta fica guardada por categoria (lembretes, tipo "ajuste").
+  var AJ = {aberto: false};
+  function ajNorm(c){ return simNorm(c || "Sem categoria") || "sem categoria"; }
+  function ajResposta(cat){
+    var pre = lemId("ajuste", "es|" + ajNorm(cat) + "|"), achou = null;
+    Object.keys(LEM.rows).forEach(function(k){ if(k.indexOf(pre) === 0 && LEM.rows[k].estado === "excluido") achou = k.slice(pre.length); });
+    return achou;
+  }
+  function ajPares(hoje){
+    var txs = state.transactions.filter(function(t){ return !t.deletedAt && /^\d{4}-\d{2}-\d{2}$/.test(t.dataEfet || ""); });
+    var desp = txs.filter(function(t){ return t.tipo === "despesa"; }), usados = {}, out = [];
+    var desde = shiftMonthKey(monthKey(hoje), -6);
+    txs.filter(function(t){ return t.tipo === "receita" && monthKey(t.dataEfet) >= desde; })
+      .sort(function(a, b){ return a.dataEfet < b.dataEfet ? -1 : a.dataEfet > b.dataEfet ? 1 : 0; })
+      .forEach(function(r){
+        var cat = ajNorm(r.categoria), mes = monthKey(r.dataEfet);
+        var d = desp.find(function(x){ return !usados[x.id] && ajNorm(x.categoria) === cat && monthKey(x.dataEfet) === mes && Math.abs(Number(x.valor) - Number(r.valor)) < 0.005; });
+        if(!d || usados[r.id]) return;
+        usados[r.id] = usados[d.id] = 1;
+        out.push({rec: r, desp: d, mes: mes, categoria: r.categoria || "Sem categoria", valor: Number(r.valor), chave: "es|" + cat + "|" + mes});
+      });
+    return out;
+  }
+  // Os próximos lançamentos da mesma série (lançados como recorrentes), depois da data do lançamento.
+  function ajSerie(t){
+    if(!t.seriesId) return [];
+    return state.transactions.filter(function(x){ return !x.deletedAt && x.id !== t.id && x.seriesId === t.seriesId && x.tipo === t.tipo && x.dataEfet > t.dataEfet; });
+  }
+  // A pergunta da vez: o primeiro par sem resposta "deixar como está", não adiado.
+  function ajPergunta(hoje){
+    var pares = ajPares(hoje);
+    for(var i = 0; i < pares.length; i++){
+      var p = pares[i], resp = ajResposta(p.categoria), st = LEM.rows[lemId("ajuste", p.chave)];
+      if(resp === "ok") continue;
+      if(st && st.estado === "adiado" && st.adiado_ate && st.adiado_ate > hoje) continue;
+      var r = computeTotals(p.mes + "-15"), antes = Math.round((r.recTotal - r.despTotal) * 100) / 100;
+      p.anterior = resp;
+      p.opcoes = [
+        {id: "recebo", rotulo: "Eu recebo esse valor", efeito: "apaga a saída", depois: antes + p.valor, serie: ajSerie(p.desp)},
+        {id: "pago", rotulo: "Eu pago esse valor", efeito: "apaga a entrada", depois: antes - p.valor, serie: ajSerie(p.rec)},
+        {id: "transf", rotulo: "Foi só dinheiro passando entre minhas contas", efeito: "as duas viram transferência entre contas", depois: antes, serie: []},
+        {id: "ok", rotulo: "Está certo, deixar como está", efeito: "não muda nada e não pergunto mais sobre " + p.categoria, depois: antes, serie: []}
+      ];
+      p.antes = antes;
+      return p;
+    }
+    return null;
+  }
+  function renderAjustes(hoje){
+    var bar = document.getElementById("lemBarra"); if(!bar) return;
+    var el = document.getElementById("ajustesBox");
+    if(!el){ el = document.createElement("section"); el.id = "ajustesBox"; el.setAttribute("aria-label", "Pergunta sobre seus lançamentos"); bar.parentNode.insertBefore(el, bar); }
+    var p = ajPergunta(hoje);
+    el._p = p;
+    if(!p){ el.hidden = true; el.innerHTML = ""; return; }
+    var mesNome = MESES_LEM[+p.mes.slice(5, 7) - 1];
+    var nomeOp = {recebo: "que recebe", pago: "que paga", transf: "que é transferência entre contas"};
+    el.hidden = false;
+    el.innerHTML = '<div class="aj-topo"><div class="aj-titulo">' + flxEsc(p.categoria) + " aparece como entrada e como saída de " + fmt(p.valor) + " em " + mesNome + ". Qual é o certo?</div>" +
+      '<div class="cd-acoes"><button type="button" class="resumo-link" data-aj="ver" aria-expanded="' + AJ.aberto + '">' + (AJ.aberto ? "Ocultar" : "Responder") + '</button>' +
+      '<button type="button" class="resumo-link" data-aj="depois">Responder depois</button></div></div>' +
+      (AJ.aberto ? '<p class="aj-sub">Entrada: "' + flxEsc(p.rec.descricao || "(sem descrição)") + '" em ' + flxDia(p.rec.dataEfet) + '. Saída: "' + flxEsc(p.desp.descricao || "(sem descrição)") + '" em ' + flxDia(p.desp.dataEfet) + ". " +
+        "Hoje o resultado de " + mesNome + " é " + fmt(p.antes) + "." + (p.anterior && nomeOp[p.anterior] ? " Da última vez você respondeu " + nomeOp[p.anterior] + "." : "") + "</p>" +
+        '<ul class="aj-opcoes">' + p.opcoes.map(function(o, i){
+          var extra = o.serie.length ? " e " + (o.serie.length === 1 ? "o próximo lançamento da série muda" : "os próximos " + o.serie.length + " lançamentos da série mudam") + " junto" : "";
+          var efeito = o.id === "ok" ? o.efeito : o.efeito + extra + (o.depois !== p.antes ? "; resultado de " + mesNome + ": " + fmt(o.depois) : "; o resultado não muda");
+          return '<li><button type="button" class="btn ' + (p.anterior === o.id ? "btn-primary" : "btn-ghost") + ' aj-op" data-aj="op" data-i="' + i + '"><b>' + flxEsc(o.rotulo) + "</b><small>" + flxEsc(efeito) + "</small></button></li>";
+        }).join("") + "</ul>" : "");
+  }
+  function ajAplicar(p, o){
+    if(o.id === "recebo"){ Store.remove(p.desp.id); o.serie.forEach(function(t){ Store.update(t.id, {tipo: "receita"}); }); }
+    else if(o.id === "pago"){ Store.remove(p.rec.id); o.serie.forEach(function(t){ Store.update(t.id, {tipo: "despesa"}); }); }
+    else if(o.id === "transf"){ [p.rec, p.desp].forEach(function(t){ Store.update(t.id, {tipo: "transferencia_interna", categoria: "Transferência interna"}); }); }
+    // guarda a resposta por categoria (a anterior sai, para valer só a última)
+    ["recebo", "pago", "transf", "ok"].forEach(function(id){
+      var k = lemId("ajuste", "es|" + ajNorm(p.categoria) + "|" + id);
+      if(id !== o.id && LEM.rows[k] && LEM.rows[k].estado === "excluido") lemGravar({tipo: "ajuste", chave: "es|" + ajNorm(p.categoria) + "|" + id, destino: null}, {estado: "ativo", adiado_ate: null});
+    });
+    lemGravar({tipo: "ajuste", chave: "es|" + ajNorm(p.categoria) + "|" + o.id, destino: null}, {estado: "excluido", adiado_ate: null});
+    AJ.aberto = false;
+    toast(o.id === "ok" ? "Anotado. Não pergunto mais sobre " + p.categoria + "." : o.id === "transf" ? "Pronto: as duas viraram transferência entre contas." : "Pronto. O lançamento apagado fica em Apagados recentemente.");
+  }
+  document.addEventListener("click", function(ev){
+    var el = document.getElementById("ajustesBox"), b = ev.target && ev.target.closest ? ev.target.closest("[data-aj]") : null;
+    if(!el || !b || !el.contains(b) || !el._p) return;
+    var a = b.dataset.aj, p = el._p;
+    if(a === "ver"){ AJ.aberto = !AJ.aberto; lemRender(); return; }
+    if(a === "depois"){ AJ.aberto = false; lemGravar({tipo: "ajuste", chave: p.chave, destino: null}, {estado: "adiado", adiado_ate: FLX.addDias(todayISO(), 3)}); return; }
+    var o = p.opcoes[+b.dataset.i]; if(o) ajAplicar(p, o);
+  });
+
   function lemVisiveis(hoje){
     var vis = [];
     lemRegras(hoje).forEach(function(it){
@@ -3895,6 +3997,7 @@ var FLX = (function(){
     if(!LEM.carregado) return;
     var hoje = todayISO(); LEM.hoje = hoje;
     try{ renderContasDia(hoje); }catch(e){ if(window.console) console.error(e); }
+    try{ renderAjustes(hoje); }catch(e){ if(window.console) console.error(e); }
     try{ renderResumoMes(); }catch(e){ if(window.console) console.error(e); }
     var vis = lemVisiveis(hoje), mostra = LEM.todos ? vis : vis.slice(0, LEM_MAX);
     el.hidden = !vis.length; if(!vis.length){ el.innerHTML = ""; el._itens = []; return; }
