@@ -6,7 +6,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.0/dist/umd/supabase.js"></script>
 <meta name="app-version" content="20261112-000000">
@@ -491,7 +491,7 @@
   .chat-num li{display:flex; justify-content:space-between; gap:12px; padding:3px 0; border-bottom:1px solid var(--line); font-variant-numeric:tabular-nums;}
   .chat-itens{counter-reset:chatn;} .chat-itens li{counter-increment:chatn;} .chat-itens li span::before{content:counter(chatn) ". "; color:var(--ink-2);}
   .chat-num small{color:var(--ink-2); font-size:11.5px;}
-  .chat-pe{display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; font-size:12px; color:var(--ink-2);}
+  .chat-pe{display:flex; justify-content:flex-end; align-items:center; gap:12px; flex-wrap:wrap; font-size:12px; color:var(--ink-2);}
   .ia-btn{display:inline-flex; align-items:center; gap:6px; height:32px; padding:0 14px; border-radius:999px; border:1px solid var(--line); background:var(--accent-soft); color:var(--ink); font:inherit; font-size:13px; font-weight:600; cursor:pointer;}
   .ia-btn:hover{border-color:var(--ink-2);}
   .ia-btn:disabled{opacity:.6; cursor:progress;}
@@ -1298,6 +1298,81 @@
   .lem-todos{align-self:flex-start; border:0; background:transparent; color:var(--muted); font:inherit; font-size:13px; padding:4px 6px; cursor:pointer; text-decoration:underline;}
   .resumo-idades{margin:10px 0 0; font-size:12.5px; color:var(--muted); line-height:1.5;}
   .saldo-idade.velho{color:var(--warn-text); font-weight:600;}
+
+  /* =====================================================================
+     Visual v7 — escuro com verde-limão e o mascote Gen.
+     Só aparência: nenhuma regra de dados. O tema claro continua azul (decisão do usuário),
+     só ganha os mesmos formatos (cards, botões, barras em blocos).
+     ===================================================================== */
+  :root:not([data-theme="light"]){
+    --bg:#0B0C0B; --wash:#0B0C0B;
+    --card:#151816; --card-2:#1D211E; --line:#262A27; --line-strong:#3A403B; --seg-off:#232724;
+    --ink:#F2F4EF; --ink-2:#C9CFCA; --muted:#9AA39D;
+    --accent:#D4FF3F; --accent-ink-v5:#D4FF3F; --on-accent:#0B0C0B; --alert:#FF8A3D; --pos:#D4FF3F;
+    --glass:var(--card); --glass-strong:var(--card); --sheet:var(--card); --soft:var(--card-2);
+    --border:var(--line); --border-strong:var(--line-strong); --ink-muted:var(--muted);
+    --accent-soft:rgba(212,255,63,.15); --accent-lime:#D4FF3F; --accent-lime-dark:#C2EC2C; --chart:#D4FF3F;
+    --nav-on:var(--ink); --nav-on-ink:var(--bg);
+    --warn:var(--alert); --warn-solid:var(--alert); --warn-v5:var(--alert); --warn-text:var(--alert); --warn-bg:rgba(255,138,61,.15); --warn-wash:rgba(255,138,61,.15);
+    --critical:var(--alert); --critical-text:var(--alert); --critical-wash:rgba(255,138,61,.12);
+    --good:var(--pos); --good-text:var(--pos); --good-wash:rgba(212,255,63,.12);
+    --cat-1:#D4FF3F; --cat-2:#FF8A3D; --cat-3:#F2F4EF; --cat-4:#9AA39D; --cat-5:#B9C4BC; --cat-6:#8BA82A; --cat-7:#C9763A; --cat-8:#6E7771; --cat-fallback:#6E7771;
+  }
+  :root[data-theme="light"]{
+    --card:#FFFFFF; --card-2:#EAF1FB; --line:#D5E0EF; --line-strong:#B7C7DD; --seg-off:#DCE6F3;
+    --alert:#C2540A; --glass:var(--card); --sheet:var(--card);
+  }
+  :root{
+    --font-ui:"Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --font-num:"Space Grotesk", "Inter", system-ui, sans-serif;
+    --font-tit:"Space Grotesk", "Inter", system-ui, sans-serif;
+  }
+  body{background:var(--wash);}
+  :focus-visible{outline:2px solid var(--accent); outline-offset:3px;}
+  :root[data-theme="light"] :focus-visible{outline-color:var(--accent-ink-v5);}
+
+  /* cards: grafite liso, borda fina, sem sombra nem desfoque */
+  .card, .resumo-card, .account-tile, .hero-card, .v5-stat{background:var(--card); border:1px solid var(--line); -webkit-backdrop-filter:none; backdrop-filter:none; box-shadow:none; transition:border-color .2s ease;}
+  .card:hover, .resumo-card:hover, .v5-stat:hover{border-color:var(--line-strong);}
+  .card h2, .card-head h2, .resumo-card h2{font-family:var(--font-tit); font-size:19px; font-weight:700; letter-spacing:-.02em;}
+  .v5-title h1{font-family:var(--font-tit); font-size:clamp(32px, 4.6vw, 48px); font-weight:700; letter-spacing:-.03em;}
+  .v5-stat .v, .resumo-valor{font-family:var(--font-num); font-weight:700; letter-spacing:-.03em;}
+
+  /* botões em pílula: primário limão, secundário card, alerta laranja */
+  .btn{min-height:44px; transition:transform .12s ease, background-color .2s ease, border-color .2s ease;}
+  .btn:hover{transform:translateY(-1px);}
+  .btn:active{transform:scale(.97);}
+  .btn-primary{font-weight:700;}
+  .btn-ghost{background:var(--card); border:1px solid var(--line); color:var(--ink);}
+  .btn-ghost:hover{background:var(--card-2); border-color:var(--line-strong);}
+  .btn-alerta{background:transparent; border:1px solid var(--alert); color:var(--alert);}
+  input[type=text], input[type=number], input[type=date], input[type=month], input[type=search], input[type=email], input[type=password], select, textarea{border-color:var(--line-strong);}
+
+  /* cabeçalho: Gen pequeno + "gênesis", menu em pílula, conta em limão */
+  .v5-logo{width:40px; height:40px; background:transparent; border-radius:0;}
+  .v5-logo svg{width:40px; height:40px;}
+  .v5-brand b{font-family:var(--font-tit); font-size:22px; font-weight:700; letter-spacing:-.02em;}
+  .v5-nav, .v5-month, .v5-ic{background:var(--card); border-color:var(--line); -webkit-backdrop-filter:none; backdrop-filter:none;}
+  .v5-nav button{color:var(--ink-2);}
+  .v5-badge{background:var(--alert); color:var(--on-accent);}
+  .v5-avatar{background:var(--accent); color:var(--on-accent); border-color:transparent; font-weight:700;}
+  :root[data-theme="light"] .v5-avatar{color:#fff;}
+
+  /* barras em blocos: a trilha vira uma fila de 24 blocos (sem mudar como a barra é calculada) */
+  .bar-track, .budget-row .budget-track, .meter-track, .spend-track, .pf-track, .stack-bar{
+    --segs:24; --bloco:calc((100% - (var(--segs) - 1) * 3px) / var(--segs));
+    background:var(--seg-off); border-radius:4px;
+    -webkit-mask-image:repeating-linear-gradient(90deg, #000 0 var(--bloco), transparent var(--bloco) calc(var(--bloco) + 3px));
+    mask-image:repeating-linear-gradient(90deg, #000 0 var(--bloco), transparent var(--bloco) calc(var(--bloco) + 3px));
+  }
+  .bar-fill, .budget-row .budget-fill, .meter-fill, .spend-fill, .pf-seg, .stack-seg{border-radius:0;}
+  .budget-row.over .budget-fill{background:var(--alert);}
+  .cf-tooltip, #toast, #undoBar{background:var(--card); border-color:var(--line-strong); -webkit-backdrop-filter:none; backdrop-filter:none;}
+
+  @media (prefers-reduced-motion: reduce){
+    *, *::before, *::after{animation:none !important; transition:none !important;}
+    .btn:hover, .btn:active{transform:none;}
+  }
 </style>
 
 <div class="app">
@@ -1884,7 +1959,7 @@
   /* ---------- cabeçalho ---------- */
   var head = el("header", {"class": "v5-head"});
   head.innerHTML =
-    '<div class="v5-brand"><div class="v5-logo"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 17l5-5 4 4 7-8"/></svg></div><div><b>Projeto Gênesis</b><span>Painel financeiro</span></div></div>' +
+    '<div class="v5-brand"><div class="v5-logo"><svg viewBox="0 0 120 120" aria-hidden="true"><rect x="14" y="26" width="92" height="80" rx="28" fill="var(--card-2)" stroke="var(--accent)" stroke-width="5"/><rect x="26" y="44" width="68" height="36" rx="18" fill="#0B0C0B"/><rect x="40" y="52" width="12" height="20" rx="6" fill="var(--accent)"/><rect x="68" y="52" width="12" height="20" rx="6" fill="var(--accent)"/><circle cx="60" cy="12" r="8" fill="var(--accent)"/></svg></div><div><b>gênesis</b><span class="v5-sr">Painel financeiro</span></div></div>' +
     '<nav class="v5-nav" id="v5Nav" aria-label="Áreas"></nav>' +
     '<div class="v5-tools"><button type="button" class="v5-ic" id="v5Hide" aria-pressed="false" aria-label="Ocultar valores"></button><button type="button" class="v5-ic" id="v5Theme" aria-pressed="false"></button><button type="button" class="v5-avatar" id="v5Avatar" aria-label="Conta e backup">Entrar</button></div>';
   var nav = head.querySelector("#v5Nav");
@@ -10893,7 +10968,7 @@ var CAIXA = (function(){
       (simVozDisponivel() ? '<button type="button" class="btn btn-ghost sim-mic" id="chatMic" aria-label="Falar a pergunta" aria-pressed="false"' + (CHATD.carregando ? " disabled" : "") + '><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button>' : "") +
       '<button type="button" class="btn btn-primary" id="chatEnviar"' + (CHATD.carregando ? " disabled" : "") + ">Perguntar</button></div>" +
       '<div class="sim-msg" id="chatMsg" role="status">' + escapeAttr(CHATD.msg || "") + "</div>" +
-      (CHATD.turnos.length ? '<div class="chat-pe"><span>O copiloto só muda um lançamento quando você aperta "Aplicar".</span><button type="button" class="resumo-link" id="chatLimpar">Limpar conversa</button></div>' : "");
+      (CHATD.turnos.length ? '<div class="chat-pe"><button type="button" class="resumo-link" id="chatLimpar">Limpar conversa</button></div>' : "");
     box.innerHTML = h;
     var inp = document.getElementById("chatPergunta"); if(inp){ inp.value = CHATD.carregando ? "" : valor; if(foco && !CHATD.carregando) inp.focus(); }
     var lista = document.getElementById("chatLista"); if(lista) lista.scrollTop = lista.scrollHeight;
