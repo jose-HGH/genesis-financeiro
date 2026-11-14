@@ -1441,6 +1441,53 @@
     .gen-mascote{width:64px; height:64px;}
   }
 
+  /* ---- v7, etapa 3: sequência, missões, barra do celular, classificação ---- */
+  .v5-row > .v5-col{display:flex; flex-direction:column; gap:20px; min-width:0;}
+  .v5-col > .card{flex:1 1 auto;}
+  .v5-streak{display:inline-flex; align-items:center; gap:6px; height:40px; padding:0 14px; border-radius:999px; background:var(--card); border:1px solid var(--line); font-family:var(--font-num); font-weight:700; font-size:14px; color:var(--ink); white-space:nowrap;}
+  .v5-streak[hidden]{display:none;}
+  .seq-dias{display:grid; grid-template-columns:repeat(7, 1fr); gap:6px;}
+  .seq-dia{display:flex; flex-direction:column; align-items:center; gap:6px; font-size:11px; color:var(--muted);}
+  .seq-dia i{display:block; width:100%; aspect-ratio:1; max-width:40px; background:var(--seg-off); border-radius:6px;}
+  .seq-dia.foi i{background:var(--accent);}
+  .seq-dia.hoje i{outline:2px solid var(--ink); outline-offset:2px;}
+  .seq-dia.hoje span{color:var(--ink); font-weight:700;}
+  .seq-txt{margin:12px 0 0; color:var(--ink-2); font-size:14px;}
+  .missao-conta{margin:0 0 10px; color:var(--muted); font-size:13px;}
+  .missao + .missao{margin-top:14px;}
+  .missao-topo{display:flex; align-items:center; gap:10px; margin-bottom:6px;}
+  .missao-check{width:22px; height:22px; flex:none; border-radius:7px; border:2px solid var(--line-strong); display:inline-flex; align-items:center; justify-content:center; font-size:13px; font-weight:800; color:var(--on-accent);}
+  .missao.feita .missao-check{background:var(--accent); border-color:var(--accent);}
+  .missao-t{font-weight:600; font-size:14px; color:var(--ink);}
+  .missao.feita .missao-t{color:var(--ink-2);}
+  .missao-det{margin-top:6px; font-size:12.5px; color:var(--muted);}
+  .missao.falhou .missao-det{color:var(--alert);}
+  .missao-det .resumo-link{font-size:12.5px;}
+  select[data-field="classificacao"]{border-radius:999px;}
+  select[data-field="classificacao"][data-cls="variavel"]{border-color:var(--line); color:var(--ink-2);}
+  select[data-field="classificacao"][data-cls="fixa"]{border-color:var(--ink); color:var(--ink); font-weight:600;}
+  select[data-field="classificacao"][data-cls="parcelada"]{border-color:var(--alert); color:var(--alert); font-weight:600;}
+  .v5-tab, .v5-mais{display:none;}
+  @media (max-width:639px){
+    .v5-nav{display:none !important;}
+    .v5-streak{height:36px; padding:0 10px; font-size:13px; gap:4px;}
+    .v5-streak .sk-l{display:none;}
+    .v5-tab{display:flex; position:fixed; left:10px; right:10px; bottom:calc(10px + env(safe-area-inset-bottom, 0px)); z-index:45; justify-content:space-between; align-items:center; gap:2px; padding:6px; border-radius:26px; background:var(--card); border:1px solid var(--line-strong); box-shadow:0 10px 30px rgba(0,0,0,.45);}
+    :root[data-theme="light"] .v5-tab{box-shadow:0 8px 24px rgba(15,40,80,.16);}
+    .v5-tab button{position:relative; flex:1 1 0; min-width:0; display:flex; flex-direction:column; align-items:center; gap:2px; padding:6px 2px; border:0; border-radius:18px; background:none; color:var(--muted); font:inherit; font-size:10.5px; font-weight:600; cursor:pointer;}
+    .v5-tab button[aria-current="page"]{color:var(--ink); background:var(--card-2);}
+    .v5-tab .v5-tab-novo{flex:0 0 52px; height:52px; border-radius:18px; background:var(--accent); color:var(--on-accent); justify-content:center;}
+    .v5-tab .v5-tab-badge{position:absolute; top:0; right:calc(50% - 30px);}
+    .v5-mais:not([hidden]){display:flex; flex-direction:column; position:fixed; right:10px; bottom:calc(84px + env(safe-area-inset-bottom, 0px)); z-index:46; min-width:190px; padding:6px; border-radius:20px; background:var(--card); border:1px solid var(--line-strong); box-shadow:0 14px 34px rgba(0,0,0,.45);}
+    .v5-mais button{display:flex; align-items:center; justify-content:space-between; gap:10px; padding:12px 14px; border:0; border-radius:14px; background:none; color:var(--ink); font:inherit; font-size:15px; font-weight:600; text-align:left; cursor:pointer;}
+    .v5-mais button[aria-current="page"], .v5-mais button:hover{background:var(--card-2);}
+    .gen-fab-box{bottom:calc(88px + env(safe-area-inset-bottom, 0px));}
+    #undoBar{bottom:calc(150px + env(safe-area-inset-bottom, 0px));}
+    body{padding-bottom:180px;}
+    .gh-valor{font-size:clamp(48px, 16vw, 72px);}
+  }
+  @media (max-width:430px){ .v5-streak{display:none !important;} }
+
   @media (prefers-reduced-motion: reduce){
     *, *::before, *::after{animation:none !important; transition:none !important;}
     .btn:hover, .btn:active{transform:none;}
@@ -2033,7 +2080,7 @@
   head.innerHTML =
     '<div class="v5-brand"><div class="v5-logo"><svg viewBox="0 0 120 120" aria-hidden="true"><rect x="14" y="26" width="92" height="80" rx="28" fill="var(--card-2)" stroke="var(--accent)" stroke-width="5"/><rect x="26" y="44" width="68" height="36" rx="18" fill="#0B0C0B"/><rect x="40" y="52" width="12" height="20" rx="6" fill="var(--accent)"/><rect x="68" y="52" width="12" height="20" rx="6" fill="var(--accent)"/><circle cx="60" cy="12" r="8" fill="var(--accent)"/></svg></div><div><b>gênesis</b><span class="v5-sr">Painel financeiro</span></div></div>' +
     '<nav class="v5-nav" id="v5Nav" aria-label="Áreas"></nav>' +
-    '<div class="v5-tools"><button type="button" class="v5-ic" id="v5Hide" aria-pressed="false" aria-label="Ocultar valores"></button><button type="button" class="v5-ic" id="v5Theme" aria-pressed="false"></button><button type="button" class="v5-avatar" id="v5Avatar" aria-label="Conta e backup">Entrar</button></div>';
+    '<div class="v5-tools"><span class="v5-streak" id="v5Streak" role="img" hidden></span><button type="button" class="v5-ic" id="v5Hide" aria-pressed="false" aria-label="Ocultar valores"></button><button type="button" class="v5-ic" id="v5Theme" aria-pressed="false"></button><button type="button" class="v5-avatar" id="v5Avatar" aria-label="Conta e backup">Entrar</button></div>';
   var nav = head.querySelector("#v5Nav");
   AREAS.filter(function(a){ return a[0] !== "conta"; }).forEach(function(a){
     var b = el("button", {type: "button", "data-area": a[0]}, a[1] + (a[0] === "lancamentos" ? '<span class="v5-badge" id="v5Badge" hidden>0</span>' : ""));
@@ -2070,10 +2117,16 @@
   put("inicio", row(flex(document.querySelector(".hero-review-grid"), "v5-w"), flex(genCard, "v5-n")));
   put("inicio", $("chatCard"));
   put("inicio", $("resumoMesCard"));
-  put("inicio", row(flex(gastosIni, "v5-w"), flex(olho, "v5-n")));
+  var seq = el("section", {"class": "card seq-card", id: "seqCard", "aria-labelledby": "seqT"});
+  seq.innerHTML = '<div class="card-head"><h2 id="seqT">Sequência</h2><span class="hint" id="seqRec"></span></div><div class="seq-dias" id="seqDias"></div><p class="seq-txt" id="seqTxt"></p>';
+  var missoes = el("section", {"class": "card missoes-card", id: "missoesCard", "aria-labelledby": "missoesT"});
+  missoes.innerHTML = '<div class="card-head"><h2 id="missoesT">Missões da semana</h2><span class="hint">recomeçam na segunda</span></div><div id="missoesCorpo"></div>';
+  var colOlho = el("div", {"class": "v5-col v5-n"}); colOlho.appendChild(olho); colOlho.appendChild(seq);
+  put("inicio", row(flex(gastosIni, "v5-w"), colOlho));
+  put("inicio", row(flex(missoes, "v5-n"), flex(cardOf("cashflowSvg"), "v5-n")));
+  put("inicio", cardOf("upcomingList"));
   put("inicio", stats);
   put("inicio", $("accountTiles"));
-  put("inicio", row(flex(cardOf("upcomingList"), "v5-w"), flex(cardOf("cashflowSvg"), "v5-n")));
   put("inicio", cardOf("faturasList"));
   // Botão flutuante do Gen (todas as áreas)
   var genFab = el("div", {"class": "gen-fab-box", id: "genFabBox"});
@@ -2216,6 +2269,7 @@
     AREAS.forEach(function(a){ areaEl[a[0]].classList.toggle("on", a[0] === name); });
     Array.prototype.forEach.call(nav.querySelectorAll("button"), function(b){ if(b.getAttribute("data-area") === name) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current"); });
     var av = $("v5Avatar"); if(name === "conta") av.setAttribute("aria-current", "page"); else av.removeAttribute("aria-current");
+    if(window.__v5tab) window.__v5tab(name);
     // no celular a barra de áreas rola para o lado: traz a área aberta para o meio (só na barra, a página não rola)
     var on = nav.querySelector('[aria-current="page"]');
     if(on && nav.scrollWidth > nav.clientWidth) nav.scrollLeft += (on.getBoundingClientRect().left - nav.getBoundingClientRect().left) - (nav.clientWidth - on.offsetWidth) / 2;
@@ -2292,11 +2346,13 @@
       ];
       box.innerHTML = items.map(function(i){ return '<div class="v5-stat"><div class="l">' + i[0] + '</div><div class="v ' + i[3] + '">' + i[1] + '</div><div class="n">' + i[2] + '</div></div>'; }).join("");
       var bd = $("v5Badge"); if(bd){ bd.textContent = inf.pend; bd.hidden = !inf.pend; }
+      Array.prototype.forEach.call(document.querySelectorAll(".v5-tab-badge"), function(b){ b.textContent = inf.pend; b.hidden = !inf.pend; });
+      pintarClassificacao();
       window.__v5ui.inicio(ref);
     },
     inicio: function(ref){
       var api = window.__v5api; if(!api || !api.inicio) return;
-      try{ pintarInicioV7(api.inicio(ref), api.fmt); }catch(e){ if(window.console) console.error(e); }
+      try{ var dd = api.inicio(ref); pintarInicioV7(dd, api.fmt); pintarMissoes(dd.semana, api.fmt); }catch(e){ if(window.console) console.error(e); }
     }
   };
 
@@ -2382,6 +2438,115 @@
     lsSet("gen_balao", hoje); b.hidden = false;
     setTimeout(function(){ b.hidden = true; }, 6000);
   })();
+
+
+  /* ---------- visual v7, etapa 3: sequência, missões, barra do celular, classificação ---------- */
+  function p2(n){ return (n < 10 ? "0" : "") + n; }
+  function isoDe(d){ return d.getFullYear() + "-" + p2(d.getMonth() + 1) + "-" + p2(d.getDate()); }
+  function lerJson(k){ try{ var v = JSON.parse(lsGet(k) || "null"); return (v && typeof v === "object") ? v : null; }catch(e){ return null; } }
+  // Sequência (gen_streak): +1 quando o app abre num dia novo; zera se pular um dia. Só neste navegador.
+  var streak = (function(){
+    var st = lerJson("gen_streak") || {ultima: null, dias: 0, recorde: 0, visitas: []};
+    var agora = new Date(), h = isoDe(agora), ontem = isoDe(new Date(agora.getFullYear(), agora.getMonth(), agora.getDate() - 1));
+    if(st.ultima !== h){
+      st.dias = st.ultima === ontem ? (Number(st.dias) || 0) + 1 : 1;
+      st.ultima = h; st.recorde = Math.max(Number(st.recorde) || 0, st.dias);
+      st.visitas = (Array.isArray(st.visitas) ? st.visitas : []).filter(function(x){ return x !== h; }).concat([h]).slice(-14);
+      lsSet("gen_streak", JSON.stringify(st));
+    }
+    return st;
+  })();
+  (function pintarSequencia(){
+    var n = streak.dias, txt = n + (n === 1 ? " dia" : " dias");
+    var chip = $("v5Streak");
+    if(chip){ chip.hidden = false; chip.setAttribute("aria-label", "Sequência de " + txt); chip.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2L4 14h7l-1 8 9-12h-7z" fill="var(--accent)"/></svg><span>' + n + '</span><span class="sk-l">' + (n === 1 ? " dia" : " dias") + '</span>'; }
+    var hoje = new Date(), seg = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate() - ((hoje.getDay() + 6) % 7));
+    var nomes = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"], h = "", hISO = isoDe(hoje);
+    for(var i = 0; i < 7; i++){
+      var d = new Date(seg.getFullYear(), seg.getMonth(), seg.getDate() + i), iso = isoDe(d), foi = streak.visitas.indexOf(iso) !== -1;
+      h += '<div class="seq-dia' + (foi ? " foi" : "") + (iso === hISO ? " hoje" : "") + '"><i aria-hidden="true"></i><span>' + nomes[i] + '</span><b class="v5-sr">' + (foi ? "abriu o app" : "não abriu") + '</b></div>';
+    }
+    if($("seqDias")) $("seqDias").innerHTML = h;
+    if($("seqTxt")) $("seqTxt").textContent = n > 1 ? txt + " seguidos abrindo o app. Volte amanhã para continuar." : "Primeiro dia da sequência. Volte amanhã para continuar.";
+    if($("seqRec")) $("seqRec").textContent = "recorde: " + streak.recorde + (streak.recorde === 1 ? " dia" : " dias");
+  })();
+  // Missões da semana (gen_missoes): escolhidas na segunda, a partir dos lançamentos e orçamentos que já existem.
+  function pintarMissoes(sem, f){
+    var corpo = $("missoesCorpo"); if(!corpo || !sem) return;
+    var m = lerJson("gen_missoes");
+    if(!m || m.semana !== sem.inicio || !Array.isArray(m.lista)){
+      var lista = [{id: "lancar5", tipo: "lancar"}, {id: "saldo", tipo: "saldo"}];
+      if(sem.orcamentos.length){
+        var ok = sem.orcamentos.filter(function(o){ return o.valor <= o.limite; }).sort(function(a, b){ return b.valor / b.limite - a.valor / a.limite; });
+        var alvo = ok[0] || sem.orcamentos.slice().sort(function(a, b){ return a.valor / a.limite - b.valor / b.limite; })[0];
+        lista.push({id: "orc:" + alvo.categoria, tipo: "orc", categoria: alvo.categoria});
+      } else lista.push({id: "criar-orc", tipo: "criarOrc"});
+      m = {semana: sem.inicio, lista: lista, feitas: []};
+    }
+    if(!Array.isArray(m.feitas)) m.feitas = [];
+    var diaSem = ((new Date().getDay() + 6) % 7) + 1, novas = 0;
+    var linhas = m.lista.map(function(x){
+      var t, det, prog, feita, falhou = false, ir = null;
+      if(x.tipo === "lancar"){ var n = Math.min(sem.lancamentos, 5); t = "Lançar 5 movimentos"; det = n + " de 5 nesta semana"; prog = n / 5; feita = n >= 5; }
+      else if(x.tipo === "saldo"){ t = "Atualizar o saldo de uma conta"; feita = sem.saldoAtualizado; prog = feita ? 1 : 0; det = feita ? "saldo em dia" : "use Atualizar saldo ou importe um extrato"; }
+      else if(x.tipo === "orc"){
+        var o = sem.orcamentos.filter(function(q){ return q.categoria === x.categoria; })[0];
+        t = "Ficar dentro do orçamento de " + x.categoria;
+        if(!o){ det = "esse orçamento foi removido"; prog = 0; feita = false; falhou = true; }
+        else if(o.valor > o.limite){ det = "passou da meta este mês (" + f(o.valor) + " de " + f(o.limite) + ")"; prog = 0; feita = false; falhou = true; }
+        else { det = f(o.valor) + " de " + f(o.limite) + " · dia " + diaSem + " de 7"; prog = diaSem / 7; feita = diaSem === 7; }
+        ir = "planejamento";
+      } else { t = "Criar um orçamento para uma categoria"; feita = sem.orcamentos.length > 0; prog = feita ? 1 : 0; det = feita ? "orçamento criado" : "em Planejamento, escolha uma categoria e um limite"; ir = "planejamento"; }
+      feita = feita || m.feitas.indexOf(x.id) !== -1;
+      if(feita && m.feitas.indexOf(x.id) === -1){ m.feitas.push(x.id); novas++; }
+      return '<div class="missao' + (feita ? " feita" : "") + (falhou ? " falhou" : "") + '"><div class="missao-topo"><span class="missao-check" aria-hidden="true">' + (feita ? "✓" : "") + '</span><span class="missao-t">' + esc(t) + '</span>' + (feita ? '<span class="v5-sr">concluída</span>' : "") + '</div>' +
+        '<div class="spend-track" role="img" aria-label="' + Math.round((feita ? 1 : prog) * 100) + '% concluída"><div class="spend-fill' + (falhou ? " over" : "") + '" style="width:' + Math.max(Math.round((feita ? 1 : prog) * 100), 0) + '%"></div></div>' +
+        '<div class="missao-det">' + esc(det) + (ir && !feita ? ' · <button type="button" class="resumo-link" data-ir-area="' + ir + '">abrir</button>' : "") + '</div></div>';
+    });
+    lsSet("gen_missoes", JSON.stringify(m));
+    corpo.innerHTML = '<p class="missao-conta">' + m.feitas.length + ' de ' + m.lista.length + ' concluídas</p>' + linhas.join("");
+    if(novas && missoesPintadas) genComemorar();
+    missoesPintadas = true;
+  }
+  var missoesPintadas = false;
+  // Classificação como pílula: só o visual do select muda conforme o valor escolhido
+  function semAcento(t){ return String(t || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase(); }
+  function pintarClassificacao(){
+    Array.prototype.forEach.call(document.querySelectorAll('select[data-field="classificacao"]'), function(sel){ sel.setAttribute("data-cls", semAcento(sel.value)); });
+  }
+  document.addEventListener("change", function(e){ var t = e.target; if(t && t.matches && t.matches('select[data-field="classificacao"]')) t.setAttribute("data-cls", semAcento(t.value)); });
+  // Barra inferior do celular: Início, Análises, +, Metas (Planejamento), Conta e "Mais"
+  var TAB_ICO = {
+    inicio: '<path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/>',
+    analises: '<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
+    planejamento: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/>',
+    conta: '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',
+    mais: '<circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/>'
+  };
+  function tabIco(k){ return '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + TAB_ICO[k] + '</svg>'; }
+  var tabBar = el("nav", {"class": "v5-tab", id: "v5Tab", "aria-label": "Áreas"});
+  tabBar.innerHTML =
+    '<button type="button" data-tab-area="inicio">' + tabIco("inicio") + '<span>Início</span></button>' +
+    '<button type="button" data-tab-area="analises">' + tabIco("analises") + '<span>Análises</span></button>' +
+    '<button type="button" class="v5-tab-novo" id="v5TabNovo" aria-label="Novo lançamento">' + ICO.plus + '</button>' +
+    '<button type="button" data-tab-area="planejamento">' + tabIco("planejamento") + '<span>Metas</span></button>' +
+    '<button type="button" data-tab-area="conta">' + tabIco("conta") + '<span>Conta</span></button>' +
+    '<button type="button" id="v5TabMais" aria-expanded="false" aria-controls="v5Mais">' + tabIco("mais") + '<span>Mais</span><span class="v5-badge v5-tab-badge" hidden>0</span></button>';
+  var maisMenu = el("div", {"class": "v5-mais", id: "v5Mais", hidden: ""});
+  maisMenu.innerHTML = '<button type="button" data-tab-area="lancamentos">Lançamentos<span class="v5-badge v5-tab-badge" hidden>0</span></button><button type="button" data-tab-area="importar">Importar</button><button type="button" data-tab-area="familia">Família</button>';
+  document.body.appendChild(maisMenu); document.body.appendChild(tabBar);
+  function fecharMais(){ maisMenu.hidden = true; $("v5TabMais").setAttribute("aria-expanded", "false"); }
+  $("v5TabMais").addEventListener("click", function(e){ e.stopPropagation(); var abrir = maisMenu.hidden; maisMenu.hidden = !abrir; this.setAttribute("aria-expanded", abrir ? "true" : "false"); if(abrir){ var b = maisMenu.querySelector("button"); if(b) b.focus(); } });
+  $("v5TabNovo").addEventListener("click", function(){ fecharMais(); openDrawer(); });
+  Array.prototype.forEach.call(document.querySelectorAll("[data-tab-area]"), function(b){
+    b.addEventListener("click", function(){ fecharMais(); setArea(b.getAttribute("data-tab-area")); window.scrollTo(0, 0); });
+  });
+  document.addEventListener("click", function(e){ if(!maisMenu.hidden && !maisMenu.contains(e.target)) fecharMais(); });
+  document.addEventListener("keydown", function(e){ if(e.key === "Escape" && !maisMenu.hidden){ fecharMais(); $("v5TabMais").focus(); } });
+  window.__v5tab = function(name){
+    Array.prototype.forEach.call(document.querySelectorAll("[data-tab-area]"), function(b){ if(b.getAttribute("data-tab-area") === name) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current"); });
+    var mais = $("v5TabMais"); if(["lancamentos", "importar", "familia"].indexOf(name) !== -1) mais.setAttribute("aria-current", "page"); else mais.removeAttribute("aria-current");
+  };
 
   updateMonth();
   fromHash();
@@ -6254,8 +6419,17 @@ var FLX = (function(){
         olho = {texto: contas.length + (contas.length === 1 ? " conta vence" : " contas vencem") + " nos próximos 7 dias, somando " + fmt(soma) + ".", botao: "Ver contas", alvo: "upcomingList"};
       }
     }
+    // Semana (segunda a domingo) para as missões: só contagens sobre o que já existe
+    var dh = new Date(), seg = new Date(dh.getFullYear(), dh.getMonth(), dh.getDate() - ((dh.getDay() + 6) % 7));
+    var segISO = seg.getFullYear() + "-" + pad2(seg.getMonth() + 1) + "-" + pad2(seg.getDate());
+    var lancSemana = state.transactions.filter(function(t){ return t.dataLanc && t.dataLanc >= segISO && t.dataLanc <= hoje; }).length;
+    var saldoSemana = Object.keys(state.saldos || {}).some(function(k){ var c = state.saldos[k]; return !!(c && c.data && c.data >= segISO); });
+    var cMes = groupSum(gastosConsumoDoMes(monthKey(hoje)), function(t){ return t.categoria; }), gastoCat = {};
+    cMes.forEach(function(d){ gastoCat[d.label] = d.value; });
+    var orc = Object.keys(state.budgets || {}).filter(function(k){ return state.budgets[k] > 0; }).map(function(k){ return {categoria: k, limite: state.budgets[k], valor: Math.round((gastoCat[k] || 0) * 100) / 100}; });
     return {mesAtual: mesAtual, nomeMes: MESES_LEM[+ym.slice(5, 7) - 1], nomeMesAnt: MESES_LEM[+ymAnt.slice(5, 7) - 1],
-      total: total, totalAnt: totalAnt, categorias: lista, previsao: prev, olho: olho};
+      total: total, totalAnt: totalAnt, categorias: lista, previsao: prev, olho: olho,
+      semana: {inicio: segISO, hoje: hoje, lancamentos: lancSemana, saldoAtualizado: saldoSemana, orcamentos: orc}};
   }
 
   function v5Info(ref){
