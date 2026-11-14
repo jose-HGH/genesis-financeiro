@@ -1,3 +1,7 @@
+<!doctype html>
+<html lang="pt-BR">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Gênesis Financeiro</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -1107,6 +1111,7 @@
     .app{padding:16px 16px 40px;}
     .v5-nav{flex-wrap:nowrap; justify-content:flex-start; overflow-x:auto; max-width:100%; order:3; flex:1 1 100%;}
     .v5-nav button{flex:none;}
+    #toast{max-width:calc(100vw - 32px); width:max-content; border-radius:16px; text-align:center;}
     .v5-title h1{font-size:30px;}
     .v5-actions{width:100%;} .v5-actions .btn{flex:1 1 0;}
     #v5Drawer .v5-sheet{max-width:none;}
@@ -2050,6 +2055,9 @@
     AREAS.forEach(function(a){ areaEl[a[0]].classList.toggle("on", a[0] === name); });
     Array.prototype.forEach.call(nav.querySelectorAll("button"), function(b){ if(b.getAttribute("data-area") === name) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current"); });
     var av = $("v5Avatar"); if(name === "conta") av.setAttribute("aria-current", "page"); else av.removeAttribute("aria-current");
+    // no celular a barra de áreas rola para o lado: traz a área aberta para o meio (só na barra, a página não rola)
+    var on = nav.querySelector('[aria-current="page"]');
+    if(on && nav.scrollWidth > nav.clientWidth) nav.scrollLeft += (on.getBoundingClientRect().left - nav.getBoundingClientRect().left) - (nav.clientWidth - on.offsetWidth) / 2;
     var a = AREAS.filter(function(x){ return x[0] === name; })[0];
     $("v5H1").textContent = a[2]; $("v5Sub").textContent = a[3];
     if(!fromHash && location.hash.replace("#", "") !== name){ try{ history.pushState(null, "", "#" + name); }catch(e){ location.hash = name; } }
