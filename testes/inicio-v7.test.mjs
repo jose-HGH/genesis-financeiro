@@ -58,7 +58,8 @@ test("previsão negativa: R$ 0 por dia, selo de atenção, Gen em alerta e aviso
     assert.ok((await dados(page)).previsao < 0);
     assert.equal(limpo(await page.locator("#heroCard .gh-valor").innerText()), "R$ 0,00");
     assert.match(await page.locator("#heroCard .gh-selo").getAttribute("class"), /alerta/);
-    assert.match(await page.locator("#genCard svg.gen").getAttribute("class"), /gen--alert/);
+    // (se uma missão acabou de ser concluída, o Gen comemora 1,5 s antes de voltar ao alerta)
+    await page.waitForFunction(() => document.querySelector("#genCard svg.gen").classList.contains("gen--alert"), null, { timeout: 4000 });
     assert.match(await page.locator("#olhoCorpo").innerText(), /previsão do mês ficou em/);
     await page.locator("#olhoCorpo button").click();
     assert.equal(await page.evaluate(() => location.hash), "#planejamento");
@@ -90,6 +91,53 @@ test("Gen: sem o chat liberado abre o lançamento; com o chat, leva até a pergu
     await page.waitForFunction(() => document.activeElement && document.activeElement.id === "chatPergunta");
     assert.equal(await page.evaluate(() => location.hash), "#inicio");
     assert.match(await page.locator("#genPerguntar").innerText(), /Pergunte qualquer coisa ao Gen/);
+    assert.deepEqual(erros, []);
+  } finally { await ctx.close(); }
+});
+
+test("sequência e missões ficam só no navegador (gen_streak, gen_missoes)", async () => {
+  const l = [{ ...base, valor: 40, dataLanc: hoje, dataEfet: hoje, descricao: "PADARIA TESTE", categoria: "Mercado" }];
+  const { ctx, page, erros } = await painel(l, 1000, { Mercado: 500 });
+  try {
+    const st = await page.evaluate(() => JSON.parse(localStorage.getItem("gen_streak")));
+    assert.equal(st.ultima, hoje);
+    assert.ok(st.dias >= 1 && st.recorde >= st.dias);
+    assert.equal(await page.locator("#seqDias .seq-dia").count(), 7);
+    assert.equal(await page.locator("#seqDias .seq-dia.hoje.foi").count(), 1);
+    // ontem aberto → hoje soma 1; dia pulado → recomeça em 1
+    const ontem = await page.evaluate(() => { const d = new Date(); d.setDate(d.getDate() - 1); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); });
+    await page.evaluate((o) => localStorage.setItem("gen_streak", JSON.stringify({ ultima: o, dias: 4, recorde: 4, visitas: [o] })), ontem);
+    await page.reload(); await page.waitForFunction(() => !!window.__genesisTeste);
+    assert.equal((await page.evaluate(() => JSON.parse(localStorage.getItem("gen_streak")))).dias, 5);
+    await page.evaluate(() => localStorage.setItem("gen_streak", JSON.stringify({ ultima: "2020-01-01", dias: 9, recorde: 9, visitas: [] })));
+    await page.reload(); await page.waitForFunction(() => !!window.__genesisTeste);
+    const st2 = await page.evaluate(() => JSON.parse(localStorage.getItem("gen_streak")));
+    assert.equal(st2.dias, 1); assert.equal(st2.recorde, 9);
+    // missões: 3 por semana, guardadas com a segunda-feira da semana
+    const m = await page.evaluate(() => JSON.parse(localStorage.getItem("gen_missoes")));
+    assert.equal(m.lista.length, 3);
+    assert.match(m.semana, /^\d{4}-\d\d-\d\d$/);
+    assert.equal(new Date(m.semana + "T12:00:00").getDay(), 1);
+    assert.equal(await page.locator("#missoesCorpo .missao").count(), 3);
+    assert.deepEqual(erros, []);
+  } finally { await ctx.close(); }
+});
+
+test("celular: barra de baixo troca de área, + abre o lançamento e Mais leva às outras áreas", async () => {
+  const fake = { newContext: (o) => browser.newContext({ ...o, viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true }) };
+  const { ctx, page, erros } = await abrirPainel(fake, servidor.base);
+  try {
+    assert.equal(await page.locator("#v5Nav").isVisible(), false);
+    await page.click('#v5Tab [data-tab-area="analises"]');
+    assert.equal(await page.evaluate(() => location.hash), "#analises");
+    assert.equal(await page.getAttribute('#v5Tab [data-tab-area="analises"]', "aria-current"), "page");
+    await page.click("#v5TabMais");
+    await page.click('#v5Mais [data-tab-area="lancamentos"]');
+    assert.equal(await page.evaluate(() => location.hash), "#lancamentos");
+    assert.equal(await page.getAttribute("#v5TabMais", "aria-current"), "page");
+    assert.equal(await page.locator("#v5Mais").isVisible(), false);
+    await page.click("#v5TabNovo");
+    await page.waitForSelector("#v5Drawer.on");
     assert.deepEqual(erros, []);
   } finally { await ctx.close(); }
 });
