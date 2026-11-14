@@ -1369,6 +1369,78 @@
   .budget-row.over .budget-fill{background:var(--alert);}
   .cf-tooltip, #toast, #undoBar{background:var(--card); border-color:var(--line-strong); -webkit-backdrop-filter:none; backdrop-filter:none;}
 
+  /* ---- v7, etapa 2: Início ---- */
+  /* Herói "Você pode gastar hoje" (fica dentro do cartão da Previsão) */
+  .gh{display:flex; flex-direction:column; gap:8px; padding-bottom:16px; margin-bottom:6px; border-bottom:1px solid var(--line);}
+  .gh-topo{display:flex; flex-wrap:wrap; align-items:center; gap:8px 12px;}
+  .gh-rot{font-size:14px; color:var(--ink-2); font-weight:500;}
+  .gh-selo{font-size:12px; font-weight:700; padding:4px 10px; border-radius:999px; background:var(--accent); color:var(--on-accent);}
+  .gh-selo.alerta{background:var(--alert); color:#0B0C0B;}
+  .gh-valor{font-family:var(--font-num); font-size:clamp(44px, 11vw, 72px); font-weight:700; line-height:1; letter-spacing:-.03em; color:var(--ink); overflow-wrap:anywhere;}
+  .gh-frase{margin:0; color:var(--ink-2); font-size:15px;}
+  .gh-frase b{color:var(--ink); font-family:var(--font-num);}
+  .gh-mes{display:flex; gap:3px; margin-top:6px;}
+  .gh-mes i{flex:1 1 0; height:14px; background:var(--seg-off);}
+  .gh-mes i.foi{background:var(--accent);}
+  .gh-mes i.hoje{background:var(--ink); outline:2px solid var(--accent); outline-offset:1px;}
+  .resumo-card.com-gh .resumo-valor{font-size:clamp(26px, 6vw, 32px);}
+  /* Card do Gen */
+  .gen-card, .v5-row > .gen-card, .v5-row > .olho-card{display:flex; flex-direction:column; gap:14px;}
+  .gen-topo{display:flex; align-items:center; gap:14px;}
+  .gen-topo h2{margin:0;}
+  .gen-mascote{width:88px; height:88px; flex:none;}
+  .gen-mascote svg, .gen-fab svg{width:100%; height:100%; display:block; overflow:visible;}
+  .gen-frase{margin:0; color:var(--ink-2); font-size:15px; line-height:1.5;}
+  .gen-pergunta{margin-top:auto; text-align:left; width:100%; padding:14px 16px; border-radius:16px; border:1px solid var(--line-strong); background:var(--card-2); color:var(--muted); font:inherit; font-size:14px; cursor:pointer;}
+  .gen-pergunta:hover{border-color:var(--accent); color:var(--ink);}
+  /* Gastos do mês */
+  .gi-total{font-family:var(--font-num); font-size:32px; font-weight:700; letter-spacing:-.02em; margin:0 0 12px;}
+  .gastos-ini .spend-item + .spend-item{margin-top:10px;}
+  /* Fica de olho */
+  .olho-card{display:flex; flex-direction:column; gap:10px;}
+  .olho-card.olho-on{border-color:var(--alert);}
+  .olho-card.olho-on h2{color:var(--alert);}
+  .olho-texto{margin:0; color:var(--ink); font-size:15px; line-height:1.5;}
+  .olho-texto.calmo{color:var(--ink-2);}
+  .olho-card .btn{align-self:flex-start;}
+  /* Mascote: cores e estados */
+  svg.gen .gen-ant{fill:var(--accent);}
+  svg.gen .gen-corpo{stroke:var(--accent);}
+  svg.gen .gen-eyes rect{fill:var(--accent);}
+  svg.gen .gen-float, svg.gen .gen-eyes{transform-box:fill-box; transform-origin:center;}
+  svg.gen--alert .gen-ant, svg.gen--alert .gen-eyes rect{fill:var(--alert);}
+  svg.gen--alert .gen-corpo{stroke:var(--alert);}
+  @keyframes genFlutua{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
+  @keyframes genPisca{0%,94%,100%{transform:scaleY(1)}97%{transform:scaleY(.12)}}
+  @keyframes genPulso{0%,100%{opacity:1}50%{opacity:.45}}
+  @keyframes genBalanca{0%,100%{transform:rotate(-4deg)}50%{transform:rotate(4deg)}}
+  @keyframes genPula{0%,100%{transform:translateY(0)}30%{transform:translateY(-14px)}60%{transform:translateY(0)}80%{transform:translateY(-5px)}}
+  @keyframes genVarre{0%,100%{transform:translateX(-6px)}50%{transform:translateX(6px)}}
+  svg.gen--idle .gen-float{animation:genFlutua 3.2s ease-in-out infinite;}
+  svg.gen--idle .gen-eyes{animation:genPisca 5s ease-in-out infinite;}
+  svg.gen--idle .gen-ant{animation:genPulso 2.4s ease-in-out infinite;}
+  svg.gen--alert .gen-float{animation:genBalanca 1.6s ease-in-out infinite;}
+  svg.gen--happy .gen-float{animation:genPula 1.5s ease-out 1;}
+  svg.gen--happy .gen-eyes rect{height:8px; rx:4;}
+  svg.gen--thinking .gen-eyes{animation:genVarre 1.1s ease-in-out infinite;}
+  svg.gen--thinking .gen-eyes rect{rx:2;}
+  svg.gen--thinking .gen-ant{animation:genPulso .6s ease-in-out infinite;}
+  /* Botão flutuante do Gen */
+  .gen-fab-box{position:fixed; right:20px; bottom:20px; z-index:40; display:flex; align-items:center; gap:10px;}
+  .gen-fab{width:88px; height:88px; border-radius:30px; background:var(--card); border:1px solid var(--line-strong); box-shadow:0 12px 30px rgba(0,0,0,.5); padding:10px; cursor:pointer;}
+  .gen-fab:hover{border-color:var(--accent);}
+  .gen-balao{background:var(--card); border:1px solid var(--line-strong); color:var(--ink); padding:8px 12px; border-radius:14px; font-size:13px; font-weight:600; white-space:nowrap;}
+  .gen-balao[hidden]{display:none;}
+  :root[data-theme="light"] .gen-fab{box-shadow:0 10px 26px rgba(15,40,80,.18);}
+  .v5-area#v5-inicio, .v5-area{scroll-margin-top:12px;}
+  body{padding-bottom:96px;}
+  #cashflowSvg path[fill="url(#cfFill)"]{opacity:.35;}
+  @media (max-width:700px){
+    .gen-fab-box{right:14px; bottom:14px;}
+    .gen-fab{width:64px; height:64px; border-radius:22px; padding:7px;}
+    .gen-mascote{width:64px; height:64px;}
+  }
+
   @media (prefers-reduced-motion: reduce){
     *, *::before, *::after{animation:none !important; transition:none !important;}
     .btn:hover, .btn:active{transform:none;}
@@ -1986,15 +2058,27 @@
   function flex(node, cls){ if(node) node.classList.add(cls); return node; }
   function put(area, node){ if(node) areaEl[area].appendChild(node); }
 
-  // Início
+  // Início (visual v7): herói + Gen, conversa, gastos + "Fica de olho", números do mês, contas, fluxo e faturas
   var stats = el("div", {"class": "v5-stats", id: "v5Stats"});
-  put("inicio", document.querySelector(".hero-review-grid"));
-  put("inicio", stats);
-  put("inicio", $("resumoMesCard"));
+  var GEN_SVG = function(cls){ return '<svg viewBox="0 0 120 120" aria-hidden="true" class="gen ' + (cls || "") + '"><g class="gen-float"><line x1="60" y1="12" x2="60" y2="26" stroke="var(--line-strong)" stroke-width="5" stroke-linecap="round"/><circle class="gen-ant" cx="60" cy="10" r="7"/><rect x="6" y="54" width="10" height="24" rx="5" fill="var(--line-strong)"/><rect x="104" y="54" width="10" height="24" rx="5" fill="var(--line-strong)"/><rect class="gen-corpo" x="14" y="26" width="92" height="80" rx="28" fill="var(--card-2)" stroke-width="3"/><rect x="26" y="44" width="68" height="36" rx="18" fill="#0B0C0B"/><g class="gen-eyes"><rect x="40" y="52" width="12" height="20" rx="6"/><rect x="68" y="52" width="12" height="20" rx="6"/></g><rect x="48" y="90" width="24" height="5" rx="2.5" fill="var(--line-strong)"/></g></svg>'; };
+  var genCard = el("section", {"class": "card gen-card", id: "genCard", "aria-labelledby": "genT"});
+  genCard.innerHTML = '<div class="gen-topo"><div class="gen-mascote">' + GEN_SVG("gen--idle") + '</div><div><h2 id="genT">Gen</h2><span class="hint">seu copiloto financeiro</span></div></div><p class="gen-frase" id="genFrase"></p><button type="button" class="gen-pergunta" id="genPerguntar" data-gen-abrir></button>';
+  var gastosIni = el("section", {"class": "card gastos-ini", id: "gastosIniCard", "aria-labelledby": "gastosIniT"});
+  gastosIni.innerHTML = '<div class="card-head"><h2 id="gastosIniT">Gastos do mês</h2><button type="button" class="resumo-link" data-ir-area="analises">Ver análises</button></div><div id="gastosIniCorpo"></div>';
+  var olho = el("section", {"class": "card olho-card", id: "olhoCard", "aria-labelledby": "olhoT"});
+  olho.innerHTML = '<div class="card-head"><h2 id="olhoT">Fica de olho</h2></div><div id="olhoCorpo"></div>';
+  put("inicio", row(flex(document.querySelector(".hero-review-grid"), "v5-w"), flex(genCard, "v5-n")));
   put("inicio", $("chatCard"));
+  put("inicio", $("resumoMesCard"));
+  put("inicio", row(flex(gastosIni, "v5-w"), flex(olho, "v5-n")));
+  put("inicio", stats);
   put("inicio", $("accountTiles"));
   put("inicio", row(flex(cardOf("upcomingList"), "v5-w"), flex(cardOf("cashflowSvg"), "v5-n")));
   put("inicio", cardOf("faturasList"));
+  // Botão flutuante do Gen (todas as áreas)
+  var genFab = el("div", {"class": "gen-fab-box", id: "genFabBox"});
+  genFab.innerHTML = '<span class="gen-balao" id="genBalao" hidden>Me chama aqui</span><button type="button" class="gen-fab" id="genFab" data-gen-abrir aria-label="Abrir copiloto Gen">' + GEN_SVG("gen--idle") + '</button>';
+  document.body.appendChild(genFab);
   // Lançamentos
   put("lancamentos", $("ledgerSection"));
   put("lancamentos", $("trashCard"));
@@ -2136,7 +2220,7 @@
     var on = nav.querySelector('[aria-current="page"]');
     if(on && nav.scrollWidth > nav.clientWidth) nav.scrollLeft += (on.getBoundingClientRect().left - nav.getBoundingClientRect().left) - (nav.clientWidth - on.offsetWidth) / 2;
     var a = AREAS.filter(function(x){ return x[0] === name; })[0];
-    $("v5H1").textContent = a[2]; $("v5Sub").textContent = a[3];
+    $("v5H1").textContent = a[2]; $("v5Sub").textContent = name === "inicio" ? dataDeHoje() : a[3];
     if(!fromHash && location.hash.replace("#", "") !== name){ try{ history.pushState(null, "", "#" + name); }catch(e){ location.hash = name; } }
     window.scrollTo(0, 0);
     if(name === "familia" && window.__v5api && window.__v5api.famRefresh) window.__v5api.famRefresh();
@@ -2208,8 +2292,96 @@
       ];
       box.innerHTML = items.map(function(i){ return '<div class="v5-stat"><div class="l">' + i[0] + '</div><div class="v ' + i[3] + '">' + i[1] + '</div><div class="n">' + i[2] + '</div></div>'; }).join("");
       var bd = $("v5Badge"); if(bd){ bd.textContent = inf.pend; bd.hidden = !inf.pend; }
+      window.__v5ui.inicio(ref);
+    },
+    inicio: function(ref){
+      var api = window.__v5api; if(!api || !api.inicio) return;
+      try{ pintarInicioV7(api.inicio(ref), api.fmt); }catch(e){ if(window.console) console.error(e); }
     }
   };
+
+  /* ---------- visual v7: Gen, Gastos do mês e Fica de olho ---------- */
+  var DIAS_SEM = ["Domingo", "Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado"];
+  var MESES_TXT = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
+  function dataDeHoje(){ var d = new Date(); return DIAS_SEM[d.getDay()] + ", " + d.getDate() + " de " + MESES_TXT[d.getMonth()]; }
+  function esc(t){ return String(t == null ? "" : t).replace(/[&<>"']/g, function(c){ return {"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[c]; }); }
+  function chatAberto(){ var c = $("chatCard"); return !!(c && !c.hidden && $("chatPergunta")); }
+  function genEstado(estado){
+    Array.prototype.forEach.call(document.querySelectorAll("svg.gen"), function(g){
+      g.classList.remove("gen--idle", "gen--alert", "gen--happy", "gen--thinking"); g.classList.add("gen--" + estado);
+    });
+  }
+  var genBase = "idle", genFesta = null;
+  function genComemorar(){
+    clearTimeout(genFesta); genEstado("happy");
+    genFesta = setTimeout(function(){ genFesta = null; genEstado(genBase); }, 1500);
+  }
+  function pintarInicioV7(d, f){
+    genBase = (d.previsao !== null && d.previsao < -0.005) ? "alert" : "idle";
+    if(!genFesta && !(document.querySelector("svg.gen.gen--thinking"))) genEstado(genBase);
+    // Card do Gen
+    var frase;
+    if(genBase === "alert") frase = "A previsão do mês ficou no vermelho. Vamos olhar juntos as contas a pagar?";
+    else if(!d.mesAtual) frase = "Você está vendo " + d.nomeMes + ". Os gastos do mês somaram " + f(d.total) + ".";
+    else if(d.total > 0.005 && d.totalAnt > 0.005) frase = "Até hoje você gastou " + f(d.total) + " em " + d.nomeMes + ", " + (window.__v5hide ? "••" : Math.round(d.total / d.totalAnt * 100)) + "% do que gastou em " + d.nomeMesAnt + " inteiro.";
+    else if(d.total > 0.005) frase = "Até hoje você gastou " + f(d.total) + " em " + d.nomeMes + ".";
+    else frase = "Lance um gasto ou importe um extrato e eu acompanho o mês com você.";
+    $("genFrase").textContent = frase;
+    var gp = $("genPerguntar");
+    gp.innerHTML = chatAberto() ? "Pergunte qualquer coisa ao Gen" : "Lança: mercado 87,50 nubank crédito";
+    // Gastos do mês
+    var cats = d.categorias.slice(0, 6), corpo = $("gastosIniCorpo");
+    if(!cats.length) corpo.innerHTML = '<div class="empty-note">Sem gastos lançados neste mês.</div>';
+    else corpo.innerHTML = '<div class="gi-total">' + f(d.total) + '</div>' + cats.map(function(c){
+      var pct = d.total > 0 ? Math.max(0, Math.round(c.valor / d.total * 100)) : 0;
+      return '<div class="spend-item"><div class="spend-row-head"><span>' + esc(c.categoria) + '</span><span class="' + (c.acima ? "over" : "") + '">' + f(c.valor) + ' · ' + pct + '%</span></div>' +
+        '<div class="spend-track"><div class="spend-fill' + (c.acima ? " over" : "") + '" style="width:' + Math.max(pct, 2) + '%"></div></div></div>';
+    }).join("") + (d.categorias.length > cats.length ? '<div class="empty-note">+ ' + (d.categorias.length - cats.length) + ' categorias nas Análises.</div>' : "");
+    // Fica de olho
+    var ol = $("olhoCorpo"), oc = $("olhoCard");
+    oc.classList.toggle("olho-on", !!d.olho);
+    ol.innerHTML = d.olho
+      ? '<p class="olho-texto">' + esc(d.olho.texto) + '</p><button type="button" class="btn btn-alerta"' + (d.olho.area ? ' data-ir-area="' + d.olho.area + '"' : ' data-ir-alvo="' + d.olho.alvo + '"') + '>' + esc(d.olho.botao) + '</button>'
+      : '<p class="olho-texto calmo">Nada pedindo atenção agora. Quando aparecer algo importante, eu aviso aqui.</p>';
+  }
+  function abrirGen(){
+    if(chatAberto()){
+      setArea("inicio");
+      var c = $("chatCard"); if(c.scrollIntoView) c.scrollIntoView({behavior: "smooth", block: "start"});
+      var i = $("chatPergunta"); if(i && i.focus) setTimeout(function(){ i.focus({preventScroll: true}); }, 250);
+    } else openDrawer();
+  }
+  document.addEventListener("click", function(e){
+    var t = e.target.closest ? e.target.closest("[data-gen-abrir],[data-ir-area],[data-ir-alvo]") : null;
+    if(!t) return;
+    if(t.hasAttribute("data-gen-abrir")){ abrirGen(); return; }
+    if(t.getAttribute("data-ir-area")){ setArea(t.getAttribute("data-ir-area")); window.scrollTo(0, 0); return; }
+    var alvo = $(t.getAttribute("data-ir-alvo")); if(alvo){ var cd = alvo.closest(".card") || alvo; if(cd.scrollIntoView) cd.scrollIntoView({behavior: "smooth", block: "start"}); }
+  });
+  // O chat aparece ou some (liberação de testador): a barra do Gen muda junto
+  if($("chatCard") && window.MutationObserver){
+    new MutationObserver(function(){ var gp = $("genPerguntar"); if(gp) gp.textContent = chatAberto() ? "Pergunte qualquer coisa ao Gen" : "Lança: mercado 87,50 nubank crédito"; })
+      .observe($("chatCard"), {attributes: true, attributeFilter: ["hidden"], childList: true, subtree: true});
+  }
+  // Pensando: enquanto o chat espera a resposta (o campo fica desabilitado)
+  var chatCorpo = $("chatCorpo");
+  if(chatCorpo && window.MutationObserver){
+    new MutationObserver(function(){
+      var p = $("chatPergunta"), pensando = !!(p && p.disabled);
+      if(pensando) genEstado("thinking"); else if(document.querySelector("svg.gen.gen--thinking")) genEstado(genBase);
+    }).observe(chatCorpo, {childList: true, subtree: true});
+  }
+  // Comemorando: lançamento salvo
+  if(toastEl && window.MutationObserver){
+    new MutationObserver(function(){ if(/^Lançamento (adicionado|atualizado)/.test(toastEl.textContent)) genComemorar(); }).observe(toastEl, {childList: true, characterData: true, subtree: true});
+  }
+  // Balão "Me chama aqui" na primeira visita do dia
+  (function(){
+    var hoje = new Date().toDateString(), b = $("genBalao");
+    if(!b || lsGet("gen_balao") === hoje) return;
+    lsSet("gen_balao", hoje); b.hidden = false;
+    setTimeout(function(){ b.hidden = true; }, 6000);
+  })();
 
   updateMonth();
   fromHash();
@@ -5225,7 +5397,24 @@ var FLX = (function(){
     toast("Saldo atualizado.");
   }
 
+  // Visual v7: o que a Previsão mostrou por último. Só a interface do Início lê isto (Gen, "Fica de olho").
+  var heroUltimo = null;
+  // "Você pode gastar hoje": só uma divisão na tela sobre a Previsão que já existe (previsão ÷ dias que faltam, contando hoje).
+  function gastarHojeHtml(valor, mr){
+    var hoje = new Date(), n = mr.daysInMonth, dia = hoje.getDate();
+    var faltam = Math.max(1, n - dia + 1), porDia = valor > 0.005 ? Math.floor(valor / faltam) : 0;
+    var fim = pad2(n) + "/" + pad2(mr.last.getMonth() + 1), azul = valor > 0.005;
+    var blocos = "";
+    for(var i = 1; i <= n; i++) blocos += '<i class="' + (i < dia ? "foi" : (i === dia ? "hoje" : "")) + '"></i>';
+    return '<div class="gh">' +
+      '<div class="gh-topo"><span class="gh-rot">Você pode gastar hoje</span><span class="gh-selo' + (azul ? "" : " alerta") + '">' + (azul ? "no azul até " + fim : "atenção até " + fim) + '</span></div>' +
+      '<div class="gh-valor">' + fmt(porDia) + '</div>' +
+      '<p class="gh-frase">' + (azul ? 'por dia, e você ainda termina o mês com <b>' + fmt(valor) + '</b> sobrando.' : 'A previsão do mês está em <b>' + fmt(valor) + '</b>. Vale olhar com calma as contas a pagar.') + '</p>' +
+      '<div class="gh-mes" role="img" aria-label="Dia ' + dia + ' de ' + n + ' do mês">' + blocos + '</div>' +
+    '</div>';
+  }
   function renderHero(ref){
+    heroUltimo = null;
     var r = computeTotals(ref);
     var mr = monthRange(ref);
     var fimMes = mr.last.getFullYear()+"-"+pad2(mr.last.getMonth()+1)+"-"+pad2(mr.last.getDate());
@@ -5244,6 +5433,7 @@ var FLX = (function(){
         '<div class="resumo-vazio"><p>Importe um extrato ou informe seu saldo para ver a previsão do mês</p>'+
         '<button type="button" class="btn btn-primary" data-resumo="atualizar-saldo">Atualizar saldo</button></div>';
       renderAvisoSaldo();
+      if(window.__v5ui && window.__v5ui.inicio){ try{ window.__v5ui.inicio(ref); }catch(e){} }
       return r;
     }
     var usaSaldo = mesAtual && chaves.length > 0;
@@ -5263,7 +5453,9 @@ var FLX = (function(){
          despesas_do_mes: c2(r.despTotal + r.prevDesp), receitas_previstas: c2(r.prevRec), despesas_previstas: c2(r.prevDesp), resultado_do_mes: resultado};
     if(reservaO.total > 0){ dadosIa.reservado_orcamentos = reservaO.total; dadosIa.previsao_sem_orcamentos = c2(semOrc); }
     COPI.dados.previsao = {card: "previsao", ref: ref, dados: dadosIa};
-    var html = '<div class="resumo-titulo">Previsão para '+fmtDate(fimMes)+'</div>'+
+    heroUltimo = {valor: valor, mesAtual: mesAtual};
+    if(mesAtual) card.className = "resumo-card com-gh fade-in";
+    var html = (mesAtual ? gastarHojeHtml(valor, mr) : '')+'<div class="resumo-titulo">Previsão para '+fmtDate(fimMes)+'</div>'+
       '<div class="resumo-valor resumo-'+sit.estado+'">'+fmt(valor)+'</div>'+
       '<p class="resumo-frase">'+sit.frase+'</p>'+
       (reservaO.total > 0 ? '<p class="resumo-orc">Já descontando '+fmt(reservaO.total)+' que ainda falta gastar nos seus orçamentos.</p>' : '')+
@@ -5307,6 +5499,7 @@ var FLX = (function(){
     }
     card.innerHTML = html + rodape();
     renderAvisoSaldo();
+    if(window.__v5ui && window.__v5ui.inicio){ try{ window.__v5ui.inicio(ref); }catch(e){} }
     return r;
   }
 
@@ -6032,6 +6225,37 @@ var FLX = (function(){
     try{ renderResumoMes(); }catch(e){ if(window.console) console.error(e); }
     try{ lemRender(); }catch(e){ if(window.console) console.error(e); }
     if(window.__v5ui){ try{ window.__v5ui.after(ref); }catch(e){} }
+  }
+
+  // Visual v7: números do Início (Gen, Gastos do mês, Fica de olho). Só lê os mesmos dados das Análises e da Previsão; não grava nada.
+  function gastosConsumoDoMes(ym){
+    return state.transactions.filter(function(t){ return isConsumo(t) && countsAsSpend(t) && monthKey(t.dataEfet) === ym; });
+  }
+  function inicioV7(ref){
+    var ym = monthKey(ref), hoje = todayISO(), mesAtual = ym === monthKey(hoje);
+    var cats = groupSum(gastosConsumoDoMes(ym), function(t){ return t.categoria; }).filter(function(d){ return d.value > 0.005; });
+    var total = Math.round(cats.reduce(function(s, d){ return s + d.value; }, 0) * 100) / 100;
+    var ymAnt = shiftMonthKey(ym, -1);
+    var totalAnt = Math.round(groupSum(gastosConsumoDoMes(ymAnt), function(t){ return t.categoria; }).reduce(function(s, d){ return s + Math.max(0, d.value); }, 0) * 100) / 100;
+    var lista = cats.map(function(d){ var lim = state.budgets[d.label]; return {categoria: d.label, valor: d.value, limite: lim || 0, acima: !!(lim && d.value > lim)}; });
+    // Fica de olho: o aviso mais importante entre os que o app já calcula
+    var olho = null, prev = heroUltimo && heroUltimo.mesAtual ? heroUltimo.valor : null;
+    if(prev !== null && prev < -0.005) olho = {texto: "A previsão do mês ficou em " + fmt(prev) + ". O fluxo de caixa mostra em que dia o saldo aperta.", botao: "Ver fluxo de caixa", area: "planejamento"};
+    if(!olho){
+      var acima = lista.filter(function(c){ return c.acima; }).sort(function(a, b){ return (b.valor - b.limite) - (a.valor - a.limite); })[0];
+      if(acima) olho = {texto: acima.categoria + " passou " + fmt(acima.valor - acima.limite) + " da meta de " + fmt(acima.limite) + " este mês.", botao: "Ver orçamentos", area: "planejamento"};
+    }
+    if(!olho && mesAtual){
+      var d7 = new Date(); d7.setDate(d7.getDate() + 6); var limite = d7.getFullYear() + "-" + pad2(d7.getMonth() + 1) + "-" + pad2(d7.getDate()), contas = state.transactions.filter(function(t){
+        return !tipoEntra(t.tipo) && !isNeutro(t) && !isRealized(t, ref) && t.dataEfet >= hoje && t.dataEfet <= limite;
+      });
+      if(contas.length){
+        var soma = contas.reduce(function(s, t){ return s + despVal(t); }, 0);
+        olho = {texto: contas.length + (contas.length === 1 ? " conta vence" : " contas vencem") + " nos próximos 7 dias, somando " + fmt(soma) + ".", botao: "Ver contas", alvo: "upcomingList"};
+      }
+    }
+    return {mesAtual: mesAtual, nomeMes: MESES_LEM[+ym.slice(5, 7) - 1], nomeMesAnt: MESES_LEM[+ymAnt.slice(5, 7) - 1],
+      total: total, totalAnt: totalAnt, categorias: lista, previsao: prev, olho: olho};
   }
 
   function v5Info(ref){
@@ -11220,7 +11444,7 @@ var CAIXA = (function(){
   };
 
 
-  window.__v5api = {renderAll: renderAll, info: v5Info, fmt: fmt, guessCategoria: guessCategoria, famRefresh: (typeof famRefresh === 'function' ? famRefresh : null)};
+  window.__v5api = {renderAll: renderAll, info: v5Info, inicio: inicioV7, fmt: fmt, guessCategoria: guessCategoria, famRefresh: (typeof famRefresh === 'function' ? famRefresh : null)};
   if(window.__GENESIS_TEST__){ window.__genesis = {Store: Store, state: state, aplicarNuvem: aplicarNuvem, loadSynced: loadSynced, saveSynced: saveSynced, COPI: COPI, copilotoAplicarStatus: copilotoAplicarStatus, copilotoResumo: copilotoResumo, renderAll: renderAll}; }
 
 
