@@ -7080,6 +7080,16 @@ var FLX = (function(){
     var diff = Math.min(daysDiff(tx.dataEfet, row.dataEfet), daysDiff(tx.dataLanc, row.data));
     var sim = descSimilarity(tx.descricao, row.descricao);
     var pr = parcelaDe(row), pt = parcelaDe(tx);
+    // Parcelas de números diferentes nunca são a mesma cobrança, mesmo com a mesma data de compra
+    // (ex.: "cleide" 5/11 lançada à mão e "StudioH4 PARC 06/11" da fatura).
+    if(pr && pt && pr.n !== pt.n) return null;
+    if(row.modalidade === "Crédito" && !(pr && pt)){
+      // Linha de fatura: um Pix ou compra no débito não é a mesma cobrança, e uma compra que já está
+      // em outra fatura do cartão (vencimento no mesmo dia, outro mês) também não: assinatura mensal,
+      // ou o mesmo valor no mesmo restaurante, se repete de uma fatura para a outra.
+      if(tx.modalidade && tx.modalidade !== "Crédito") return null;
+      if(tx.dataEfet && row.dataEfet && tx.dataEfet.slice(8, 10) === row.dataEfet.slice(8, 10) && impMonthKey(tx.dataEfet) !== impMonthKey(row.dataEfet)) return null;
+    }
     if(pr && pt && pr.t === pt.t && sim >= 0.5){
       if(pr.n !== pt.n) return null; // outra parcela da mesma compra: as duas devem existir
       return {level: impMonthKey(tx.dataEfet) === impMonthKey(row.dataEfet) ? "confirmed" : "wrongdate", diff: diff};
@@ -7239,7 +7249,13 @@ var FLX = (function(){
       var tx = txs[i];
       if(tx.statusParcela !== "prevista") continue;
       if(Math.abs(tx.valor - row.valor) > 0.05) continue;
-      if(impDescKey(tx.descricao) !== key) continue;
+      if(impDescKey(tx.descricao) !== key){
+        // Parcela lançada à mão com outro nome ("iphone" 8/8 = "DigitalPhoneS PARC 08/08"): vale se o valor,
+        // o número da parcela, o total de parcelas e o mês da fatura batem.
+        if(!(row.parcelaAtual && row.totalParcelas && tx.parcelaAtual === row.parcelaAtual && tx.totalParcelas === row.totalParcelas &&
+          Math.abs(tx.valor - row.valor) <= 0.01 && impMonthKey(tx.dataEfet) === impMonthKey(row.dataEfet))) continue;
+        return tx;
+      }
       if(row.parcelaAtual && tx.parcelaAtual){
         // mesma compra e mesmo número de parcela: é esta, esteja a prevista no mês que estiver
         if(row.parcelaAtual !== tx.parcelaAtual || (row.totalParcelas && tx.totalParcelas && row.totalParcelas !== tx.totalParcelas)) continue;
@@ -7578,6 +7594,7 @@ var FLX = (function(){
       }
       if(r.conciliaId){
         var patchConc = {statusParcela: "confirmada", dataLanc: r.data, dataEfet: r.dataEfet, importId: origem.importId, faturaKey: origem.faturaKey};
+        if(r.tipo === "estorno") patchConc.tipo = "estorno"; // crédito da fatura (ex.: desconto da anuidade) que a prevista tinha como gasto
         if(ctx.conta){ patchConc.conta = ctx.conta; patchConc.documento = r.documentoChave || null; }
         updates.push({id: r.conciliaId, patch: patchConc});
         return;
@@ -11801,7 +11818,7 @@ var CAIXA = (function(){
         return {meta: stagingMeta ? {isExtrato: !!stagingMeta.isExtrato, isFatura: !!stagingMeta.isFatura, banco: stagingMeta.banco || null, cardFinal: stagingMeta.cardFinal || null, vencimento: stagingMeta.vencimento || null,
           fechamentoDia: stagingMeta.fechamentoDia || null, fechamentoFatura: stagingMeta.fechamentoFatura || null} : null,
           linhas: staging.map(function(r){ return {data: r.data, dataEfet: r.dataEfet || null, valor: r.valor, sinal: r.sinal || (r.negativo ? "-" : "+"), descricao: r.descricao, tipo: r.tipo, categoria: r.categoria,
-            modalidade: r.modalidade || null, parcela: r.parcela || null, final: r.final || null, selecionada: !!r.selected, duplicada: r.dup ? r.dup.level : null}; })};
+            modalidade: r.modalidade || null, parcela: r.parcela || null, final: r.final || null, selecionada: !!r.selected, duplicada: r.dup ? r.dup.level : null, confirmaPrevista: r.conciliaId || null}; })};
       },
       lancamentos: function(){ return state.transactions.slice(); },
       gerarRecorrentes: function(){ maybeGenerateRecurring(); renderAll(); },
