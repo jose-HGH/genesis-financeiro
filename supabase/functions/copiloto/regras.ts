@@ -131,6 +131,20 @@ export function valoresInventados(texto: string, resumo: unknown): string[] {
     .map((v) => v.texto);
 }
 
+/**
+ * Valores que a própria pessoa escreveu na pergunta ("somam 23.438,06"), em reais.
+ * A resposta pode repetir esses números (não são inventados); continua sem poder fazer contas com eles.
+ */
+export function numerosDaPergunta(pergunta: string): number[] {
+  const re = /\d{1,3}(?:\.\d{3})+(?:,\d{1,2})?|\d+(?:,\d{1,2})?/g;
+  const out: number[] = [];
+  for (const m of pergunta.matchAll(re)) {
+    const c = paraCentavos(m[0]);
+    if (c !== null && c > 0) out.push(c / 100);
+  }
+  return out.slice(0, 20);
+}
+
 // ---------------------------------------------------------------------
 // Conferência do resumo com o banco
 // ---------------------------------------------------------------------

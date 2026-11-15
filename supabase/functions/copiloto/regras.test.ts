@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import {
   custoMaximoUsd, custoUsd, divergencias, impressaoDigital, jsonCanonico,
   paraCentavos, validarCardExplicar, validarCenario, validarConsulta, validarResumo, validarResumoChat,
-  validarAjuste, validarResumoChatResposta, validarResumoMensal, validarResumoSimulador, valoresEmReais, valoresInventados,
+  numerosDaPergunta, validarAjuste, validarResumoChatResposta, validarResumoMensal, validarResumoSimulador, valoresEmReais, valoresInventados,
 } from "./regras.ts";
 
 test("paraCentavos entende formato brasileiro e inglês", () => {
@@ -233,4 +233,14 @@ test("validarAjuste confere cada ação e recusa o que falta", () => {
   assert.deepEqual(v({ acao: "mudar_valor_serie", categoria: "Salário", novo_valor: -5 }), { erro: "novo valor inválido" });
   assert.deepEqual(v({ acao: "apagar_repetido", valor: 383.71, de: "2020-01" }), { erro: "mês inválido" });
   assert.deepEqual(v({ acao: "pagar_conta" }), { erro: "ação desconhecida" });
+});
+
+test("numerosDaPergunta: os valores que a pessoa escreveu podem ser repetidos na resposta, sem contas", () => {
+  const pergunta = "por que no quadro de análises os valores somam 23.438,06 e o resultado de novembro está em 21.964,78 ?";
+  const nums = numerosDaPergunta(pergunta);
+  assert.deepEqual(nums, [23438.06, 21964.78]);
+  const resumo = { versao: 1, mes: "2026-11", categorias: {}, consultas: [{ ferramenta: "gastos", total: 44664.78 }] };
+  const texto = "O total do quadro é R$ 44.664,78. A soma que você fez, R$ 23.438,06, ficou menor.";
+  assert.deepEqual(valoresInventados(texto, [resumo, nums]), []);
+  assert.deepEqual(valoresInventados("A diferença é R$ 21.226,72.", [resumo, nums]), ["R$ 21.226,72"]);
 });

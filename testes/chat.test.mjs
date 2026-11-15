@@ -180,3 +180,20 @@ test("chat: escondido para quem não está no grupo de testes do copiloto", asyn
     assert.equal(await page.evaluate(() => document.getElementById("chatCard").hidden), true);
   } finally { await ctx.close(); }
 });
+
+test("chat: gastos por categoria com mais de 8 categorias trazem \"outras_categorias\" e a soma bate com o total e com o quadro", async () => {
+  const { ctx, page, erros } = await abrirPainel(browser, servidor.base);
+  try {
+    const l = Array.from({ length: 11 }, (_, i) => ({ ...base, tipo: "despesa", valor: 100 + i * 10, dataLanc: dia(mes, 1), dataEfet: dia(mes, 1), descricao: `GASTO FICTICIO ${i}`, categoria: `Cat${String.fromCharCode(65 + i)}` }));
+    await page.evaluate((x) => window.__genesisTeste.definirLancamentos(x), l);
+    const r = await page.evaluate((m) => window.__genesisTeste.chatCalcular({ ferramenta: "gastos", de: m, ate: m, categoria: null, termos: [], agrupar: "categoria" }), mes);
+    const d = r.dados;
+    assert.equal(d.total, 1650); // 100 + 110 + ... + 200
+    assert.equal(d.por_categoria.length, 8);
+    assert.deepEqual(d.outras_categorias, { quantidade: 3, valor: 330 }); // 100 + 110 + 120
+    const soma = d.por_categoria.reduce((s, x) => s + x.valor, 0) + d.outras_categorias.valor;
+    assert.equal(Math.round(soma * 100) / 100, d.total);
+    assert.equal(r.local.categorias.length, 11, "a tela mostra todas");
+    assert.deepEqual(erros, []);
+  } finally { await ctx.close(); }
+});

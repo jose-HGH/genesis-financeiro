@@ -30,7 +30,7 @@ import { MENSAGENS, RECURSOS, SISTEMA_FIXO } from "./recursos.ts";
 import {
   custoMaximoUsd, custoUsd, divergencias, ESQUEMA_AJUSTE, ESQUEMA_CENARIO, ESQUEMA_CONSULTA, estimarTokens, impressaoDigital,
   type ResumoBase, type Uso, validarAjuste, validarCardExplicar, validarCenario, validarConsulta, validarResumo, validarResumoChat,
-  validarResumoChatResposta, validarResumoMensal, validarResumoSimulador, valoresInventados,
+  numerosDaPergunta, validarResumoChatResposta, validarResumoMensal, validarResumoSimulador, valoresInventados,
 } from "./regras.ts";
 
 const ORIGENS = (Deno.env.get("ORIGENS_PERMITIDAS") ??
@@ -260,7 +260,8 @@ Deno.serve(async (req) => {
         else { status = "ok"; motivo = "cenario_invalido"; erroCenario = conf.erro; }
         continue;
       }
-      if (valoresInventados(candidato, resumo).length === 0) {
+      // Os valores que a pessoa escreveu na pergunta também podem ser repetidos na resposta.
+      if (valoresInventados(candidato, pergunta ? [resumo, numerosDaPergunta(pergunta)] : resumo).length === 0) {
         texto = candidato; status = "ok"; motivo = null;
       } else {
         status = "ok"; motivo = "numeros_reprovados";
