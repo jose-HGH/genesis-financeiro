@@ -62,3 +62,40 @@ test("sem contas para hoje nem amanhã, nada aparece", async () => {
     assert.deepEqual(erros, []);
   } finally { await ctx.close(); }
 });
+
+test("fatura: compra sem cartão gravado entra na fatura do único cartão do banco no mesmo dia", async () => {
+  const { ctx, page, erros } = await abrirPainel(browser, servidor.base);
+  try {
+    const cc = { modalidade: "Crédito", banco: "Banco do Brasil" };
+    await page.evaluate((l) => window.__genesisTeste.definirLancamentos(l), [
+      L("despesa", 1576.86, amanha, "COMPRAS DO PDF", { ...cc, cartao: "banco do brasil|0000" }),
+      L("despesa", 2220.04, amanha, "PARCELA LANCADA A MAO", { ...cc, banco: "banco do brasil" }),
+      // outro banco no mesmo dia continua separado
+      L("despesa", 50, amanha, "COMPRA OUTRO BANCO", { modalidade: "Crédito", banco: "Banco Ficticio" }),
+    ]);
+    const box = page.locator("#contasDia");
+    await box.waitFor();
+    assert.match(await box.innerText(), /Amanhã vencem 2 contas: R\$\s?3\.846,90/);
+    await box.locator('[data-cd="ver"]').click();
+    const itens = await box.locator(".cd-item").allInnerTexts();
+    assert.equal(itens.length, 2);
+    assert.match(itens.join("\n"), /3\.796,90/);
+    assert.deepEqual(erros, []);
+  } finally { await ctx.close(); }
+});
+
+test("fatura: com dois cartões do mesmo banco no dia, a compra sem cartão não é juntada a nenhum", async () => {
+  const { ctx, page, erros } = await abrirPainel(browser, servidor.base);
+  try {
+    const cc = { modalidade: "Crédito", banco: "Banco do Brasil" };
+    await page.evaluate((l) => window.__genesisTeste.definirLancamentos(l), [
+      L("despesa", 100, amanha, "CARTAO A", { ...cc, cartao: "banco do brasil|1111" }),
+      L("despesa", 200, amanha, "CARTAO B", { ...cc, cartao: "banco do brasil|2222" }),
+      L("despesa", 300, amanha, "SEM CARTAO", cc),
+    ]);
+    const box = page.locator("#contasDia");
+    await box.waitFor();
+    assert.match(await box.innerText(), /Amanhã vencem 3 contas: R\$\s?600,00/);
+    assert.deepEqual(erros, []);
+  } finally { await ctx.close(); }
+});
