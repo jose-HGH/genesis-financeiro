@@ -7358,6 +7358,42 @@ var FLX = (function(){
 
   // Confere a fatura: saldo anterior − pagamentos/créditos + compras + encargos = total.
   // Considera todas as linhas lidas (marcadas ou não), menos as descartadas como ruído.
+  // Conferência "como vai ficar no app": a fatura deste cartão e vencimento, depois de importar, soma o mesmo
+  // que o total do PDF? Conta as linhas marcadas (as desmarcadas ficam de fora) mais o que já estava salvo nessa
+  // fatura antes (lançado à mão, parcelas previstas, outra importação). Quando não bate, mostra cada motivo.
+  //   ctx: {resumo, venc, banco, cardKey, txs, apagar: {id: true}}
+  function conferirFaturaNoApp(rows, ctx){
+    var resumo = ctx.resumo;
+    if(!resumo || resumo.total == null || !ctx.venc) return null;
+    var pag = 0, novos = 0, desmarcadas = [], conc = {}, pagRecusados = [];
+    rows.forEach(function(r, idx){
+      if(r.flagged || r.modalidade !== "Crédito") return;
+      if(r.tipo === "pagamento_fatura" || r.pagamento) pag += r.valor; // o PDF desconta o pagamento da fatura anterior
+      if(r.tipo === "pagamento_fatura" || (r.pagamento && r.pagamento.state !== "rejected")) return;
+      if(r.pagamento && r.selected) pagRecusados.push({idx: idx, r: r});
+      if(r.tipo === "transferencia_interna") return;
+      if(r.selected){
+        novos += tipoEntra(r.tipo) ? -r.valor : r.valor;
+        if(r.conciliaId) conc[r.conciliaId] = true;
+        if(r.corrigirDup && r.dup && r.dup.txId) conc[r.dup.txId] = true;
+      } else desmarcadas.push({idx: idx, r: r});
+    });
+    var antes = [], somaAntes = 0;
+    (ctx.txs || []).forEach(function(t){
+      if(conc[t.id] || (ctx.apagar && ctx.apagar[t.id])) return;
+      if(t.modalidade !== "Crédito" || t.dataEfet !== ctx.venc || !mesmoBanco(t.banco, ctx.banco)) return;
+      if(t.cartao && ctx.cardKey && t.cartao !== ctx.cardKey) return;
+      if(t.tipo === "pagamento_fatura" || t.tipo === "transferencia_interna") return;
+      somaAntes += tipoEntra(t.tipo) ? -t.valor : t.valor;
+      antes.push(t);
+    });
+    var esperado = resumo.saldoAnterior != null ? resumo.total - resumo.saldoAnterior + pag : resumo.total;
+    var noApp = novos + somaAntes;
+    var diff = Math.round((noApp - esperado) * 100) / 100;
+    return {esperado: Math.round(esperado * 100) / 100, noApp: Math.round(noApp * 100) / 100, diff: diff, ok: Math.abs(diff) <= 0.05,
+      desmarcadas: desmarcadas, antes: antes, pagRecusados: pagRecusados};
+  }
+
   function conferirTotalFatura(rows, resumo){
     var vazio = {aplicavel: false, ok: true, diff: 0, checks: [], linhas: []};
     if(!resumo || (resumo.total == null && resumo.compras == null && resumo.pagamentos == null)) return vazio;
@@ -8983,6 +9019,7 @@ var FLX = (function(){
   var stagingCheck = null;
   var stagingStep = "review"; // "pick" (which card?) → "setup" (closing/due days) → "review"
   var stagingReplace = null;    // {key, ids, em}: decisão sobre reimportar a mesma fatura
+  var stagingConfApagar = {};   // lançamentos que a conferência mandou tirar da fatura (apagados ao importar)
   var stagingFaturaKey = null;
   // Lançamentos salvos, menos os que a importação anterior desta fatura vai substituir.
   function ledgerParaImportar(){
@@ -9202,6 +9239,42 @@ var FLX = (function(){
     } else if(conf.aplicavel){
       confHtml = '<div class="conf-ok">Conferido: a soma dos lançamentos bate com o total da fatura.</div>';
     }
+    var cfa = (stagingMeta && !stagingMeta.isExtrato && hasCredit && stagingCheck) ? conferirFaturaNoApp(staging, {resumo: stagingMeta.resumo,
+      venc: stagingCheck.vencFatura, banco: stagingBanco(), cardKey: card.key, txs: ledgerParaImportar(), apagar: stagingConfApagar}) : null;
+    if(cfa){
+      var vencTxt = fmtDate(stagingCheck.vencFatura);
+      var marcadosApagar = Object.keys(stagingConfApagar).filter(function(id){ return stagingConfApagar[id]; });
+      if(cfa.ok){
+        confHtml += '<div class="conf-ok" id="confFaturaApp">Conferido: depois de importar, a fatura de '+vencTxt+' no app fica em '+fmt(cfa.noApp)+', igual ao PDF.'+
+          (marcadosApagar.length ? ' ('+marcadosApagar.length+' lançamento(s) repetido(s) serão apagados ao importar.)' : '')+'</div>';
+      } else {
+        var mesmoValor = function(t){ var o = staging.filter(function(r){ return r.selected && r.modalidade === "Crédito" && Math.abs(r.valor - t.valor) <= 0.01; })[0]; return o ? o.descricao : null; };
+        var li = [];
+        cfa.pagRecusados.forEach(function(d){
+          li.push('<li class="conf-item"><span>‘'+escapeAttr(d.r.descricao)+' — '+fmt(d.r.valor)+'’ está contando como gasto, mas parece o pagamento da fatura anterior.</span>'+
+            '<span class="attn-actions"><button type="button" class="solid" data-act="pag-ok" data-idx="'+d.idx+'">É pagamento</button></span></li>');
+        });
+        cfa.desmarcadas.slice(0, 12).forEach(function(d){
+          li.push('<li class="conf-item"><span>‘'+escapeAttr(d.r.descricao)+' — '+fmt(d.r.valor)+'’ está desmarcada'+
+            (d.r.dup ? ' (parecia repetida de ‘'+escapeAttr(d.r.dup.descricao)+'’'+(d.r.dup.dataEfet ? ', fatura de '+fmtDate(d.r.dup.dataEfet) : '')+')' : '')+'.</span>'+
+            '<span class="attn-actions"><button type="button" class="solid" data-act="conf-incluir" data-idx="'+d.idx+'">Incluir</button></span></li>');
+        });
+        cfa.antes.slice(0, 12).forEach(function(t){
+          var igual = mesmoValor(t);
+          li.push('<li class="conf-item"><span>‘'+escapeAttr(t.descricao)+' — '+fmt(t.valor)+'’ já estava nesta fatura antes desta importação'+
+            (t.statusParcela === "prevista" ? ' (parcela prevista)' : '')+(igual ? '. Parece a mesma que ‘'+escapeAttr(igual)+'’ desta fatura' : '')+'.</span>'+
+            '<span class="attn-actions"><button type="button" class="'+(igual ? 'solid' : 'ghost')+'" data-act="conf-apagar" data-id="'+escapeAttr(t.id)+'">Apagar ao importar</button></span></li>');
+        });
+        marcadosApagar.forEach(function(id){
+          var t = state.transactions.filter(function(x){ return x.id === id; })[0];
+          if(t) li.push('<li class="conf-item"><span>‘'+escapeAttr(t.descricao)+' — '+fmt(t.valor)+'’ será apagado ao importar.</span>'+
+            '<span class="attn-actions"><button type="button" class="ghost" data-act="conf-manter" data-id="'+escapeAttr(id)+'">Manter</button></span></li>');
+        });
+        if(!cfa.desmarcadas.length && !cfa.antes.length && !cfa.pagRecusados.length) li.push('<li>Não achei a causa. Confira linha a linha se alguma compra do PDF ficou de fora.</li>');
+        confHtml += '<div class="attn-block conf-warn" id="confFaturaApp"><div class="attn-title">Depois de importar, a fatura de '+vencTxt+' no app vai somar '+fmt(cfa.noApp)+
+          ', mas o PDF diz '+fmt(cfa.esperado)+' (diferença de '+fmt(Math.abs(cfa.diff))+')</div><ul class="conf-list">'+li.join("")+'</ul></div>';
+      }
+    }
     var jr = calcJurosParcelamento(staging);
     if(jr){
       confHtml += '<div class="imp-card-note" style="margin-bottom:10px;">Parcelamento de fatura: '+jr.parcelas+'x de '+fmt(jr.valorParcela)+' = '+fmt(jr.totalPago)+' sobre '+fmt(jr.valorParcelado)+' parcelados. Custo de juros: <strong>'+fmt(jr.juros)+'</strong>.</div>';
@@ -9330,8 +9403,13 @@ var FLX = (function(){
           staging.forEach(function(r){ r.dataEfetManual = false; });
           refreshStaging(); return;
         }
+        if(act === "conf-apagar" || act === "conf-manter"){
+          if(act === "conf-apagar") stagingConfApagar[this.dataset.id] = true; else delete stagingConfApagar[this.dataset.id];
+          renderStaging(); return;
+        }
         var idx = parseInt(this.dataset.idx, 10);
         var r = staging[idx];
+        if(act === "conf-incluir"){ r.selected = true; renderStaging(); return; }
         if(act === "pag-ok"){ r.pagamento.state = "confirmed"; r.tipo = "pagamento_fatura"; r.categoria = "Pagamento de fatura"; r.selected = true; }
         else if(act === "pag-no"){ r.pagamento.state = "rejected"; r.tipo = "despesa"; }
         else if(act === "dup-fix"){ r.corrigirDup = true; }
@@ -9423,6 +9501,8 @@ var FLX = (function(){
       }
       var substituidos = (stagingReplace && stagingReplace.ids.length) ? stagingReplace.ids.length : 0;
       if(substituidos) Store.removeMany(stagingReplace.ids); // a importação anterior vai para a lixeira antes de gravar a nova
+      var confApagar = Object.keys(stagingConfApagar).filter(function(id){ return stagingConfApagar[id]; });
+      if(confApagar.length) Store.removeMany(confApagar); // repetidos que a conferência mostrou e a pessoa mandou tirar
       plan.updates.forEach(function(up){ Store.update(up.id, up.patch); });
       famAplicarRegras(plan.adds);
       if(plan.adds.length) Store.addMany(plan.adds);
@@ -9434,6 +9514,7 @@ var FLX = (function(){
       var corrigidas = plan.updates.filter(function(u){ return u.patch.statusParcela === undefined; }).length;
       var parts = [(plan.adds.length - previstas) + " lançamento(s) importado(s)"];
       if(substituidos) parts.unshift("importação anterior substituída (" + substituidos + " lançamento(s) removido(s))");
+      if(confApagar.length) parts.push(confApagar.length + " lançamento(s) repetido(s) apagado(s) pela conferência");
       if(corrigidas) parts.push(corrigidas + " data(s) corrigida(s)");
       if(futurosCriados) parts.push(futurosCriados + " lançamento(s) futuro(s) criado(s) como previstos");
       if(internas) parts.push(internas + " transferência(s) interna(s) fora de receitas e despesas");
@@ -9450,7 +9531,7 @@ var FLX = (function(){
 
   function discardStaging(){
     staging = []; stagingMeta = null; stagingCard = null; stagingCheck = null;
-    stagingStep = "review"; stagingSetupBack = null; stagingReplace = null; stagingFaturaKey = null;
+    stagingStep = "review"; stagingSetupBack = null; stagingReplace = null; stagingFaturaKey = null; stagingConfApagar = {};
     renderStaging();
   }
 
@@ -9615,7 +9696,7 @@ var FLX = (function(){
     stagingMeta = {isExtrato: true, banco: ext.banco, ext: ext, contaKey: contaKeyDe(ext), extratoKey: extratoKeyDe(ext), criarFuturos: false};
     document.getElementById("importBanco").value = ext.banco;
     document.getElementById("importVencimento").value = "";
-    staging = extratoParaLinhas(ext);
+    staging = extratoParaLinhas(ext); stagingConfApagar = {};
     if(ext.origemTexto){ impMelhoraLinhas(staging); ext.prova = impProvaContinuidade(ext); }
     if(ext.suspeitasDocs){ staging.forEach(function(r){ if(ext.suspeitasDocs[r.documentoChave]) r.flagged = true; }); }
     stagingCard = null; stagingStep = "review"; stagingReplace = null; stagingFaturaKey = stagingMeta.extratoKey;
@@ -9710,7 +9791,7 @@ var FLX = (function(){
     var vencInput = document.getElementById("importVencimento");
     vencInput.value = meta.vencimento || "";
 
-    staging = rows; if(extra) impAnexarIds(rows, extra);
+    staging = rows; stagingConfApagar = {}; if(extra) impAnexarIds(rows, extra);
     stagingReplace = null; stagingFaturaKey = null;
     setupStagingCard();
     reannotate();
