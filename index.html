@@ -5171,7 +5171,16 @@ var FLX = (function(){
         var a = tx[i], b = tx[j];
         if(a.tipo !== b.tipo) continue;
         if(Math.abs(a.valor - b.valor) > 0.01) continue;
-        if(a.seriesId && a.seriesId === b.seriesId) continue;
+        if(a.seriesId && a.seriesId === b.seriesId){
+          // A mesma conta mensal duas vezes no mesmo mês (ex.: o extrato levou a de outubro para novembro,
+          // ao lado da prevista de novembro). Fica a que veio do banco (ou a já paga); a outra é a sugerida para apagar.
+          if(!a.deletedAt && !b.deletedAt && a.modalidade !== "Crédito" && b.modalidade !== "Crédito" && a.dataEfet && b.dataEfet && monthKey(a.dataEfet) === monthKey(b.dataEfet)){
+            var peso = function(x){ return (x.documento || x.importId ? 2 : 0) + (x.statusParcela === "prevista" ? 0 : 1); };
+            var fica = peso(b) > peso(a) ? b : a, sai = fica === a ? b : a;
+            pairs.push({a: fica, b: sai, diff: daysDiff(a.dataEfet, b.dataEfet), sim: 1, serie: true});
+          }
+          continue;
+        }
         if(a.idCompra && a.idCompra === b.idCompra) continue;
         // Conta mensal gerada automaticamente ao lado da mesma conta que veio do extrato (com outro nome):
         // mesmo valor, mesmo banco, até 5 dias. Quem sobra para apagar é sempre a gerada.
@@ -5790,8 +5799,8 @@ var FLX = (function(){
         return '<div class="review-row">'+
           '<span class="avatar" style="'+avatarStyle(p.b.banco)+'">'+escapeAttr(initial(p.b.banco))+'</span>'+
           '<div class="review-main">'+
-            '<div class="review-top"><span class="review-title">'+escapeAttr(p.b.descricao)+'</span><span class="tag-pill tag-amber">Parece repetido</span></div>'+
-            '<div class="review-sub">'+fmtDate(p.b.dataEfet)+' · já existe "'+escapeAttr(p.a.descricao)+'" de '+fmt(p.a.valor)+' em '+fmtDate(p.a.dataEfet)+'</div>'+
+            '<div class="review-top"><span class="review-title">'+escapeAttr(p.b.descricao)+'</span><span class="tag-pill tag-amber">'+(p.serie ? "Conta do mês em dobro" : "Parece repetido")+'</span></div>'+
+            '<div class="review-sub">'+fmtDate(p.b.dataEfet)+(p.b.statusParcela === "prevista" ? " (prevista)" : "")+' · já existe "'+escapeAttr(p.a.descricao)+'" de '+fmt(p.a.valor)+' em '+fmtDate(p.a.dataEfet)+(p.serie ? ", da mesma conta mensal" : "")+'</div>'+
           '</div>'+
           '<div class="review-right">'+
             '<span class="review-value">-'+fmt(p.b.valor)+'</span>'+
