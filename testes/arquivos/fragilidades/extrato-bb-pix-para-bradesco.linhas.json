@@ -1,0 +1,18 @@
+{
+ "linhas": [
+  "Extrato de Conta Corrente",
+  "Cliente: FULANO DE TAL EXEMPLO",
+  "Período: 01/11/2026 a 15/11/2026 Agência: 9999-9 Conta: 00000-1",
+  "Lançamentos",
+  "Dia Lote Documento Histórico Valor",
+  "01/11/2026 Saldo Anterior 1.000,00 (+)",
+  "Pix - Enviado",
+  "03/11/2026 99008 51234 150,00 (-)",
+  "03/11 14:22 CICRANO EXEMPLO BANCO BRADESCO S.A.",
+  "TED Transf.Eletr.Disponiv",
+  "04/11/2026 99009 51235 80,00 (+)",
+  "04/11 18:40 BELTRANA EXEMPLO BRADESCO",
+  "04/11/2026 Saldo do dia 930,00 (+)",
+  "15/11/2026 S A L D O 930,00 (+)"
+ ]
+}

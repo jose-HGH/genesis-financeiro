@@ -8129,6 +8129,25 @@ var FLX = (function(){
     [/NUBANK|NU PAGAMENTOS|NU FINANCEIRA/, "Nubank"], [/BANCO DO BRASIL|\bBB RENDE|\bOUROCARD|\bBB\b.*RENDE/, "Banco do Brasil"],
     [/ITAU/, "Itaú"], [/BRADESCO/, "Bradesco"], [/SANTANDER/, "Santander"], [/CAIXA ECONOMICA|\bCAIXA\b/, "Caixa"],
     [/BANCO INTER\b/, "Inter"], [/\bC6 BANK\b/, "C6 Bank"], [/PICPAY/, "PicPay"], [/MERCADO PAGO/, "Mercado Pago"]];
+  // O banco do extrato vem do cabeçalho, nunca de um lançamento: num extrato do BB, "Pix enviado para ... Bradesco"
+  // não pode fazer o app achar que o extrato é do Bradesco.
+  var EXT_LINHA_DE_MOVIMENTO = /\d{2}\/\d{2}|\d,\d{2}\b|\b(PIX|TED|DOC|TEV|TRANSF\w*|ENVIAD\w*|RECEBID\w*|PAGAMENTO|PAGTO|PGTO|BOLETO|DEPOSITO|SAQUE|COMPRA|TARIFA|DEBITO|CREDITO|FAVORECIDO|REMETENTE|DESTINATARIO|BCO|BANCO \d)\b/;
+  function bancoNaLinha(u){ for(var b = 0; b < EXT_BANCOS.length; b++){ if(EXT_BANCOS[b][0].test(u)) return EXT_BANCOS[b][1]; } return null; }
+  function bancoDoExtrato(norm){
+    var i, achado;
+    // 1) as primeiras linhas, antes do primeiro lançamento (é onde fica o nome do banco)
+    for(i = 0; i < Math.min(norm.length, 12); i++){
+      if(EXT_LINHA_DE_MOVIMENTO.test(norm[i]) && !/^(PERIODO|AGENCIA|CONTA|EXTRATO)\b/.test(norm[i])) break;
+      if((achado = bancoNaLinha(norm[i]))) return achado;
+    }
+    // 2) o jeito do extrato do BB: colunas "Dia Lote Documento Histórico Valor" e "S A L D O"
+    if(norm.some(function(u){ return /^DIA LOTE DOCUMENTO/.test(u) || /\bS A L D O\b/.test(u); })) return "Banco do Brasil";
+    // 3) o resto do texto, sem as linhas de lançamento (rodapé, ouvidoria etc.); vence o mais citado
+    var conta = {}, melhor = null;
+    norm.forEach(function(u){ if(!EXT_LINHA_DE_MOVIMENTO.test(u)){ var b = bancoNaLinha(u); if(b) conta[b] = (conta[b] || 0) + 1; } });
+    Object.keys(conta).forEach(function(b){ if(!melhor || conta[b] > conta[melhor]) melhor = b; });
+    return melhor;
+  }
   function lerMetadadosExtrato(lines){
     var meta = {titular: null, titularCpf: null, contaFinal: null, periodo: null, banco: null, ate: null, anoRef: null};
     var norm = lines.map(function(l){ return impNorm(l).replace(/\s+/g, " ").trim(); });
@@ -8154,8 +8173,7 @@ var FLX = (function(){
         }
       }
     }
-    var tudo = norm.join(" ");
-    for(var b = 0; b < EXT_BANCOS.length; b++){ if(EXT_BANCOS[b][0].test(tudo)){ meta.banco = EXT_BANCOS[b][1]; break; } }
+    meta.banco = bancoDoExtrato(norm);
     meta.ate = meta.periodo ? meta.periodo.ate : null;
     meta.anoRef = meta.ate ? +meta.ate.slice(0, 4) : (new Date()).getFullYear();
     return meta;
