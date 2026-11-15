@@ -1,0 +1,41 @@
+{
+  "descricao": "Extrato do BB (fictício) sem o nome do banco no topo e com Pix/TED para o Bradesco: o banco tem que ser Banco do Brasil",
+  "reimportar": false,
+  "leitura": {
+    "meta": {
+      "isExtrato": true,
+      "isFatura": false,
+      "banco": "Banco do Brasil",
+      "cardFinal": null,
+      "vencimento": null,
+      "fechamentoDia": null,
+      "fechamentoFatura": null
+    },
+    "total_linhas": 2,
+    "soma": -70,
+    "linhas": [
+      {
+        "data": "2026-11-03",
+        "dataEfet": "2026-11-03",
+        "valor": 150,
+        "sinal": "-",
+        "descricao": "CICRANO EXEMPLO BANCO BRADESCO S.A. · Pix - Enviado",
+        "tipo": "despesa",
+        "parcela": null,
+        "final": null,
+        "selecionada": true
+      },
+      {
+        "data": "2026-11-04",
+        "dataEfet": "2026-11-04",
+        "valor": 80,
+        "sinal": "+",
+        "descricao": "BELTRANA EXEMPLO BRADESCO · TED Transf.Eletr.Disponiv",
+        "tipo": "receita",
+        "parcela": null,
+        "final": null,
+        "selecionada": true
+      }
+    ]
+  }
+}
