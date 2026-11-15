@@ -135,7 +135,7 @@ Deno.serve(async (req) => {
   const pergunta = recurso.aceitaPergunta && typeof corpo.pergunta === "string"
     ? corpo.pergunta.trim().slice(0, MAX_PERGUNTA_CHARS) : "";
   if (recurso.aceitaPergunta && !pergunta) return recusar(origem, 400, "resumo_invalido");
-  const anterior = nomeRecurso.startsWith("chat") && typeof corpo.anterior === "string"
+  const anterior = (nomeRecurso.startsWith("chat") || modoAjuste) && typeof corpo.anterior === "string"
     ? corpo.anterior.trim().slice(0, MAX_ANTERIOR_CHARS) : "";
 
   let cfg: Record<string, unknown>;
