@@ -5181,7 +5181,12 @@ var FLX = (function(){
           pairs.push({a: real, b: gerada, diff: daysDiff(a.dataEfet, b.dataEfet), sim: 1, gerada: true});
           continue;
         }
-        var diff = Math.min(daysDiff(a.dataEfet,b.dataEfet), daysDiff(a.dataLanc,b.dataLanc));
+        // Parcelas de números diferentes são cobranças diferentes, mesmo com a mesma data de compra.
+        var pa = parcelaDe(a), pb = parcelaDe(b);
+        if(pa && pb && pa.n !== pb.n) continue;
+        // No cartão, todas as compras da fatura têm o mesmo "Disponível em" (o vencimento): compara pela data da compra.
+        var noCartao = a.modalidade === "Crédito" && b.modalidade === "Crédito";
+        var diff = noCartao ? daysDiff(a.dataLanc, b.dataLanc) : Math.min(daysDiff(a.dataEfet,b.dataEfet), daysDiff(a.dataLanc,b.dataLanc));
         if(diff > 3) continue;
         var sim = descSimilarity(a.descricao, b.descricao);
         if(sim < 0.5) continue;
