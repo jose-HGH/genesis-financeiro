@@ -78,7 +78,7 @@ test("orçamento estourado aparece no Fica de olho; sem nada urgente, o card fic
   } finally { await ctx.close(); }
 });
 
-test("Gen: sem o chat liberado abre o lançamento; com o chat, leva até a pergunta", async () => {
+test("Gen: sem o chat liberado abre o lançamento; com o chat, abre o painel do copiloto onde a pessoa está", async () => {
   const { ctx, page, erros } = await painel([], 1000);
   try {
     assert.match(await page.locator("#genPerguntar").innerText(), /Lança:/);
@@ -89,7 +89,19 @@ test("Gen: sem o chat liberado abre o lançamento; com o chat, leva até a pergu
     await page.evaluate(() => window.__genesisTeste.ligarChat(() => ({ ok: true, texto: "ok" })));
     await page.click("#genFab");
     await page.waitForFunction(() => document.activeElement && document.activeElement.id === "chatPergunta");
-    assert.equal(await page.evaluate(() => location.hash), "#inicio");
+    assert.equal(await page.evaluate(() => location.hash), "#analises", "não sai da área em que a pessoa está");
+    assert.ok(await page.locator("#chatCard.gen-painel").isVisible());
+    assert.ok(await page.locator("#genPainelFundo").isVisible());
+    // fecha com Esc e o quadro volta para o Início, com a mesma conversa
+    await page.keyboard.press("Escape");
+    assert.equal(await page.locator("#chatCard.gen-painel").count(), 0);
+    assert.equal(await page.locator("#genPainelFundo").count(), 0);
+    assert.equal(await page.evaluate(() => !!document.getElementById("chatCard").closest("#v5-inicio")), true);
+    // fecha também pelo X e pelo fundo
+    await page.click("#genFab"); await page.click("#genFechar");
+    assert.equal(await page.locator("#chatCard.gen-painel").count(), 0);
+    await page.click("#genFab"); await page.mouse.click(5, 5);
+    assert.equal(await page.locator("#chatCard.gen-painel").count(), 0);
     assert.match(await page.locator("#genPerguntar").innerText(), /Pergunte qualquer coisa ao Gen/);
     assert.deepEqual(erros, []);
   } finally { await ctx.close(); }
