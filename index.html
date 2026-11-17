@@ -491,6 +491,37 @@
   .chat-num li{display:flex; justify-content:space-between; gap:12px; padding:3px 0; border-bottom:1px solid var(--line); font-variant-numeric:tabular-nums;}
   .chat-itens{counter-reset:chatn;} .chat-itens li{counter-increment:chatn;} .chat-itens li span::before{content:counter(chatn) ". "; color:var(--ink-2);}
   .chat-num small{color:var(--ink-2); font-size:11.5px;}
+  /* Conversa em balões, como troca de mensagens */
+  .chat-turno .chat-eu{background:var(--accent); color:var(--accent-on, #fff); border-radius:18px 18px 4px 18px; padding:9px 14px; font-size:14.5px; line-height:1.4; box-shadow:0 1px 2px rgba(0,0,0,.08);}
+  :root[data-theme="dark"] .chat-turno .chat-eu{color:#0b0f14;}
+  .chat-turno .ia-caixa{align-self:flex-start; max-width:88%; border:1px solid var(--line); border-left:1px solid var(--line); border-radius:18px 18px 18px 4px; background:var(--soft); padding:10px 14px; margin:2px 0 6px; font-size:14.5px;}
+  .chat-turno .ia-caixa.ia-erro{border-left-color:var(--line); opacity:.92;}
+  .chat-turno .ia-rodape{font-size:11px;}
+  .chat-espera{display:inline-flex; gap:4px; align-items:center; height:18px; margin:0 !important;}
+  .chat-espera i{width:7px; height:7px; border-radius:50%; background:var(--ink-2); opacity:.35; animation:chatPonto 1.2s infinite ease-in-out;}
+  .chat-espera i:nth-child(2){animation-delay:.15s;} .chat-espera i:nth-child(3){animation-delay:.3s;}
+  .chat-espera span{position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0);}
+  @keyframes chatPonto{0%,80%,100%{opacity:.25; transform:translateY(0);} 40%{opacity:.9; transform:translateY(-3px);}}
+  @media (prefers-reduced-motion: reduce){ .chat-espera i{animation:none; opacity:.6;} }
+  .chat-linha input#chatPergunta{border-radius:999px; padding-left:16px;}
+  .chat-linha #chatEnviar{border-radius:999px;}
+  /* Painel do Gen: o mesmo quadro do chat, aberto por cima de qualquer área */
+  .gen-painel-topo{display:none;}
+  .gen-painel-fundo{position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:60;}
+  #chatCard.gen-painel{position:fixed; z-index:61; margin:0; top:12px; right:12px; bottom:12px; width:min(440px, calc(100vw - 24px)); display:flex; flex-direction:column; overflow:hidden; box-shadow:0 20px 50px rgba(0,0,0,.35);}
+  #chatCard.gen-painel > .card-head{display:none;}
+  #chatCard.gen-painel .gen-painel-topo{display:flex; align-items:center; gap:10px; padding-bottom:10px; border-bottom:1px solid var(--line); margin-bottom:10px;}
+  .gen-painel-topo .gen-mini{width:40px; height:40px; flex:none;} .gen-painel-topo .gen-mini svg{width:100%; height:100%; display:block;}
+  .gen-painel-topo b{font-size:16px; display:block;} .gen-painel-topo small{color:var(--ink-2); font-size:12px;}
+  .gen-painel-topo .gen-fechar{margin-left:auto; width:36px; height:36px; border-radius:50%; border:1px solid var(--line); background:transparent; color:var(--ink); font-size:20px; line-height:1; cursor:pointer;}
+  #chatCard.gen-painel #chatCorpo{flex:1; min-height:0; display:flex; flex-direction:column;}
+  #chatCard.gen-painel .chat-lista{flex:1; max-height:none; min-height:0; display:flex;}
+  #chatCard.gen-painel .chat-lista:empty{display:flex; flex:1;}
+  @media (max-width: 639px){
+    #chatCard.gen-painel{top:auto; left:0; right:0; bottom:0; width:auto; height:88vh; height:88dvh; border-radius:22px 22px 0 0; padding-bottom:calc(12px + env(safe-area-inset-bottom, 0px));}
+  }
+  body.gen-painel-on{overflow:hidden;}
+  body.gen-painel-on .gen-fab-box{display:none;}
   .chat-pe{display:flex; justify-content:flex-end; align-items:center; gap:12px; flex-wrap:wrap; font-size:12px; color:var(--ink-2);}
   .ia-btn{display:inline-flex; align-items:center; gap:6px; height:32px; padding:0 14px; border-radius:999px; border:1px solid var(--line); background:var(--accent-soft); color:var(--ink); font:inherit; font-size:13px; font-weight:600; cursor:pointer;}
   .ia-btn:hover{border-color:var(--ink-2);}
@@ -1584,6 +1615,7 @@
 
   <section class="card" id="chatCard" aria-labelledby="chatT" hidden>
     <div class="card-head"><h2 id="chatT">Pergunte sobre suas finanças</h2><span class="hint">O app faz as contas; o copiloto explica. Ele não vê descrições nem nomes.</span></div>
+    <div class="gen-painel-topo"><span class="gen-mini" id="genPainelMini"></span><div><b>Gen</b><small>O app faz as contas; eu explico. Não vejo descrições nem nomes.</small></div><button type="button" class="gen-fechar" id="genFechar" aria-label="Fechar o copiloto">&times;</button></div>
     <div id="chatCorpo"></div>
   </section>
 
@@ -2404,16 +2436,40 @@
       ? '<p class="olho-texto">' + esc(d.olho.texto) + '</p><button type="button" class="btn btn-alerta"' + (d.olho.area ? ' data-ir-area="' + d.olho.area + '"' : ' data-ir-alvo="' + d.olho.alvo + '"') + '>' + esc(d.olho.botao) + '</button>'
       : '<p class="olho-texto calmo">Nada pedindo atenção agora. Quando aparecer algo importante, eu aviso aqui.</p>';
   }
+  // Gen abre o painel do copiloto por cima de qualquer área: o quadro do chat sai do Início e vai para o painel
+  // (a mesma conversa), e volta para o lugar ao fechar.
+  var genMarca = null;
+  function genPainelAberto(){ var c = $("chatCard"); return !!(c && c.classList.contains("gen-painel")); }
   function abrirGen(){
-    if(chatAberto()){
-      setArea("inicio");
-      var c = $("chatCard"); if(c.scrollIntoView) c.scrollIntoView({behavior: "smooth", block: "start"});
-      var i = $("chatPergunta"); if(i && i.focus) setTimeout(function(){ i.focus({preventScroll: true}); }, 250);
-    } else openDrawer();
+    if(!chatAberto()){ openDrawer(); return; }
+    var c = $("chatCard");
+    if(!genPainelAberto()){
+      genMarca = document.createComment("chatCard");
+      c.parentNode.insertBefore(genMarca, c);
+      var fundo = el("div", {"class": "gen-painel-fundo", id: "genPainelFundo"});
+      document.body.appendChild(fundo); document.body.appendChild(c);
+      c.classList.add("gen-painel"); c.setAttribute("role", "dialog"); c.setAttribute("aria-modal", "true");
+      var mini = $("genPainelMini"); if(mini && !mini.firstChild) mini.innerHTML = GEN_SVG("gen--idle");
+      document.body.classList.add("gen-painel-on");
+    }
+    var lista = $("chatLista"); if(lista) lista.scrollTop = lista.scrollHeight;
+    var i = $("chatPergunta"); if(i && i.focus) setTimeout(function(){ i.focus({preventScroll: true}); }, 50);
   }
+  function fecharGen(){
+    var c = $("chatCard"); if(!c || !genPainelAberto()) return;
+    c.classList.remove("gen-painel"); c.removeAttribute("role"); c.removeAttribute("aria-modal");
+    if(genMarca && genMarca.parentNode){ genMarca.parentNode.insertBefore(c, genMarca); genMarca.parentNode.removeChild(genMarca); }
+    genMarca = null;
+    var f = $("genPainelFundo"); if(f) f.parentNode.removeChild(f);
+    document.body.classList.remove("gen-painel-on");
+    var fab = $("genFab"); if(fab && fab.focus) fab.focus({preventScroll: true});
+  }
+  document.addEventListener("keydown", function(e){ if(e.key === "Escape" && genPainelAberto()) fecharGen(); });
   document.addEventListener("click", function(e){
+    if(e.target && (e.target.id === "genFechar" || e.target.id === "genPainelFundo")){ fecharGen(); return; }
     var t = e.target.closest ? e.target.closest("[data-gen-abrir],[data-ir-area],[data-ir-alvo]") : null;
     if(!t) return;
+    if(genPainelAberto() && !t.hasAttribute("data-gen-abrir")) fecharGen();
     if(t.hasAttribute("data-gen-abrir")){ abrirGen(); return; }
     if(t.getAttribute("data-ir-area")){ setArea(t.getAttribute("data-ir-area")); window.scrollTo(0, 0); return; }
     var alvo = $(t.getAttribute("data-ir-alvo")); if(alvo){ var cd = alvo.closest(".card") || alvo; if(cd.scrollIntoView) cd.scrollIntoView({behavior: "smooth", block: "start"}); }
@@ -11567,7 +11623,7 @@ var CAIXA = (function(){
     }).join("");
   }
   function chatTurnoHtml(t){
-    var corpo = t.carregando ? '<p class="chat-espera">Calculando…</p>'
+    var corpo = t.carregando ? '<p class="chat-espera" aria-live="polite"><i></i><i></i><i></i><span>Calculando…</span></p>'
       : (window.__v5hide && (t.res || t.sim) ? "<p>Os valores estão ocultos. Mostre os valores para ler a resposta.</p>"
         : String(t.texto || "").split(/\n\s*\n/).map(function(p){ return "<p>" + escapeAttr(p.trim()).replace(/\n/g, "<br>") + "</p>"; }).join(""));
     var temNums = !t.carregando && !window.__v5hide && ((t.res && t.res.length) || t.sim);
@@ -11583,8 +11639,11 @@ var CAIXA = (function(){
     if(card.hidden) return;
     var foco = document.activeElement && document.activeElement.id === "chatPergunta", valor = document.getElementById("chatPergunta") ? document.getElementById("chatPergunta").value : "";
     var h = '<div class="chat-lista" id="chatLista">' + CHATD.turnos.map(chatTurnoHtml).join("") + "</div>";
-    if(!CHATD.turnos.length) h += '<div class="chat-dicas">' + ["Quanto gastei com mercado este mês?", "Quais foram meus maiores gastos em " + MESES_LEM[+shiftMonthKey(monthKey(todayISO()), -1).slice(5, 7) - 1] + "?", "Quanto ainda falta pagar de parcelas?"]
-      .map(function(q){ return '<button type="button" class="btn btn-ghost" data-chat-dica="' + escapeAttr(q) + '">' + escapeAttr(q) + "</button>"; }).join("") + "</div>";
+    // Atalhos: os de pergunta completa enviam; os que pedem um complemento ("E se eu comprar…") só preenchem o campo.
+    if(!CHATD.turnos.length) h += '<div class="chat-dicas">' + [
+      ["Como está meu mês?", ""], ["Para onde foi meu dinheiro este mês?", ""], ["E se eu comprar…", "E se eu comprar "],
+      ["Quanto ainda falta pagar de parcelas?", ""], ["Corrigir um lançamento", "Corrija: "]]
+      .map(function(q){ return '<button type="button" class="btn btn-ghost" ' + (q[1] ? 'data-chat-preencher="' + escapeAttr(q[1]) + '"' : 'data-chat-dica="' + escapeAttr(q[0]) + '"') + ">" + escapeAttr(q[0]) + "</button>"; }).join("") + "</div>";
     h += '<div class="sim-linha chat-linha"><input id="chatPergunta" maxlength="300" placeholder="Pergunte sobre os seus números" autocomplete="off"' + (CHATD.carregando ? " disabled" : "") + ">" +
       (simVozDisponivel() ? '<button type="button" class="btn btn-ghost sim-mic" id="chatMic" aria-label="Falar a pergunta" aria-pressed="false"' + (CHATD.carregando ? " disabled" : "") + '><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button>' : "") +
       '<button type="button" class="btn btn-primary" id="chatEnviar"' + (CHATD.carregando ? " disabled" : "") + ">Perguntar</button></div>" +
@@ -11820,6 +11879,7 @@ var CAIXA = (function(){
       var t = ev.target && ev.target.closest ? ev.target : null; if(!t) return;
       if(t.closest("#chatEnviar")){ chatPerguntar(); return; }
       var dica = t.closest("[data-chat-dica]"); if(dica){ chatPerguntar(dica.dataset.chatDica); return; }
+      var pre = t.closest("[data-chat-preencher]"); if(pre){ var cp = document.getElementById("chatPergunta"); if(cp){ cp.value = pre.dataset.chatPreencher; cp.focus(); } return; }
       var abrir = t.closest("[data-chat-abrir-sim]");
       if(abrir){
         var turno = CHATD.turnos.filter(function(x){ return x.sim; }).pop();
