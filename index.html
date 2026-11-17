@@ -3,6 +3,16 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Gênesis Financeiro</title>
+<!-- Proteção contra clickjacking: o GitHub Pages não deixa mandar X-Frame-Options, então o painel
+     só aparece quando não está dentro de outro site; se estiver, tenta abrir por inteiro. -->
+<style id="antiClickjack">html{display:none !important}</style>
+<script>
+(function(){
+  var dentro = true; try{ dentro = window.self !== window.top; }catch(e){}
+  if(!dentro){ var s = document.getElementById("antiClickjack"); if(s) s.parentNode.removeChild(s); }
+  else { try{ window.top.location = window.self.location.href; }catch(e){} }
+})();
+</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -11011,7 +11021,7 @@ var CAIXA = (function(){
       : sb.auth.signInWithPassword({email:email, password:password});
     action.then(function(res){
       submitBtn.disabled = false;
-      if(res.error){ setAuthStatus(res.error.message, "error"); return; }
+      if(res.error){ setAuthStatus(authMensagemErro(res.error, authMode), "error"); return; }
       if(authMode === "signup" && !res.data.session){
         setAuthStatus("Conta criada! Confira seu e-mail para confirmar antes de entrar.", "good");
         return;
@@ -11024,6 +11034,19 @@ var CAIXA = (function(){
       setAuthStatus("Erro de conexão: " + err.message, "error");
     });
   });
+
+  // Mensagens de erro do login sem dizer se o e-mail tem conta (nem "e-mail não confirmado"),
+  // para ninguém descobrir quem usa o Gênesis testando e-mails.
+  function authMensagemErro(err, modo){
+    var m = String(err && err.message || "");
+    if(/rate limit|seconds|too many/i.test(m)) return "Muitas tentativas seguidas. Espere alguns minutos e tente de novo.";
+    if(modo === "signup"){
+      if(/password/i.test(m) && /(least|characters|weak|short|pwned|leaked|compromised)/i.test(m)) return "Escolha uma senha mais forte: pelo menos 8 caracteres, misturando letras e números, e que você não use em outro site.";
+      if(/valid email|invalid email|email address/i.test(m)) return "Confira o e-mail digitado.";
+      return "Não foi possível criar a conta agora. Se você já tem conta, use Entrar ou Esqueci minha senha.";
+    }
+    return "Não foi possível entrar. Confira o e-mail e a senha. Se acabou de criar a conta, confirme pelo link que enviamos por e-mail.";
+  }
 
   // ---- Esqueci minha senha ----
   function showForgot(on){
