@@ -1181,6 +1181,37 @@
   .auth-link{color:var(--accent-ink-v5);}
   .auth-status{color:var(--muted);}
   .auth-logged-row{font-size:14px;}
+  /* Tela de entrada: antes de usar o app, a pessoa entra ou cria a conta */
+  body.porta-on{overflow:hidden;}
+  body.porta-on > *:not(#portaEntrada):not(#toast):not(script):not(style){display:none !important;}
+  .porta{position:fixed; inset:0; z-index:80; overflow-y:auto; background:var(--bg); color:var(--ink); display:flex; justify-content:center;}
+  .porta[hidden]{display:none;}
+  .porta-caixa{width:100%; max-width:420px; min-height:100%; display:flex; flex-direction:column; padding:calc(48px + env(safe-area-inset-top, 0px)) 24px calc(24px + env(safe-area-inset-bottom, 0px));}
+  .porta-marca{display:flex; flex-direction:column; align-items:center; gap:10px; margin:6vh 0 36px; text-align:center;}
+  .porta-marca .gen{width:72px; height:72px;}
+  .porta-marca b{font-family:"Space Grotesk", var(--font-ui); font-size:28px; letter-spacing:-.02em; line-height:1.1;}
+  .porta-marca small{color:var(--muted); font-size:14px;}
+  .porta #authLoggedOut .auth-tabs{display:none;}
+  .porta .auth-form{gap:14px;}
+  .porta .auth-form input{min-height:52px; font-size:16px;}
+  .porta #authSubmitBtn, .porta #authForgotBtn{min-height:52px; font-size:16px; font-weight:600; border-radius:14px;}
+  .porta #btnForgot{display:flex; align-items:center; justify-content:center; width:100%; min-height:52px; margin-top:14px; border:1.5px solid var(--accent-ink-v5); border-radius:14px; text-decoration:none; font-weight:600; font-size:15px;}
+  .porta #btnForgot[hidden]{display:none;}
+  .porta .auth-status{margin-top:12px; text-align:center; font-size:14px;}
+  .porta .auth-form > *{min-width:0; max-width:100%;}
+  .porta #authSubmitBtn{order:3;}
+  .porta #authAceiteLinha{order:2; display:block; position:relative; padding-left:32px; text-align:left; font-size:14px; line-height:1.45; color:var(--ink-2, var(--ink));}
+  .porta #authAceiteLinha[hidden]{display:none;}
+  .porta #authAceiteLinha input{position:absolute; left:0; top:0; width:20px; height:20px; min-height:0; min-width:0; margin:0; padding:0; accent-color:var(--accent);}
+  .porta #authAceiteLinha a{color:var(--accent-ink-v5);}
+  .porta-titulo{font-size:15px; font-weight:600; margin:0 0 12px;}
+  .porta-pe{margin-top:auto; padding-top:32px; display:flex; flex-direction:column; gap:14px; align-items:stretch; text-align:center;}
+  .porta-pe .btn{min-height:52px; font-size:16px; font-weight:600; border-radius:14px;}
+  .porta-ajuda{border:0; background:none; color:var(--accent-ink-v5); font:inherit; font-weight:600; font-size:15px; cursor:pointer; padding:6px;}
+  .porta-ajuda-txt{font-size:13.5px; color:var(--muted); line-height:1.5; text-align:left; background:var(--soft); border-radius:14px; padding:14px 16px;}
+  .porta-ajuda-txt a{color:var(--accent-ink-v5);}
+  .porta-seguro{font-size:12.5px; color:var(--muted);}
+  .porta-verificando .porta-form, .porta-verificando .porta-pe{visibility:hidden;}
   .dup-item, .attn-item{background:var(--soft); border-color:var(--line);}
   .upcoming-row, .latest-row, .trash-row, .mc-cat-row, .conc-item, .pf-parc-row{border-color:var(--line);}
   .up-dot.receita{background:var(--pos);}
@@ -3145,14 +3176,96 @@
     });
   }
 
+  // ---------- Tela de entrada ----------
+  // Sem conta conectada, o app não abre: aparece só a tela de entrar/criar conta (o mesmo formulário do
+  // cartão "Conta na nuvem", trazido para cá). Os dados de cada conta continuam protegidos no servidor
+  // (cada um só lê o que é seu); esta tela só garante que ninguém use o app sem se cadastrar.
+  // Fica de fora: o modo teste (/?teste=1, demonstração sem nuvem), os testes automáticos e quando
+  // a nuvem não carregou (aí o app abre só com os dados deste aparelho, como antes).
+  var PORTA = {el: null, marca: null};
+  function portaUsar(){
+    if(!sb || window.GENESIS_MODO_TESTE) return false;
+    if(navigator.webdriver){ try{ return sessionStorage.getItem("genesis-porta-teste") === "1"; }catch(e){ return false; } }
+    return true;
+  }
+  // Mesmo desenho do Gen do Início (a camada visual dele carrega depois desta tela).
+  function portaGenSvg(cls){ return '<svg viewBox="0 0 120 120" aria-hidden="true" class="gen ' + (cls || "") + '"><g class="gen-float"><line x1="60" y1="12" x2="60" y2="26" stroke="var(--line-strong)" stroke-width="5" stroke-linecap="round"/><circle class="gen-ant" cx="60" cy="10" r="7"/><rect x="6" y="54" width="10" height="24" rx="5" fill="var(--line-strong)"/><rect x="104" y="54" width="10" height="24" rx="5" fill="var(--line-strong)"/><rect class="gen-corpo" x="14" y="26" width="92" height="80" rx="28" fill="var(--card-2)" stroke-width="3"/><rect x="26" y="44" width="68" height="36" rx="18" fill="#0B0C0B"/><g class="gen-eyes"><rect x="40" y="52" width="12" height="20" rx="6"/><rect x="68" y="52" width="12" height="20" rx="6"/></g><rect x="48" y="90" width="24" height="5" rx="2.5" fill="var(--line-strong)"/></g></svg>'; };
+  function portaMontar(){
+    if(PORTA.el) return PORTA.el;
+    var el = document.createElement("div");
+    el.id = "portaEntrada"; el.className = "porta"; el.hidden = true;
+    el.setAttribute("role", "dialog"); el.setAttribute("aria-modal", "true"); el.setAttribute("aria-labelledby", "portaNome");
+    el.innerHTML = '<div class="porta-caixa">' +
+      '<div class="porta-marca">' + portaGenSvg("gen--idle") + '<b id="portaNome">Gênesis Financeiro</b><small id="portaSub">Entre para ver suas finanças</small></div>' +
+      '<div class="porta-form" id="portaSlot"></div>' +
+      '<div class="porta-pe">' +
+        '<button type="button" class="btn btn-primary" id="portaTrocar">Criar conta</button>' +
+        '<button type="button" class="porta-ajuda" id="portaAjuda" aria-expanded="false" aria-controls="portaAjudaTxt">Ajuda</button>' +
+        '<div class="porta-ajuda-txt" id="portaAjudaTxt" hidden>' +
+          '<p style="margin:0 0 8px"><b>Primeira vez?</b> Toque em "Criar conta", use seu e-mail e uma senha só sua. Enviamos um link para confirmar o e-mail antes do primeiro acesso.</p>' +
+          '<p style="margin:0 0 8px"><b>Esqueceu a senha?</b> Toque em "Esqueci minha senha" e criamos uma nova pelo link enviado ao seu e-mail.</p>' +
+          '<p style="margin:0">Leia os <a href="termos.html" target="_blank" rel="noopener">Termos de Uso</a> e a <a href="privacidade.html" target="_blank" rel="noopener">Política de Privacidade</a>. Quer só conhecer? <a href="?teste=1">Ver demonstração</a> (com dados de exemplo, nada é salvo na nuvem).</p>' +
+        '</div>' +
+        '<div class="porta-seguro">Seus dados ficam só na sua conta. Ninguém mais vê.</div>' +
+      '</div></div>';
+    document.body.appendChild(el);
+    PORTA.el = el;
+    el.addEventListener("click", function(e){
+      if(e.target.closest("#portaTrocar")){
+        var modo = authMode === "signup" ? "login" : "signup";
+        var tab = document.querySelector('.auth-tab[data-mode="' + modo + '"]'); if(tab) tab.click();
+        portaTextos();
+        var em = document.getElementById("authEmail"); if(em) em.focus();
+      } else if(e.target.closest("#portaAjuda")){
+        var t = document.getElementById("portaAjudaTxt"), b = document.getElementById("portaAjuda");
+        t.hidden = !t.hidden; b.setAttribute("aria-expanded", t.hidden ? "false" : "true");
+      }
+    });
+    return el;
+  }
+  function portaTextos(){
+    if(!PORTA.el) return;
+    var cadastro = authMode === "signup";
+    document.getElementById("portaTrocar").textContent = cadastro ? "Já tenho conta" : "Criar conta";
+    document.getElementById("portaSub").textContent = cadastro ? "Crie sua conta para começar" : "Entre para ver suas finanças";
+    var esq = document.getElementById("btnForgot"); if(esq) esq.hidden = cadastro;
+  }
+  function portaAbrir(verificando){
+    if(!portaUsar()) return;
+    var el = portaMontar(), lo = document.getElementById("authLoggedOut");
+    if(lo && lo.parentNode !== document.getElementById("portaSlot")){
+      if(!PORTA.marca){ PORTA.marca = document.createComment("lugar do login"); lo.parentNode.insertBefore(PORTA.marca, lo); }
+      document.getElementById("portaSlot").appendChild(lo);
+    }
+    el.classList.toggle("porta-verificando", !!verificando);
+    el.hidden = false; document.body.classList.add("porta-on");
+    portaTextos();
+  }
+  function portaFechar(){
+    if(!PORTA.el) return;
+    var lo = document.getElementById("authLoggedOut");
+    if(lo && PORTA.marca && PORTA.marca.parentNode) PORTA.marca.parentNode.insertBefore(lo, PORTA.marca);
+    var esq = document.getElementById("btnForgot"); if(esq) esq.hidden = false;
+    PORTA.el.hidden = true; document.body.classList.remove("porta-on");
+  }
+  // Ao carregar: se este navegador já tem login guardado, mostra só a marca enquanto confere; senão, o formulário.
+  (function(){
+    if(!portaUsar()) return;
+    var temLogin = false;
+    try{ for(var i = 0; i < localStorage.length; i++){ if(/^sb-.*-auth-token$/.test(localStorage.key(i) || "")){ temLogin = true; break; } } }catch(e){}
+    portaAbrir(temLogin);
+  })();
+
   function showAuthUI(session){
     var loggedOut = document.getElementById("authLoggedOut");
     var loggedIn = document.getElementById("authLoggedIn");
     if(session){
       loggedOut.hidden = true; loggedIn.hidden = false;
       document.getElementById("authEmailLabel").textContent = session.user.email;
+      portaFechar();
     } else {
       loggedOut.hidden = false; loggedIn.hidden = true;
+      portaAbrir(false);
     }
   }
 
