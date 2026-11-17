@@ -505,6 +505,13 @@
   @media (prefers-reduced-motion: reduce){ .chat-espera i{animation:none; opacity:.6;} }
   .chat-linha input#chatPergunta{border-radius:999px; padding-left:16px;}
   .chat-linha #chatEnviar{border-radius:999px;}
+  .chat-enviar-ico{display:none;}
+  @media (max-width: 639px){
+    #chatCard.gen-painel .chat-linha{flex-wrap:nowrap;}
+    #chatCard.gen-painel .chat-linha input#chatPergunta{flex:1; min-width:0;}
+    #chatCard.gen-painel .chat-linha .sim-mic, #chatCard.gen-painel .chat-linha #chatEnviar{flex:none; width:46px; height:46px; padding:0; display:inline-flex; align-items:center; justify-content:center; border-radius:50%;}
+    #chatCard.gen-painel .chat-enviar-txt{display:none;} #chatCard.gen-painel .chat-enviar-ico{display:block;}
+  }
   /* Painel do Gen: o mesmo quadro do chat, aberto por cima de qualquer área */
   .gen-painel-topo{display:none;}
   .gen-painel-fundo{position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:60;}
@@ -518,7 +525,8 @@
   #chatCard.gen-painel .chat-lista{flex:1; max-height:none; min-height:0; display:flex;}
   #chatCard.gen-painel .chat-lista:empty{display:flex; flex:1;}
   @media (max-width: 639px){
-    #chatCard.gen-painel{top:auto; left:0; right:0; bottom:0; width:auto; height:88vh; height:88dvh; border-radius:22px 22px 0 0; padding-bottom:calc(12px + env(safe-area-inset-bottom, 0px));}
+    #chatCard.gen-painel{top:0; left:0; right:0; bottom:0; width:auto; height:100vh; height:100dvh; border-radius:0; border:0; padding-top:calc(12px + env(safe-area-inset-top, 0px)); padding-bottom:calc(12px + env(safe-area-inset-bottom, 0px));}
+    .gen-painel-fundo{background:transparent;}
   }
   body.gen-painel-on{overflow:hidden;}
   body.gen-painel-on .gen-fab-box{display:none;}
@@ -11646,7 +11654,7 @@ var CAIXA = (function(){
       .map(function(q){ return '<button type="button" class="btn btn-ghost" ' + (q[1] ? 'data-chat-preencher="' + escapeAttr(q[1]) + '"' : 'data-chat-dica="' + escapeAttr(q[0]) + '"') + ">" + escapeAttr(q[0]) + "</button>"; }).join("") + "</div>";
     h += '<div class="sim-linha chat-linha"><input id="chatPergunta" maxlength="300" placeholder="Pergunte sobre os seus números" autocomplete="off"' + (CHATD.carregando ? " disabled" : "") + ">" +
       (simVozDisponivel() ? '<button type="button" class="btn btn-ghost sim-mic" id="chatMic" aria-label="Falar a pergunta" aria-pressed="false"' + (CHATD.carregando ? " disabled" : "") + '><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button>' : "") +
-      '<button type="button" class="btn btn-primary" id="chatEnviar"' + (CHATD.carregando ? " disabled" : "") + ">Perguntar</button></div>" +
+      '<button type="button" class="btn btn-primary" id="chatEnviar" aria-label="Perguntar"' + (CHATD.carregando ? " disabled" : "") + '><span class="chat-enviar-txt">Perguntar</span><svg class="chat-enviar-ico" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button></div>' +
       '<div class="sim-msg" id="chatMsg" role="status">' + escapeAttr(CHATD.msg || "") + "</div>" +
       (CHATD.turnos.length ? '<div class="chat-pe"><button type="button" class="resumo-link" id="chatLimpar">Limpar conversa</button></div>' : "");
     box.innerHTML = h;
